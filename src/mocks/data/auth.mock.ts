@@ -1,0 +1,47 @@
+import type { RoleResponseDto, UserResponseDto } from '@/modules/auth/types/auth.contracts'
+
+export const mockAuthUsers = {
+  'service-administrator': {
+    password: 'demo-password',
+    user: {
+      id: 101,
+      email: 'service.admin@bomach.local',
+      username: 'service.admin',
+      first_name: 'Kene',
+      last_name: 'Eze',
+      phone_number: null,
+      is_verified: true,
+      created_at: '2026-08-01T08:00:00Z',
+    } satisfies UserResponseDto,
+    role: {
+      id: 1,
+      name: 'Service Administrator',
+      branches: [],
+      permissions: {
+        dashboard: ['view'],
+        services: ['list', 'view', 'create', 'update', 'delete'],
+        service_subservices: ['list', 'view', 'create', 'update', 'delete'],
+        service_request_forms: ['list', 'view', 'create', 'update', 'delete'],
+        service_pricing_configs: ['list', 'view', 'create', 'update', 'delete'],
+        service_branch_activations: ['list', 'view', 'create', 'update', 'delete'],
+        service_workflows: ['list', 'view', 'create', 'update', 'delete'],
+        service_requests: ['list', 'view', 'create', 'update', 'delete'],
+        quotes: ['list', 'view', 'create', 'update', 'delete', 'approve'],
+        service_invoices: ['list', 'view', 'create', 'update', 'delete'],
+        payments: ['list', 'view', 'create', 'delete'],
+        approval_requests: ['list', 'view', 'create', 'approve', 'reject', 'cancel'],
+        orders: ['list', 'view', 'create', 'update', 'delete'],
+        tasks: ['list', 'view', 'create', 'update', 'delete'],
+        feedback: ['list', 'view', 'create', 'update', 'delete'],
+        reports: ['view'],
+        audit_logs: ['list'],
+
+        // Temporary mock-only permissions for deferred frontend surfaces.
+        deliverable: ['read', 'update', 'approve'],
+        'real-estate': ['read'],
+      },
+      created_at: '2026-08-01T08:00:00Z',
+      updated_at: '2026-08-01T08:00:00Z',
+    } satisfies RoleResponseDto,
+  },
+} as const
