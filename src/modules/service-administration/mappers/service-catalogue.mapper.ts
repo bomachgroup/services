@@ -1,3 +1,6 @@
+import { mapPricingConfigDto } from './pricing-config.mapper'
+import { mapRequestFormDto } from './request-form.mapper'
+import { mapWorkflowDto } from './workflow.mapper'
 import type {
   ServiceCatalogueCardDto,
   ServiceCatalogueDetailDto,
@@ -50,10 +53,18 @@ export function mapServiceCatalogueCard(dto: ServiceCatalogueCardDto): ServiceCa
 export function mapServiceCatalogueDetail(dto: ServiceCatalogueDetailDto): ServiceCatalogueItem {
   const activeRequestForm =
     dto.request_forms.find((form) => form.id === dto.active_request_form_id) ??
-    dto.active_request_form
+    dto.active_request_form ??
+    dto.request_forms[0]
 
   const activeWorkflow =
-    dto.workflows.find((workflow) => workflow.id === dto.active_workflow_id) ?? dto.active_workflow
+    dto.workflows.find((workflow) => workflow.id === dto.active_workflow_id) ??
+    dto.active_workflow ??
+    dto.workflows[0]
+
+  const activePricingConfig =
+    dto.pricing_configs.find((config) => config.id === dto.active_pricing_config_id) ??
+    dto.active_pricing_config ??
+    dto.pricing_configs[0]
 
   return {
     ...mapServiceCatalogueCard(dto),
@@ -69,5 +80,10 @@ export function mapServiceCatalogueDetail(dto: ServiceCatalogueDetailDto): Servi
       .slice()
       .sort((a, b) => a.sort_order - b.sort_order)
       .map((stage) => stage.name),
+    ...(activePricingConfig ? { activeCalculator: mapPricingConfigDto(activePricingConfig) } : {}),
+    ...(activeRequestForm
+      ? { activeRequestForm: mapRequestFormDto(activeRequestForm, dto.name) }
+      : {}),
+    ...(activeWorkflow ? { activeWorkflow: mapWorkflowDto(activeWorkflow, dto.name) } : {}),
   }
 }

@@ -9,6 +9,16 @@
 export const VERIFIED_APP_PERMISSION_VALUES = [
   'dashboard.view',
 
+  'command_center.view',
+  'notifications.view',
+  'notifications.list',
+  'notifications.mark_read',
+  'notifications.mark_all_read',
+  'workflow_rules.create',
+  'workflow_rules.view',
+  'workflow_rules.list',
+  'workflow_rules.update',
+  'workflow_rules.delete',
   'services.list',
   'services.view',
   'services.create',

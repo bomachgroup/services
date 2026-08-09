@@ -2,21 +2,18 @@ import { IconFilePlus } from '@tabler/icons-react'
 import { useQuery } from '@tanstack/react-query'
 import { Link, useNavigate } from '@tanstack/react-router'
 
-import { useAuth } from '@/app/auth'
 import { presentError } from '@/shared/errors'
 import { formatCurrency } from '@/shared/lib/formatters'
 import { cn } from '@/shared/lib/cn'
-import { DashboardSkeleton, ErrorState } from '@/shared/ui'
+import { DashboardSkeleton, ErrorState, EmptyState } from '@/shared/ui'
 import '@/modules/service-administration/styles/service-administration.css'
 
 import { dashboardQueries } from '../api/dashboard.queries'
 import type {
   DashboardAttentionItem,
   DashboardExecutiveAlert,
-  DashboardHealthMetric,
   DashboardMetric,
   DashboardPipelineStage,
-  DashboardRevenueByDivision,
   DashboardActivityItem,
 } from '../types/dashboard.types'
 import '../styles/command-center.css'
@@ -63,25 +60,6 @@ function alertNoticeClass(severity: DashboardExecutiveAlert['severity']) {
   return 'command-center-notice-blue'
 }
 
-function healthBarColor(value: number) {
-  if (value < 80) return 'var(--cc-r)'
-  if (value < 90) return 'var(--cc-y)'
-  return 'var(--cc-g)'
-}
-
-function defaultLifecycle(): DashboardPipelineStage[] {
-  return [
-    { key: 'request', label: 'Request', count: 0, state: 'done' },
-    { key: 'assessment', label: 'Assessment', count: 0, state: 'done' },
-    { key: 'quotation', label: 'Quotation', count: 0, state: 'done' },
-    { key: 'approval', label: 'Approval', count: 0, state: 'active' },
-    { key: 'invoice-payment', label: 'Invoice & Payment', count: 0, state: 'pending' },
-    { key: 'service-order', label: 'Service Order', count: 0, state: 'pending' },
-    { key: 'fulfillment', label: 'Fulfillment', count: 0, state: 'pending' },
-    { key: 'acceptance', label: 'Acceptance', count: 0, state: 'pending' },
-  ]
-}
-
 function KpiGrid({ metrics }: { metrics: DashboardMetric[] }) {
   return (
     <div className="command-center-kpis">
@@ -105,7 +83,7 @@ function KpiGrid({ metrics }: { metrics: DashboardMetric[] }) {
 }
 
 function LifecycleCard({ stages }: { stages: DashboardPipelineStage[] }) {
-  const items = stages.length >= 8 ? stages : defaultLifecycle()
+  const items = stages
 
   return (
     <section className="command-center-card">
@@ -141,38 +119,33 @@ function LifecycleCard({ stages }: { stages: DashboardPipelineStage[] }) {
   )
 }
 
-function RequestsTable({ items }: { items: DashboardAttentionItem[] }) {
+function ActionItemsCard({ items }: { items: DashboardAttentionItem[] }) {
   const navigate = useNavigate()
 
   return (
     <section className="command-center-card">
       <div className="command-center-card-header">
         <div>
-          <div className="command-center-card-title">Requests requiring action</div>
-          <div className="command-center-card-subtitle">Prioritized by SLA, value and urgency</div>
+          <div className="command-center-card-title">My action items</div>
+          <div className="command-center-card-subtitle">
+            Work the backend says currently requires your attention
+          </div>
         </div>
-        <Link
-          to="/app/$section"
-          params={{ section: 'service-requests' }}
-          className="command-center-btn command-center-btn-small"
-        >
-          View all
-        </Link>
       </div>
+
       <div className="command-center-table-wrap">
         <table className="command-center-table">
           <thead>
             <tr>
-              <th>Request</th>
-              <th>Client</th>
-              <th>Service</th>
-              <th>Status</th>
-              <th>Owner</th>
-              <th>Next action</th>
+              <th>Item</th>
+              <th>Type</th>
+              <th>Priority</th>
+              <th>Due</th>
+              <th>Details</th>
             </tr>
           </thead>
           <tbody>
-            {items.slice(0, 5).map((item) => (
+            {items.slice(0, 8).map((item) => (
               <tr
                 key={item.id}
                 onClick={() => {
@@ -180,22 +153,21 @@ function RequestsTable({ items }: { items: DashboardAttentionItem[] }) {
                   void navigate({
                     to: '/app/$section',
                     params: { section: item.destination.section },
+                    search: item.destination.search ?? {},
                   })
                 }}
               >
                 <td>
-                  <b>{item.requestNumber ?? item.recordNumber ?? item.id}</b>
-                  <div className="command-center-row-sub">{item.createdLabel ?? '—'}</div>
+                  <b>{item.title}</b>
                 </td>
-                <td>{item.client ?? '—'}</td>
-                <td>{item.service ?? '—'}</td>
+                <td>{item.recordType}</td>
                 <td>
-                  <span className={`command-center-pill ${statusPillClass(item.statusLabel)}`}>
-                    {item.statusLabel ?? item.severity}
+                  <span className={`command-center-pill ${statusPillClass(item.priority)}`}>
+                    {item.priority ?? item.severity}
                   </span>
                 </td>
-                <td>{item.owner ?? '—'}</td>
-                <td>{item.nextAction ?? item.description ?? '—'}</td>
+                <td>{item.dueLabel ?? '—'}</td>
+                <td>{item.description || '—'}</td>
               </tr>
             ))}
           </tbody>
@@ -222,50 +194,9 @@ function ExecutiveAlertsCard({ alerts }: { alerts: DashboardExecutiveAlert[] }) 
   )
 }
 
-function OperationsHealthCard({ metrics }: { metrics: DashboardHealthMetric[] }) {
-  return (
-    <section className="command-center-card">
-      <div className="command-center-card-header">
-        <div className="command-center-card-title">Operations health</div>
-      </div>
-      {metrics.map((metric) => (
-        <div key={metric.key} className="command-center-metric">
-          <label>{metric.label}</label>
-          <div className="command-center-progress" style={{ width: 90 }}>
-            <i style={{ width: `${metric.value}%`, background: healthBarColor(metric.value) }} />
-          </div>
-          <strong>{metric.value}%</strong>
-        </div>
-      ))}
-    </section>
-  )
-}
-
-function RevenueByDivisionCard({ rows }: { rows: DashboardRevenueByDivision[] }) {
-  const max = Math.max(...rows.map((row) => row.verifiedRevenue), 1)
-
-  return (
-    <section className="command-center-card">
-      <div className="command-center-card-header">
-        <div>
-          <div className="command-center-card-title">Revenue by division</div>
-          <div className="command-center-card-subtitle">Based on verified payments</div>
-        </div>
-      </div>
-      {rows.map((row) => (
-        <div key={row.id} className="command-center-metric">
-          <label>{row.division}</label>
-          <div className="command-center-progress" style={{ flex: 1 }}>
-            <i style={{ width: `${Math.max(8, (row.verifiedRevenue / max) * 100)}%` }} />
-          </div>
-          <strong>{formatCurrency(row.verifiedRevenue)}</strong>
-        </div>
-      ))}
-    </section>
-  )
-}
-
 function RecentActivityCard({ items }: { items: DashboardActivityItem[] }) {
+  const navigate = useNavigate()
+
   return (
     <section className="command-center-card">
       <div className="command-center-card-header">
@@ -283,7 +214,29 @@ function RecentActivityCard({ items }: { items: DashboardActivityItem[] }) {
       </div>
       <div className="command-center-timeline">
         {items.slice(0, 5).map((item) => (
-          <div key={item.id} className="command-center-tl">
+          <div
+            key={item.id}
+            className="command-center-tl"
+            role={item.destination ? 'button' : undefined}
+            tabIndex={item.destination ? 0 : undefined}
+            onClick={() => {
+              if (!item.destination) return
+              void navigate({
+                to: '/app/$section',
+                params: { section: item.destination.section },
+                search: item.destination.search ?? {},
+              })
+            }}
+            onKeyDown={(event) => {
+              if (!item.destination || (event.key !== 'Enter' && event.key !== ' ')) return
+              event.preventDefault()
+              void navigate({
+                to: '/app/$section',
+                params: { section: item.destination.section },
+                search: item.destination.search ?? {},
+              })
+            }}
+          >
             <b>{item.title}</b>
             <p>{item.actor ?? 'System'}</p>
             <time>{new Date(item.occurredAt).toLocaleString('en-NG')}</time>
@@ -295,32 +248,43 @@ function RecentActivityCard({ items }: { items: DashboardActivityItem[] }) {
 }
 
 export function OperationsDashboardPage() {
-  const { user } = useAuth()
-  const userId = user?.id ?? ''
+  const financialsQuery = useQuery(dashboardQueries.financials())
+  const approvalsQuery = useQuery(dashboardQueries.pendingApprovals())
+  const pipelineQuery = useQuery(dashboardQueries.pipeline())
+  const actionItemsQuery = useQuery(dashboardQueries.actionItems())
+  const activityQuery = useQuery(dashboardQueries.activity())
 
-  const summaryQuery = useQuery({ ...dashboardQueries.summary(userId), enabled: Boolean(userId) })
-  const activityQuery = useQuery(dashboardQueries.recentActivity())
+  const allPending =
+    financialsQuery.isPending &&
+    approvalsQuery.isPending &&
+    pipelineQuery.isPending &&
+    actionItemsQuery.isPending &&
+    activityQuery.isPending
 
-  if (summaryQuery.isPending) return (
+  if (allPending) {
+    return (
       <div className="min-h-0 flex-1 overflow-y-auto">
         <DashboardSkeleton />
       </div>
     )
-  if (summaryQuery.isError) {
-    const error = presentError(summaryQuery.error, 'page-load')
-    return (
-      <div className="min-h-0 flex-1 overflow-y-auto">
-        <ErrorState
-          title={error.title}
-          description={error.message}
-          onRetry={() => void summaryQuery.refetch()}
-        />
-      </div>
-    )
   }
 
-  const summary = summaryQuery.data
-  const activity = activityQuery.data ?? []
+  const metrics = [
+    ...(financialsQuery.data ?? []),
+    {
+      key: 'awaiting_approval' as const,
+      label: 'Pending approvals',
+      value: approvalsQuery.data?.total ?? 0,
+      description: 'Backend-reported pending approvals',
+    },
+    {
+      key: 'pending_quotations' as const,
+      label: 'Quote conversion',
+      value: pipelineQuery.data?.conversionRate ?? 0,
+      valueFormat: 'percent' as const,
+      description: 'Backend-reported quote-to-order conversion',
+    },
+  ]
 
   return (
     <div className="command-center">
@@ -340,37 +304,196 @@ export function OperationsDashboardPage() {
       </section>
 
       <main className="command-center-content">
-        <KpiGrid metrics={summary.metrics} />
+        {financialsQuery.isError && approvalsQuery.isError && pipelineQuery.isError ? (
+          <ErrorState
+            title="Command Center unavailable"
+            description={presentError(financialsQuery.error, 'page-load').message}
+            onRetry={() => {
+              void financialsQuery.refetch()
+              void approvalsQuery.refetch()
+              void pipelineQuery.refetch()
+            }}
+          />
+        ) : (
+          <KpiGrid metrics={metrics} />
+        )}
 
         <div className="command-center-g21">
           <div className="command-center-g21-main">
-            <LifecycleCard stages={summary.pipeline} />
-            <RequestsTable items={summary.attentionItems} />
+            {pipelineQuery.isPending ? (
+              <section className="command-center-card">
+                <div className="command-center-card-title">Service pipeline</div>
+                <div className="command-center-card-subtitle">Loading...</div>
+              </section>
+            ) : pipelineQuery.isError ? (
+              <section className="command-center-card">
+                <EmptyState
+                  title="Pipeline unavailable"
+                  description={presentError(pipelineQuery.error, 'section-load').message}
+                  action={
+                    <button
+                      type="button"
+                      className="command-center-btn command-center-btn-small"
+                      onClick={() => void pipelineQuery.refetch()}
+                    >
+                      Retry
+                    </button>
+                  }
+                />
+              </section>
+            ) : pipelineQuery.data.stages.length === 0 ? (
+              <section className="command-center-card">
+                <EmptyState
+                  title="No pipeline data"
+                  description="The backend returned no pipeline stages."
+                />
+              </section>
+            ) : (
+              <LifecycleCard stages={pipelineQuery.data.stages} />
+            )}
+
+            {actionItemsQuery.isPending ? (
+              <section className="command-center-card">
+                <div className="command-center-card-title">My action items</div>
+                <div className="command-center-card-subtitle">Loading...</div>
+              </section>
+            ) : actionItemsQuery.isError ? (
+              <section className="command-center-card">
+                <EmptyState
+                  title="Action items unavailable"
+                  description={presentError(actionItemsQuery.error, 'section-load').message}
+                  action={
+                    <button
+                      type="button"
+                      className="command-center-btn command-center-btn-small"
+                      onClick={() => void actionItemsQuery.refetch()}
+                    >
+                      Retry
+                    </button>
+                  }
+                />
+              </section>
+            ) : actionItemsQuery.data.length === 0 ? (
+              <section className="command-center-card">
+                <EmptyState
+                  title="No action items"
+                  description="There is currently nothing requiring your attention."
+                />
+              </section>
+            ) : (
+              <ActionItemsCard items={actionItemsQuery.data} />
+            )}
           </div>
+
           <div className="command-center-g21-side">
-            <ExecutiveAlertsCard alerts={summary.executiveAlerts} />
-            <OperationsHealthCard metrics={summary.operationsHealth} />
+            {approvalsQuery.isPending ? (
+              <section className="command-center-card">
+                <div className="command-center-card-title">Pending approvals</div>
+                <div className="command-center-card-subtitle">Loading...</div>
+              </section>
+            ) : approvalsQuery.isError ? (
+              <section className="command-center-card">
+                <EmptyState
+                  title="Approvals unavailable"
+                  description={presentError(approvalsQuery.error, 'section-load').message}
+                  action={
+                    <button
+                      type="button"
+                      className="command-center-btn command-center-btn-small"
+                      onClick={() => void approvalsQuery.refetch()}
+                    >
+                      Retry
+                    </button>
+                  }
+                />
+              </section>
+            ) : approvalsQuery.data.alerts.length === 0 ? (
+              <section className="command-center-card">
+                <EmptyState
+                  title="No pending approvals"
+                  description="The backend returned no approval domains."
+                />
+              </section>
+            ) : (
+              <ExecutiveAlertsCard alerts={approvalsQuery.data.alerts} />
+            )}
+
+            <section className="command-center-card">
+              <div className="command-center-card-header">
+                <div>
+                  <div className="command-center-card-title">Financial summary</div>
+                  <div className="command-center-card-subtitle">
+                    Values shown exactly as reported by Command Center.
+                  </div>
+                </div>
+              </div>
+
+              {financialsQuery.isPending ? (
+                <div className="command-center-card-subtitle">Loading...</div>
+              ) : financialsQuery.isError ? (
+                <EmptyState
+                  title="Financials unavailable"
+                  description={presentError(financialsQuery.error, 'section-load').message}
+                  action={
+                    <button
+                      type="button"
+                      className="command-center-btn command-center-btn-small"
+                      onClick={() => void financialsQuery.refetch()}
+                    >
+                      Retry
+                    </button>
+                  }
+                />
+              ) : financialsQuery.data.length === 0 ? (
+                <EmptyState
+                  title="No financial data"
+                  description="No financial metrics were returned."
+                />
+              ) : (
+                <div className="space-y-2">
+                  {financialsQuery.data.map((metric) => (
+                    <div key={metric.label} className="command-center-metric">
+                      <label>{metric.label}</label>
+                      <strong>{formatMetricValue(metric)}</strong>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </section>
           </div>
         </div>
 
-        <div className="command-center-g2">
-          <RevenueByDivisionCard rows={summary.revenueByDivision} />
-          {activityQuery.isPending ? (
-            <section className="command-center-card">
-              <div className="command-center-card-title">Recent system activity</div>
-              <div className="command-center-card-subtitle">Loading audit history…</div>
-            </section>
-          ) : activityQuery.isError ? (
-            <section className="command-center-card">
-              <div className="command-center-card-title">Recent system activity</div>
-              <div className="command-center-card-subtitle">
-                {presentError(activityQuery.error, 'section-load').message}
-              </div>
-            </section>
-          ) : (
-            <RecentActivityCard items={activity} />
-          )}
-        </div>
+        {activityQuery.isPending ? (
+          <section className="command-center-card">
+            <div className="command-center-card-title">Recent system activity</div>
+            <div className="command-center-card-subtitle">Loading...</div>
+          </section>
+        ) : activityQuery.isError ? (
+          <section className="command-center-card">
+            <EmptyState
+              title="Activity unavailable"
+              description={presentError(activityQuery.error, 'section-load').message}
+              action={
+                <button
+                  type="button"
+                  className="command-center-btn command-center-btn-small"
+                  onClick={() => void activityQuery.refetch()}
+                >
+                  Retry
+                </button>
+              }
+            />
+          </section>
+        ) : activityQuery.data.length === 0 ? (
+          <section className="command-center-card">
+            <EmptyState
+              title="No recent activity"
+              description="No recent Command Center activity was returned."
+            />
+          </section>
+        ) : (
+          <RecentActivityCard items={activityQuery.data} />
+        )}
       </main>
     </div>
   )

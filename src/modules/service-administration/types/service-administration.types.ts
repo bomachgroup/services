@@ -2,6 +2,33 @@ export type ServiceStatus = 'active' | 'draft' | 'inactive'
 export type ConfigurationStatus = 'active' | 'draft' | 'inactive'
 export type PricingType = 'fixed' | 'unit_rate' | 'area_rate' | 'percentage' | 'formula'
 export type BranchActivationState = 'active' | 'inactive' | 'setup-required'
+export type ServiceSetupStageId =
+  'service-core' | 'subservices' | 'pricing' | 'request-form' | 'workflow' | 'branches' | 'publish'
+
+export type ServiceSetupStageState = 'pending' | 'running' | 'success' | 'failed' | 'skipped'
+
+export interface ServiceSetupStageProgress {
+  id: ServiceSetupStageId
+  label: string
+  state: ServiceSetupStageState
+  error?: string
+}
+
+export interface CreateServiceStageAccess {
+  subservices: boolean
+  pricing: boolean
+  requestForm: boolean
+  workflow: boolean
+  branches: boolean
+  publish: boolean
+  ownerRoles: boolean
+}
+
+export interface ServiceSetupRunResult {
+  serviceId: number
+  stages: ServiceSetupStageProgress[]
+  complete: boolean
+}
 
 export interface ServiceCategoryOption {
   id: number
@@ -59,6 +86,9 @@ export interface ServiceCatalogueItem {
   subservices?: string[]
   requestFields?: string[]
   workflowStages?: string[]
+  activeCalculator?: PricingCalculator
+  activeRequestForm?: ServiceRequestForm
+  activeWorkflow?: ServiceWorkflow
 }
 
 export interface CalculatorVariable {
@@ -246,6 +276,10 @@ export interface CreateServiceWizardInput {
   pricing: ServicePricingSetup
   requestFields: string[]
   workflowStages: string[]
+  ownerRoleId?: number | null
+  clientVisibility?: 'visible' | 'internal' | 'hidden'
+  branchIds?: number[]
+  enabledStages?: ServiceSetupStageId[]
 }
 
 export interface ConfigureServiceInput {
@@ -254,6 +288,7 @@ export interface ConfigureServiceInput {
   code: string
   division: string
   owner: string
+  ownerRoleId?: number | null
   description: string
   slaDays: number
   fulfilmentMode: string
