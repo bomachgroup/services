@@ -146,7 +146,7 @@ export function AutomationRulesPanel() {
       ) : (rulesQuery.data ?? []).length === 0 ? (
         <EmptyState
           title="No automation rules"
-          description="No automation rules have been configured yet."
+          description="Automation rules will appear here once the first rule is created."
         />
       ) : (
         (rulesQuery.data ?? []).map((rule) => (
@@ -252,7 +252,10 @@ function RuleEditor({
   })
   const availableRecipients = recipientsQuery.data ?? EMPTY_RECIPIENTS
   const selectedRecipients = useMemo(
-    () => selectedRecipientIds.map((id) => availableRecipients.find((item) => item.userId === id)).filter(Boolean),
+    () =>
+      selectedRecipientIds
+        .map((id) => availableRecipients.find((item) => item.userId === id))
+        .filter(Boolean),
     [availableRecipients, selectedRecipientIds],
   )
   const unknownSelectedRecipientIds = selectedRecipientIds.filter(
@@ -478,7 +481,7 @@ function RuleEditor({
                           key={recipient.userId}
                           type="button"
                           className={`service-admin-rule-recipient-option${
-                            checked ? ' service-admin-rule-recipient-option--active' : ''
+                            checked ? 'service-admin-rule-recipient-option--active' : ''
                           }`}
                           onClick={() => toggleRecipient(recipient.userId)}
                         >

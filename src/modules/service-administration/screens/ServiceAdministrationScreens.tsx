@@ -65,6 +65,7 @@ export function ServiceCatalogueScreen({
   branchAvailabilityDisabled?: boolean
   onDuplicate?: ((service: ServiceCatalogueItem) => void) | undefined
 }) {
+  const hasActiveFilters = query.trim().length > 0 || division.length > 0 || status.length > 0
   const divisions = useMemo(
     () => Array.from(new Set(services.map((service) => service.division))),
     [services],
@@ -104,11 +105,7 @@ export function ServiceCatalogueScreen({
     return () => window.clearTimeout(timeoutId)
   }, [searchDraft, query])
 
-  const pageSummary = (
-    <span>
-      Page {page} of {pageCount} · {totalCount} service{totalCount === 1 ? '' : 's'}
-    </span>
-  )
+  const recordCountLabel = `${totalCount} service${totalCount === 1 ? '' : 's'}`
 
   return (
     <div className="service-admin-page service-admin-content">
@@ -179,25 +176,39 @@ export function ServiceCatalogueScreen({
           {services.length === 0 ? (
             <section className="service-admin-card col-span-full border-dashed p-6 sm:p-8">
               <div className="mx-auto max-w-xl text-center">
-                <div className="service-admin-card-title">No services in the catalogue yet</div>
+                <div className="service-admin-card-title">
+                  {hasActiveFilters
+                    ? 'No services match the current filters'
+                    : 'No services in the catalogue yet'}
+                </div>
                 <div className="service-admin-card-subtitle mt-1">
-                  Service cards will appear here after the first Service is created. You can still
-                  search, filter, review branch availability, and start the setup flow from this
-                  page.
+                  {hasActiveFilters
+                    ? 'Try clearing or adjusting the search and filter settings to see more services.'
+                    : 'Service cards will appear here after the first Service is created. You can still search, filter, review branch availability, and start the setup flow from this page.'}
                 </div>
                 <div className="mt-4 flex flex-wrap justify-center gap-2">
-                  <button
-                    type="button"
-                    className="service-admin-button service-admin-button-primary"
-                    disabled={createDisabled || !onCreate}
-                    title={
-                      createDisabled ? 'You do not have permission to create services' : undefined
-                    }
-                    onClick={() => onCreate?.()}
-                  >
-                    <AccessLockIcon show={createDisabled} />
-                    Create first Service
-                  </button>
+                  {hasActiveFilters ? (
+                    <button
+                      type="button"
+                      className="service-admin-button service-admin-button-primary"
+                      onClick={() => onFiltersChange({ query: '', division: '', status: '' })}
+                    >
+                      Clear filters
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      className="service-admin-button service-admin-button-primary"
+                      disabled={createDisabled || !onCreate}
+                      title={
+                        createDisabled ? 'You do not have permission to create services' : undefined
+                      }
+                      onClick={() => onCreate?.()}
+                    >
+                      <AccessLockIcon show={createDisabled} />
+                      Create first Service
+                    </button>
+                  )}
                   <button
                     type="button"
                     className="service-admin-button"
@@ -242,9 +253,7 @@ export function ServiceCatalogueScreen({
                       className="service-admin-button service-admin-button-small"
                       disabled={!onConfigure}
                       title={
-                        !onConfigure
-                          ? 'You do not have permission to view this service'
-                          : undefined
+                        !onConfigure ? 'You do not have permission to view this service' : undefined
                       }
                       onClick={() => onConfigure?.(service)}
                     >
@@ -268,25 +277,32 @@ export function ServiceCatalogueScreen({
           })}
         </div>
 
-        <div className="service-admin-filter-group service-admin-catalog-filter">
-          {pageSummary}
-          <span className="service-admin-grow" />
-          <button
-            type="button"
-            className="service-admin-button"
-            disabled={page <= 1}
-            onClick={() => onPageChange(page - 1)}
-          >
-            Previous
-          </button>
-          <button
-            type="button"
-            className="service-admin-button"
-            disabled={page >= pageCount}
-            onClick={() => onPageChange(page + 1)}
-          >
-            Next
-          </button>
+        <div className="service-admin-table-pagination">
+          <div className="service-admin-table-pagination-summary">
+            <span className="service-admin-table-pagination-count">{recordCountLabel}</span>
+            <span className="service-admin-table-pagination-divider" aria-hidden="true" />
+            <span>
+              Page <b>{page}</b> of <b>{pageCount}</b>
+            </span>
+          </div>
+          <div className="service-admin-table-pagination-actions">
+            <button
+              type="button"
+              className="service-admin-button"
+              disabled={page <= 1}
+              onClick={() => onPageChange(page - 1)}
+            >
+              Previous
+            </button>
+            <button
+              type="button"
+              className="service-admin-button"
+              disabled={page >= pageCount}
+              onClick={() => onPageChange(page + 1)}
+            >
+              Next
+            </button>
+          </div>
         </div>
       </div>
     </div>
@@ -419,7 +435,7 @@ export function CalculatorLibraryScreen({
                         <div className="service-admin-card-subtitle mt-1">
                           {!hasServices
                             ? 'Create a service in the catalogue first, then add a calculator for it.'
-                            : 'Pricing configurations will appear here once a Service has a calculator.'}
+                            : 'Calculator configurations will appear here once a service has pricing set up.'}
                         </div>
                       </div>
                     </td>
@@ -456,7 +472,7 @@ export function CalculatorLibraryScreen({
                         <button
                           type="button"
                           className={`service-admin-button service-admin-button-small${
-                            isActive ? ' service-admin-calculator-test-button--active' : ''
+                            isActive ? 'service-admin-calculator-test-button--active' : ''
                           }`}
                           aria-pressed={isActive}
                           onClick={() => {
@@ -487,14 +503,12 @@ export function CalculatorLibraryScreen({
 
           {!active ? (
             <div className="service-admin-notice service-admin-notice-blue">
-              <b>No live calculator to test yet</b>
+              <b>No calculator selected yet</b>
               <br />
-              Create a calculator to configure variables, formula rules, deposits, taxes and
-              approval thresholds. This panel will then become the live test workspace.
+              Select or create a calculator to preview variables, formula rules, deposits, taxes,
+              and approval thresholds in one place.
             </div>
           ) : null}
-
-   
 
           {fields.map((field) => (
             <div className="service-admin-field" key={field.key}>
@@ -685,7 +699,7 @@ export function RequestFormBuilderScreen({
               <div className="service-admin-card-subtitle mt-1">
                 {selectedService
                   ? 'Add fields from the palette to define what clients must provide for this service.'
-                  : 'Create a service in the catalogue first, then return here to design its request form.'}
+                  : 'Choose a service to start designing its request form.'}
               </div>
             </div>
           ) : (
