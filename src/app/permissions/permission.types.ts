@@ -19,6 +19,8 @@ export const VERIFIED_APP_PERMISSION_VALUES = [
   'workflow_rules.list',
   'workflow_rules.update',
   'workflow_rules.delete',
+  'employees.list',
+  'clients.list',
   'services.list',
   'services.view',
   'services.create',
@@ -84,7 +86,8 @@ export const VERIFIED_APP_PERMISSION_VALUES = [
   'payments.view',
   'payments.create',
   'payments.delete',
-
+  'expenses.approve',
+  'expenses.reject',
   'approval_requests.list',
   'approval_requests.view',
   'approval_requests.create',

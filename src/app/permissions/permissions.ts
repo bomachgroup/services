@@ -17,6 +17,9 @@ export const PERMISSIONS = {
   workflowRulesUpdate: 'workflow_rules.update',
   workflowRulesDelete: 'workflow_rules.delete',
 
+  employeesList: 'employees.list',
+  clientsList: 'clients.list',
+
   servicesList: 'services.list',
   servicesView: 'services.view',
   servicesCreate: 'services.create',
@@ -83,6 +86,9 @@ export const PERMISSIONS = {
   paymentsCreate: 'payments.create',
   paymentsDelete: 'payments.delete',
 
+  expensesApprove: 'expenses.approve',
+
+  expensesReject: 'expenses.reject',
   approvalRequestsList: 'approval_requests.list',
   approvalRequestsView: 'approval_requests.view',
   approvalRequestsCreate: 'approval_requests.create',
