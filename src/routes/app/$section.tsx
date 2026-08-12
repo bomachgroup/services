@@ -25,9 +25,13 @@ import {
 } from '@/modules/fulfillment'
 import {
   ExperienceIntelligenceSectionPage,
+  FeedbackQualityLivePage,
+  ReportsAnalyticsLivePage,
   type ExperienceIntelligenceSection,
 } from '@/modules/experience-intelligence'
 import {
+  RealEstateInventoryLivePage,
+  SpecializedOperationsLivePage,
   SpecializedServicesSectionPage,
   type SpecializedServicesSection,
 } from '@/modules/specialized-services'
@@ -76,6 +80,10 @@ export type AppSectionSearch = AppRecordSearch & {
   service?: string
   deliverableType?: string
   clientVisible?: string
+  feedbackType?: string
+  ratingMin?: number
+  estate?: string
+  property?: string
   page?: number
 }
 
@@ -91,6 +99,8 @@ export function parseRecordSearch(search: Record<string, unknown>): AppSectionSe
   const order = stringValue(search.order)
   const task = stringValue(search.task)
   const deliverable = stringValue(search.deliverable)
+  const estate = stringValue(search.estate)
+  const property = stringValue(search.property) ?? stringValue(search.plot)
   const feedback = stringValue(search.feedback)
 
   const catalogueSearch = stringValue(search.search)
@@ -106,6 +116,20 @@ export function parseRecordSearch(search: Record<string, unknown>): AppSectionSe
   const requestService = stringValue(search.service)
   const deliverableType = stringValue(search.deliverableType)
   const clientVisible = stringValue(search.clientVisible)
+  const feedbackType = stringValue(search.feedbackType)
+  const rawRatingMin =
+    typeof search.ratingMin === 'number'
+      ? search.ratingMin
+      : typeof search.ratingMin === 'string'
+        ? Number(search.ratingMin)
+        : undefined
+  const ratingMin =
+    rawRatingMin !== undefined &&
+    Number.isInteger(rawRatingMin) &&
+    rawRatingMin >= 1 &&
+    rawRatingMin <= 5
+      ? rawRatingMin
+      : undefined
   const rawPage =
     typeof search.page === 'number'
       ? search.page
@@ -122,6 +146,8 @@ export function parseRecordSearch(search: Record<string, unknown>): AppSectionSe
   if (order) result.order = order
   if (task) result.task = task
   if (deliverable) result.deliverable = deliverable
+  if (estate) result.estate = estate
+  if (property) result.property = property
   if (feedback) result.feedback = feedback
 
   if (catalogueSearch) result.search = catalogueSearch
@@ -135,6 +161,8 @@ export function parseRecordSearch(search: Record<string, unknown>): AppSectionSe
   if (requestService) result.service = requestService
   if (deliverableType) result.deliverableType = deliverableType
   if (clientVisible === 'true' || clientVisible === 'false') result.clientVisible = clientVisible
+  if (feedbackType) result.feedbackType = feedbackType
+  if (ratingMin) result.ratingMin = ratingMin
   if (cataloguePage) result.page = cataloguePage
 
   return result
@@ -167,22 +195,38 @@ function AppShellRoute() {
 
   if (section === 'service-requests') return <ServiceRequestsLivePage recordSearch={recordSearch} />
   if (section === 'quotations') return <QuotationsLivePage recordSearch={recordSearch} />
-  if (section === 'invoices-payments') return <InvoicesPaymentsLivePage recordSearch={recordSearch} />
+  if (section === 'invoices-payments')
+    return <InvoicesPaymentsLivePage recordSearch={recordSearch} />
   if (section === 'approvals') return <ApprovalsLivePage recordSearch={recordSearch} />
   if (section === 'service-orders') return <ServiceOrdersLivePage recordSearch={recordSearch} />
   if (section === 'execution-tasks') return <ExecutionTasksLivePage recordSearch={recordSearch} />
   if (section === 'deliverables') return <DeliverablesLivePage recordSearch={recordSearch} />
+  if (section === 'feedback-quality') return <FeedbackQualityLivePage recordSearch={recordSearch} />
+  if (section === 'reports-analytics') return <ReportsAnalyticsLivePage />
+  if (section === 'real-estate-inventory')
+    return <RealEstateInventoryLivePage recordSearch={recordSearch} />
+  if (section === 'survey-engineering-others')
+    return <SpecializedOperationsLivePage recordSearch={recordSearch} />
 
   if (commercialSections.has(section as CommercialSection)) {
-    return <CommercialSectionPage section={section as CommercialSection} recordSearch={recordSearch} />
+    return (
+      <CommercialSectionPage section={section as CommercialSection} recordSearch={recordSearch} />
+    )
   }
 
   if (serviceAdministrationSections.has(section as ServiceAdministrationSection)) {
-    return <ServiceAdministrationSectionPage section={section as ServiceAdministrationSection} recordSearch={recordSearch} />
+    return (
+      <ServiceAdministrationSectionPage
+        section={section as ServiceAdministrationSection}
+        recordSearch={recordSearch}
+      />
+    )
   }
 
   if (fulfillmentSections.has(section as FulfillmentSection)) {
-    return <FulfillmentSectionPage section={section as FulfillmentSection} recordSearch={recordSearch} />
+    return (
+      <FulfillmentSectionPage section={section as FulfillmentSection} recordSearch={recordSearch} />
+    )
   }
 
   if (specializedSections.has(section as SpecializedServicesSection)) {
@@ -190,7 +234,12 @@ function AppShellRoute() {
   }
 
   if (experienceIntelligenceSections.has(section as ExperienceIntelligenceSection)) {
-    return <ExperienceIntelligenceSectionPage section={section as ExperienceIntelligenceSection} recordSearch={recordSearch} />
+    return (
+      <ExperienceIntelligenceSectionPage
+        section={section as ExperienceIntelligenceSection}
+        recordSearch={recordSearch}
+      />
+    )
   }
 
   const title = formatSectionTitle(section)
