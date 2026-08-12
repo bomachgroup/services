@@ -1,47 +1,84 @@
+import { lazy, Suspense } from 'react'
 import { createFileRoute } from '@tanstack/react-router'
 
 import { findNavigationItemByPath, operationsNavigation } from '@/app/navigation'
 import { PERMISSIONS, requireRoutePermission } from '@/app/permissions'
+import { SectionLoadingState } from '@/app/loading/SectionLoadingState'
 import type { AppRecordSearch } from '@/shared/navigation'
-import {
-  ServiceAdministrationSectionPage,
-  type ServiceAdministrationSection,
-} from '@/modules/service-administration'
+import type { ServiceAdministrationSection } from '@/modules/service-administration'
 import { ModuleShellPage } from '@/modules/foundation/pages/ModuleShellPage'
-import {
-  CommercialSectionPage,
-  ServiceRequestsLivePage,
-  QuotationsLivePage,
-  InvoicesPaymentsLivePage,
-  ApprovalsLivePage,
-  type CommercialSection,
-} from '@/modules/commercial'
-import {
-  DeliverablesLivePage,
-  ExecutionTasksLivePage,
-  FulfillmentSectionPage,
-  ServiceOrdersLivePage,
-  type FulfillmentSection,
-} from '@/modules/fulfillment'
-import {
-  ExperienceIntelligenceSectionPage,
-  FeedbackQualityLivePage,
-  ReportsAnalyticsLivePage,
-  type ExperienceIntelligenceSection,
-} from '@/modules/experience-intelligence'
-import {
-  RealEstateInventoryLivePage,
-  SpecializedOperationsLivePage,
-  SpecializedServicesSectionPage,
-  type SpecializedServicesSection,
-} from '@/modules/specialized-services'
 
-const commercialSections = new Set<CommercialSection>([
-  'service-requests',
-  'quotations',
-  'invoices-payments',
-  'approvals',
-])
+const ServiceAdministrationSectionPage = lazy(() =>
+  import('@/modules/service-administration').then((module) => ({
+    default: module.ServiceAdministrationSectionPage,
+  })),
+)
+
+const ServiceRequestsLivePage = lazy(() =>
+  import('@/modules/commercial/pages/ServiceRequestsLivePage').then((module) => ({
+    default: module.ServiceRequestsLivePage,
+  })),
+)
+
+const QuotationsLivePage = lazy(() =>
+  import('@/modules/commercial/pages/QuotationsLivePage').then((module) => ({
+    default: module.QuotationsLivePage,
+  })),
+)
+
+const InvoicesPaymentsLivePage = lazy(() =>
+  import('@/modules/commercial/pages/InvoicesPaymentsLivePage').then((module) => ({
+    default: module.InvoicesPaymentsLivePage,
+  })),
+)
+
+const ApprovalsLivePage = lazy(() =>
+  import('@/modules/commercial/pages/ApprovalsLivePage').then((module) => ({
+    default: module.ApprovalsLivePage,
+  })),
+)
+
+const ServiceOrdersLivePage = lazy(() =>
+  import('@/modules/fulfillment/pages/ServiceOrdersLivePage').then((module) => ({
+    default: module.ServiceOrdersLivePage,
+  })),
+)
+
+const ExecutionTasksLivePage = lazy(() =>
+  import('@/modules/fulfillment/pages/ExecutionTasksLivePage').then((module) => ({
+    default: module.ExecutionTasksLivePage,
+  })),
+)
+
+const DeliverablesLivePage = lazy(() =>
+  import('@/modules/fulfillment/pages/DeliverablesLivePage').then((module) => ({
+    default: module.DeliverablesLivePage,
+  })),
+)
+
+const RealEstateInventoryLivePage = lazy(() =>
+  import('@/modules/specialized-services/pages/RealEstateInventoryLivePage').then((module) => ({
+    default: module.RealEstateInventoryLivePage,
+  })),
+)
+
+const SpecializedOperationsLivePage = lazy(() =>
+  import('@/modules/specialized-services/pages/SpecializedOperationsLivePage').then((module) => ({
+    default: module.SpecializedOperationsLivePage,
+  })),
+)
+
+const FeedbackQualityLivePage = lazy(() =>
+  import('@/modules/experience-intelligence/pages/FeedbackQualityLivePage').then((module) => ({
+    default: module.FeedbackQualityLivePage,
+  })),
+)
+
+const ReportsAnalyticsLivePage = lazy(() =>
+  import('@/modules/experience-intelligence/pages/ReportsAnalyticsLivePage').then((module) => ({
+    default: module.ReportsAnalyticsLivePage,
+  })),
+)
 
 const serviceAdministrationSections = new Set<ServiceAdministrationSection>([
   'service-catalogue',
@@ -49,23 +86,6 @@ const serviceAdministrationSections = new Set<ServiceAdministrationSection>([
   'request-form-builder',
   'workflow-designer',
   'branch-activation',
-])
-
-const fulfillmentSections = new Set<FulfillmentSection>([
-  'service-orders',
-  'execution-tasks',
-  'deliverables',
-])
-
-const specializedSections = new Set<SpecializedServicesSection>([
-  'real-estate-inventory',
-  'survey-engineering-others',
-])
-
-const experienceIntelligenceSections = new Set<ExperienceIntelligenceSection>([
-  'feedback-quality',
-  'reports-analytics',
-  'audit-log',
 ])
 
 export type AppSectionSearch = AppRecordSearch & {
@@ -191,6 +211,16 @@ export const Route = createFileRoute('/app/$section')({
 
 function AppShellRoute() {
   const { section } = Route.useParams()
+
+  return (
+    <Suspense fallback={<SectionLoadingState section={section} />}>
+      <AppShellRouteContent />
+    </Suspense>
+  )
+}
+
+function AppShellRouteContent() {
+  const { section } = Route.useParams()
   const recordSearch = Route.useSearch()
 
   if (section === 'service-requests') return <ServiceRequestsLivePage recordSearch={recordSearch} />
@@ -208,35 +238,10 @@ function AppShellRoute() {
   if (section === 'survey-engineering-others')
     return <SpecializedOperationsLivePage recordSearch={recordSearch} />
 
-  if (commercialSections.has(section as CommercialSection)) {
-    return (
-      <CommercialSectionPage section={section as CommercialSection} recordSearch={recordSearch} />
-    )
-  }
-
   if (serviceAdministrationSections.has(section as ServiceAdministrationSection)) {
     return (
       <ServiceAdministrationSectionPage
         section={section as ServiceAdministrationSection}
-        recordSearch={recordSearch}
-      />
-    )
-  }
-
-  if (fulfillmentSections.has(section as FulfillmentSection)) {
-    return (
-      <FulfillmentSectionPage section={section as FulfillmentSection} recordSearch={recordSearch} />
-    )
-  }
-
-  if (specializedSections.has(section as SpecializedServicesSection)) {
-    return <SpecializedServicesSectionPage section={section as SpecializedServicesSection} />
-  }
-
-  if (experienceIntelligenceSections.has(section as ExperienceIntelligenceSection)) {
-    return (
-      <ExperienceIntelligenceSectionPage
-        section={section as ExperienceIntelligenceSection}
         recordSearch={recordSearch}
       />
     )
