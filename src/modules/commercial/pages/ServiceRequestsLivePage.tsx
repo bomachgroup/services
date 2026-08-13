@@ -30,6 +30,11 @@ import type {
 } from '../api/service-requests.types'
 import { CreateServiceRequestLiveWorkspace } from '../workspaces/CreateServiceRequestLiveWorkspace'
 import { ServiceRequestDetailWorkspace } from '../workspaces/ServiceRequestDetailWorkspace'
+import { CommercialRegisterPagination } from '../components/CommercialRegisterPagination'
+import {
+  CommercialRegisterHeader,
+  CommercialSummaryGrid,
+} from '../components/CommercialRegisterChrome'
 import '../styles/commercial.css'
 
 function statusClass(status: string) {
@@ -358,35 +363,28 @@ export function ServiceRequestsLivePage({ recordSearch }: { recordSearch: AppSec
       }
     >
       <main className="commercial-content">
-        <section className="commercial-kgrid commercial-kgrid-4" aria-label="Request summary">
-          {summaryQuery.isPending ? (
-            <article className="commercial-kpi">
-              <div className="commercial-kpi-label">Loading summary...</div>
-            </article>
-          ) : summaryQuery.isError ? (
-            <article className="commercial-kpi">
-              <div className="commercial-kpi-label">Summary unavailable</div>
-              <div className="commercial-kpi-note">The request register is still available.</div>
-            </article>
-          ) : (
-            REQUEST_SUMMARY_CARDS.map(([label, key]) => (
-              <article className="commercial-kpi" key={label}>
-                <div className="commercial-kpi-label">{label}</div>
-                <div className="commercial-kpi-value">{summaryQuery.data[key]}</div>
-              </article>
-            ))
-          )}
-        </section>
+        <CommercialSummaryGrid
+          ariaLabel="Request summary"
+          loading={summaryQuery.isPending}
+          error={summaryQuery.isError}
+          errorNote="The request register is still available."
+          items={
+            summaryQuery.data
+              ? REQUEST_SUMMARY_CARDS.map(([label, key]) => ({
+                  label,
+                  value: summaryQuery.data[key],
+                }))
+              : []
+          }
+        />
 
         <section className="commercial-card">
-          <header className="commercial-card-header">
-            <div>
-              <h2>Service Request Register</h2>
-              <p>Live commercial requests across your current workspace</p>
-            </div>
-            <div className="commercial-card-header-actions">
-              <span className="commercial-count">{recordCountLabel}</span>
-              {listQuery.isFetching ? <span className="commercial-count">Refreshing…</span> : null}
+          <CommercialRegisterHeader
+            title="Service Request Register"
+            description="Live commercial requests across your current workspace"
+            countLabel={recordCountLabel}
+            refreshing={listQuery.isFetching}
+            action={
               <CompactActionButton
                 tone="primary"
                 disabled={!hasPermission(user, PERMISSIONS.serviceRequestsCreate)}
@@ -396,8 +394,8 @@ export function ServiceRequestsLivePage({ recordSearch }: { recordSearch: AppSec
                 <IconFilePlus size={14} />
                 New Request
               </CompactActionButton>
-            </div>
-          </header>
+            }
+          />
 
           <div className="commercial-filters">
             <label className="commercial-search">
@@ -562,33 +560,12 @@ export function ServiceRequestsLivePage({ recordSearch }: { recordSearch: AppSec
             </div>
           )}
 
-          <div className="commercial-table-pagination">
-            <div className="commercial-table-pagination-summary">
-              <span className="commercial-table-pagination-count">{recordCountLabel}</span>
-              <span className="commercial-table-pagination-divider" aria-hidden="true" />
-              <span>
-                Page <b>{page}</b> of <b>{totalPages}</b>
-              </span>
-            </div>
-            <div className="commercial-table-pagination-actions">
-              <button
-                type="button"
-                className="commercial-btn commercial-btn-small"
-                disabled={page <= 1}
-                onClick={() => setSearch({ page: page - 1 })}
-              >
-                Previous
-              </button>
-              <button
-                type="button"
-                className="commercial-btn commercial-btn-small"
-                disabled={page >= totalPages}
-                onClick={() => setSearch({ page: page + 1 })}
-              >
-                Next
-              </button>
-            </div>
-          </div>
+          <CommercialRegisterPagination
+            countLabel={recordCountLabel}
+            page={page}
+            totalPages={totalPages}
+            onPageChange={(nextPage) => setSearch({ page: nextPage })}
+          />
         </section>
       </main>
 
