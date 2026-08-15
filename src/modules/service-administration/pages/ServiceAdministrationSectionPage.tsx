@@ -493,11 +493,7 @@ export function ServiceAdministrationSectionPage({
         description: selectedCalculator?.description ?? `Pricing for ${input.name}`,
         pricingType: pricingTypeMap[input.pricing.method.trim().toLowerCase()] ?? 'fixed',
         status:
-          input.status === 'inactive'
-            ? 'inactive'
-            : input.status === 'active'
-              ? 'active'
-              : 'draft',
+          input.status === 'inactive' ? 'inactive' : input.status === 'active' ? 'active' : 'draft',
         variables: selectedCalculator?.variables ?? [],
         charges: [
           {
