@@ -1,13 +1,13 @@
 import { z } from 'zod'
 
 const envSchema = z.object({
-  VITE_API_BASE_URL: z.string().min(1).default('/api/v1'),
+  VITE_API_BASE_URL: z.string().min(1).default('https://bomachauthtest.bgbot.app/api/v1'),
   VITE_NOTIFICATION_LIST_PATH: z.string().optional().default(''),
   VITE_NOTIFICATION_MARK_READ_PATH: z.string().optional().default(''),
   VITE_NOTIFICATION_MARK_ALL_READ_PATH: z.string().optional().default(''),
   VITE_ENABLE_MOCKS: z
     .enum(['true', 'false'])
-    .default('true')
+    .default('false')
     .transform((value) => value === 'true'),
 })
 
