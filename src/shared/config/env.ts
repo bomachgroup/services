@@ -1,21 +1,43 @@
 import { z } from 'zod'
 
 function getDefaultApiBaseUrl(): string {
-  const isLocalhost =
-    typeof window !== 'undefined' &&
-    Boolean(
-      window.location.hostname === 'localhost' ||
-        window.location.hostname === '127.0.0.1' ||
-        window.location.hostname === '[::1]' ||
-        window.location.hostname.endsWith('.local'),
-    )
+  if (typeof window !== 'undefined') {
+    const hostname = window.location.hostname.toLowerCase()
+    const referrer = (document.referrer || '').toLowerCase()
 
-  if (import.meta.env.DEV || isLocalhost) {
+    // 1. Test environments (bomach-os-test.web.app or localhost) -> test backend
+    const isTestEnvironment =
+      hostname.includes('bomach-os-test') ||
+      hostname.includes('-test.web.app') ||
+      referrer.includes('bomach-os-test') ||
+      hostname === 'localhost' ||
+      hostname === '127.0.0.1' ||
+      hostname === '[::1]' ||
+      hostname.endsWith('.local')
+
+    if (isTestEnvironment) {
+      return 'https://bomachauthtest.bgbot.app/api/v1'
+    }
+
+    // 2. Production app environments (bomach-os-app.web.app) -> production backend without test
+    const isProdAppEnvironment =
+      hostname.includes('bomach-os-app') ||
+      referrer.includes('bomach-os-app') ||
+      hostname === 'bomachauth.bgbot.app'
+
+    if (isProdAppEnvironment) {
+      return 'https://bomachauth.bgbot.app/api/v1'
+    }
+  }
+
+  if (import.meta.env.DEV) {
     return 'https://bomachauthtest.bgbot.app/api/v1'
   }
 
   return 'https://bomachauth.bgbot.app/api/v1'
 }
+
+
 
 const envSchema = z.object({
   VITE_API_BASE_URL: z.string().min(1).default(getDefaultApiBaseUrl()),
