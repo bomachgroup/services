@@ -2,6 +2,13 @@ import { z } from 'zod'
 
 function getDefaultApiBaseUrl(): string {
   if (typeof window !== 'undefined') {
+    const searchParams = new URLSearchParams(window.location.search)
+    const override = searchParams.get('apiBaseUrl') || searchParams.get('backendUrl') || searchParams.get('apiUrl')
+    if (override) {
+      const clean = override.trim().replace(/\/+$/, '')
+      return clean.endsWith('/api/v1') ? clean : ${clean}/api/v1
+    }
+
     const hostname = window.location.hostname.toLowerCase()
     const referrer = (document.referrer || '').toLowerCase()
 
