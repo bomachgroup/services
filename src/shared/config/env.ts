@@ -1,7 +1,24 @@
 import { z } from 'zod'
 
+function getDefaultApiBaseUrl(): string {
+  const isLocalhost =
+    typeof window !== 'undefined' &&
+    Boolean(
+      window.location.hostname === 'localhost' ||
+        window.location.hostname === '127.0.0.1' ||
+        window.location.hostname === '[::1]' ||
+        window.location.hostname.endsWith('.local'),
+    )
+
+  if (import.meta.env.DEV || isLocalhost) {
+    return 'https://bomachauthtest.bgbot.app/api/v1'
+  }
+
+  return 'https://bomachauth.bgbot.app/api/v1'
+}
+
 const envSchema = z.object({
-  VITE_API_BASE_URL: z.string().min(1).default('https://bomachauthtest.bgbot.app/api/v1'),
+  VITE_API_BASE_URL: z.string().min(1).default(getDefaultApiBaseUrl()),
   VITE_NOTIFICATION_LIST_PATH: z.string().optional().default(''),
   VITE_NOTIFICATION_MARK_READ_PATH: z.string().optional().default(''),
   VITE_NOTIFICATION_MARK_ALL_READ_PATH: z.string().optional().default(''),
