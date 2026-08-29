@@ -8,6 +8,14 @@ const dateFormatter = new Intl.DateTimeFormat('en-NG', {
   year: 'numeric',
 })
 
+const dateTimeFormatter = new Intl.DateTimeFormat('en-NG', {
+  day: '2-digit',
+  month: 'short',
+  year: 'numeric',
+  hour: '2-digit',
+  minute: '2-digit',
+})
+
 /**
  * Naira display matching Service Operations HTML `money()`:
  * - under ₦1M → full amount (₦3,200,000)
@@ -37,4 +45,14 @@ export function formatDate(value: string | number | Date): string {
   }
 
   return dateFormatter.format(date)
+}
+
+export function formatDateTime(value: string | number | Date): string {
+  const date = value instanceof Date ? value : new Date(value)
+
+  if (Number.isNaN(date.getTime())) {
+    return 'Invalid date'
+  }
+
+  return dateTimeFormatter.format(date)
 }

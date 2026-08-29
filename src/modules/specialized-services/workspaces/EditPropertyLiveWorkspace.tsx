@@ -1,14 +1,16 @@
-import { IconBuilding, IconHome, IconMap2, IconX } from '@tabler/icons-react'
-import { useState } from 'react'
+import { IconBuilding, IconHistory, IconHome, IconMap2, IconX } from '@tabler/icons-react'
+import { useMemo, useRef, useState } from 'react'
+import { formatCurrency } from '@/shared/lib/formatters'
 
 import {
-  propertyStatuses,
+  operatorPropertyStatuses,
   propertyTypes,
   type CreatePropertyInput,
   type Property,
   type PropertyType,
 } from '../real-estate/real-estate.types'
-import { validateProperty } from '../real-estate/real-estate.validation'
+import { validateProperty, validatePropertyFields } from '../real-estate/real-estate.validation'
+import { BoundaryFields } from './BoundaryFields'
 
 const residentialTypeOptions = [
   { value: 'house', label: 'House' },
@@ -54,6 +56,7 @@ function mapPropertyToInput(property: Property): CreatePropertyInput {
     propertyType: property.propertyType,
     propertyName: property.propertyName,
     price: property.price,
+    boundary: property.boundary,
     description: property.description,
     status: property.status,
     plotNumber: property.plotNumber,
@@ -78,29 +81,72 @@ function propertyTypeIcon(propertyType: PropertyType) {
   return <IconBuilding size={16} />
 }
 
+function formatHistoryDateTime(value: string) {
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return 'Invalid date'
+  return new Intl.DateTimeFormat('en-NG', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(date)
+}
+
 export function EditPropertyLiveWorkspace({
   property,
   saving,
   onClose,
   onSubmit,
+  statusLocked = false,
 }: {
   property: Property
   saving: boolean
   onClose: () => void
   onSubmit: (input: CreatePropertyInput) => void
+  statusLocked?: boolean
 }) {
   const [value, setValue] = useState<CreatePropertyInput>(() => mapPropertyToInput(property))
   const [error, setError] = useState('')
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
+  const [priceHistoryOpen, setPriceHistoryOpen] = useState(false)
+  const fieldRefs = useRef<Record<string, HTMLElement | HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement | null>>({})
+
+  const priceHistory = useMemo(
+    () => (property.priceHistory ?? []).slice(0, 6),
+    [property.priceHistory],
+  )
 
   const setField = <K extends keyof CreatePropertyInput>(
     key: K,
     nextValue: CreatePropertyInput[K],
-  ) => setValue((current) => ({ ...current, [key]: nextValue }))
+  ) => {
+    setValue((current) => ({ ...current, [key]: nextValue }))
+    setFieldErrors((current) => {
+      if (!current[key as string]) return current
+      const next = { ...current }
+      delete next[key as string]
+      return next
+    })
+  }
+
+  const focusField = (name: string) => {
+    const node = fieldRefs.current[name]
+    if (!node) return
+    node.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'nearest' })
+    window.setTimeout(() => {
+      if ('focus' in node && typeof node.focus === 'function') node.focus()
+    }, 20)
+  }
 
   const propertyType = value.propertyType
 
   return (
-    <div className="commercial-modal-backdrop" role="presentation" onMouseDown={onClose}>
+    <div
+      className="commercial-modal-backdrop commercial-modal-backdrop--nested"
+      role="presentation"
+      onMouseDown={onClose}
+    >
       <form
         className="commercial-modal commercial-modal--xl specialized-real-estate-modal"
         role="dialog"
@@ -109,9 +155,16 @@ export function EditPropertyLiveWorkspace({
         onMouseDown={(event) => event.stopPropagation()}
         onSubmit={(event) => {
           event.preventDefault()
+          const nextFieldErrors = validatePropertyFields(value)
           const validationError = validateProperty(value)
+          setFieldErrors(nextFieldErrors)
           setError(validationError)
-          if (!validationError) onSubmit(value)
+          if (validationError) {
+            const firstErrorKey = Object.keys(nextFieldErrors)[0]
+            if (firstErrorKey) focusField(firstErrorKey)
+            return
+          }
+          onSubmit(value)
         }}
       >
         <header className="commercial-modal-header">
@@ -151,14 +204,23 @@ export function EditPropertyLiveWorkspace({
                 </span>
                 <input
                   autoFocus
+                  ref={(node) => {
+                    fieldRefs.current.propertyName = node
+                  }}
                   value={value.propertyName}
                   onChange={(event) => setField('propertyName', event.target.value)}
                 />
+                {fieldErrors.propertyName ? (
+                  <small className="commercial-field-error">{fieldErrors.propertyName}</small>
+                ) : null}
               </label>
 
               <label className="commercial-field">
                 <span>Property type</span>
                 <select
+                  ref={(node) => {
+                    fieldRefs.current.propertyType = node
+                  }}
                   value={value.propertyType}
                   onChange={(event) =>
                     setField(
@@ -177,18 +239,34 @@ export function EditPropertyLiveWorkspace({
 
               <label className="commercial-field">
                 <span>Status</span>
-                <select
-                  value={value.status}
-                  onChange={(event) =>
-                    setField('status', event.target.value as CreatePropertyInput['status'])
-                  }
-                >
-                  {propertyStatuses.map((item) => (
-                    <option key={item.value} value={item.value}>
-                      {item.label}
-                    </option>
-                  ))}
-                </select>
+                {statusLocked ||
+                property.status === 'under_offer' ||
+                property.status === 'reserved' ||
+                property.status === 'sold' ? (
+                  <input value={property.statusDisplay || property.status} disabled />
+                ) : (
+                  <select
+                    ref={(node) => {
+                      fieldRefs.current.status = node
+                    }}
+                    value={value.status}
+                    onChange={(event) =>
+                      setField('status', event.target.value as CreatePropertyInput['status'])
+                    }
+                  >
+                    {operatorPropertyStatuses.map((item) => (
+                      <option key={item.value} value={item.value}>
+                        {item.label}
+                      </option>
+                    ))}
+                  </select>
+                )}
+                {statusLocked ||
+                property.status === 'under_offer' ||
+                property.status === 'reserved' ||
+                property.status === 'sold' ? (
+                  <small>Commercial status is controlled by the purchase/payment workflow.</small>
+                ) : null}
               </label>
 
               <label className="commercial-field">
@@ -201,11 +279,17 @@ export function EditPropertyLiveWorkspace({
                   min={1}
                   step="any"
                   inputMode="decimal"
+                  ref={(node) => {
+                    fieldRefs.current.price = node
+                  }}
                   value={numberInputValue(value.price)}
                   onChange={(event) =>
                     setField('price', parseNonNegativeNumber(event.target.value, 0) ?? 0)
                   }
                 />
+                {fieldErrors.price ? (
+                  <small className="commercial-field-error">{fieldErrors.price}</small>
+                ) : null}
               </label>
 
               <label className="commercial-field">
@@ -215,6 +299,9 @@ export function EditPropertyLiveWorkspace({
                   type="number"
                   min={1}
                   inputMode="numeric"
+                  ref={(node) => {
+                    fieldRefs.current.plotNumber = node
+                  }}
                   value={numberInputValue(value.plotNumber)}
                   onChange={(event) =>
                     setField('plotNumber', parsePositiveInteger(event.target.value))
@@ -223,21 +310,32 @@ export function EditPropertyLiveWorkspace({
               </label>
 
               <label className="commercial-field">
-                <span>Client / holder</span>
-                <input
-                  value={value.clientName ?? ''}
-                  onChange={(event) => setField('clientName', event.target.value)}
-                />
+                <span>Current client / holder</span>
+                <input value={property.clientName || 'Set by the active purchase record'} disabled />
+                <small>This is the current reservation holder or buyer tied to the property.</small>
               </label>
 
               <label className="commercial-field commercial-field--full">
                 <span>Description</span>
                 <textarea
+                  ref={(node) => {
+                    fieldRefs.current.description = node
+                  }}
                   value={value.description ?? ''}
                   onChange={(event) => setField('description', event.target.value)}
                 />
               </label>
             </div>
+          </section>
+
+          <section className="commercial-form-section">
+            <BoundaryFields
+              value={value.boundary}
+              onChange={(boundary) => setField('boundary', boundary)}
+              title="Property boundary"
+              description="Optional. Leave it blank to use the linked estate boundary when the property is attached to an estate."
+              fieldErrors={fieldErrors}
+            />
           </section>
 
           {propertyType === 'plot' ? (
@@ -255,17 +353,23 @@ export function EditPropertyLiveWorkspace({
                     Plot size (sqm) <em>*</em>
                   </span>
                   <input
-                    className="commercial-number-input"
-                    type="number"
-                    min={1}
-                    step="any"
-                    inputMode="decimal"
-                    value={numberInputValue(value.plotSize)}
-                    onChange={(event) =>
-                      setField('plotSize', parseNonNegativeNumber(event.target.value))
-                    }
-                  />
-                </label>
+                  className="commercial-number-input"
+                  type="number"
+                  min={1}
+                  step="any"
+                  inputMode="decimal"
+                  ref={(node) => {
+                    fieldRefs.current.plotSize = node
+                  }}
+                  value={numberInputValue(value.plotSize)}
+                  onChange={(event) =>
+                    setField('plotSize', parseNonNegativeNumber(event.target.value))
+                  }
+                />
+                {fieldErrors.plotSize ? (
+                  <small className="commercial-field-error">{fieldErrors.plotSize}</small>
+                ) : null}
+              </label>
 
                 <label className="commercial-field">
                   <span>Plot size unit</span>
@@ -293,6 +397,9 @@ export function EditPropertyLiveWorkspace({
                     Residential type <em>*</em>
                   </span>
                   <select
+                    ref={(node) => {
+                      fieldRefs.current.buildingTypeResidential = node
+                    }}
                     value={value.buildingTypeResidential ?? ''}
                     onChange={(event) => setField('buildingTypeResidential', event.target.value)}
                   >
@@ -303,6 +410,11 @@ export function EditPropertyLiveWorkspace({
                       </option>
                     ))}
                   </select>
+                  {fieldErrors.buildingTypeResidential ? (
+                    <small className="commercial-field-error">
+                      {fieldErrors.buildingTypeResidential}
+                    </small>
+                  ) : null}
                 </label>
 
                 <label className="commercial-field">
@@ -310,32 +422,44 @@ export function EditPropertyLiveWorkspace({
                     Bedrooms <em>*</em>
                   </span>
                   <input
-                    className="commercial-number-input"
-                    type="number"
-                    min={1}
-                    inputMode="numeric"
-                    value={numberInputValue(value.bedrooms)}
-                    onChange={(event) =>
-                      setField('bedrooms', parsePositiveInteger(event.target.value))
-                    }
-                  />
-                </label>
+                  className="commercial-number-input"
+                  type="number"
+                  min={1}
+                  inputMode="numeric"
+                  ref={(node) => {
+                    fieldRefs.current.bedrooms = node
+                  }}
+                  value={numberInputValue(value.bedrooms)}
+                  onChange={(event) =>
+                    setField('bedrooms', parsePositiveInteger(event.target.value))
+                  }
+                />
+                {fieldErrors.bedrooms ? (
+                  <small className="commercial-field-error">{fieldErrors.bedrooms}</small>
+                ) : null}
+              </label>
 
                 <label className="commercial-field">
                   <span>
                     Bathrooms <em>*</em>
                   </span>
                   <input
-                    className="commercial-number-input"
-                    type="number"
-                    min={1}
-                    inputMode="numeric"
-                    value={numberInputValue(value.bathrooms)}
-                    onChange={(event) =>
-                      setField('bathrooms', parsePositiveInteger(event.target.value))
-                    }
-                  />
-                </label>
+                  className="commercial-number-input"
+                  type="number"
+                  min={1}
+                  inputMode="numeric"
+                  ref={(node) => {
+                    fieldRefs.current.bathrooms = node
+                  }}
+                  value={numberInputValue(value.bathrooms)}
+                  onChange={(event) =>
+                    setField('bathrooms', parsePositiveInteger(event.target.value))
+                  }
+                />
+                {fieldErrors.bathrooms ? (
+                  <small className="commercial-field-error">{fieldErrors.bathrooms}</small>
+                ) : null}
+              </label>
 
                 <label className="commercial-field">
                   <span>Floors</span>
@@ -356,17 +480,25 @@ export function EditPropertyLiveWorkspace({
                     Total area <em>*</em>
                   </span>
                   <input
-                    className="commercial-number-input"
-                    type="number"
-                    min={1}
-                    step="any"
-                    inputMode="decimal"
-                    value={numberInputValue(value.totalAreaResidential)}
-                    onChange={(event) =>
-                      setField('totalAreaResidential', parseNonNegativeNumber(event.target.value))
-                    }
-                  />
-                </label>
+                  className="commercial-number-input"
+                  type="number"
+                  min={1}
+                  step="any"
+                  inputMode="decimal"
+                  ref={(node) => {
+                    fieldRefs.current.totalAreaResidential = node
+                  }}
+                  value={numberInputValue(value.totalAreaResidential)}
+                  onChange={(event) =>
+                    setField('totalAreaResidential', parseNonNegativeNumber(event.target.value))
+                  }
+                />
+                {fieldErrors.totalAreaResidential ? (
+                  <small className="commercial-field-error">
+                    {fieldErrors.totalAreaResidential}
+                  </small>
+                ) : null}
+              </label>
               </div>
             </section>
           ) : null}
@@ -386,6 +518,9 @@ export function EditPropertyLiveWorkspace({
                     Commercial type <em>*</em>
                   </span>
                   <select
+                    ref={(node) => {
+                      fieldRefs.current.buildingTypeCommercial = node
+                    }}
                     value={value.buildingTypeCommercial ?? ''}
                     onChange={(event) => setField('buildingTypeCommercial', event.target.value)}
                   >
@@ -396,6 +531,11 @@ export function EditPropertyLiveWorkspace({
                       </option>
                     ))}
                   </select>
+                  {fieldErrors.buildingTypeCommercial ? (
+                    <small className="commercial-field-error">
+                      {fieldErrors.buildingTypeCommercial}
+                    </small>
+                  ) : null}
                 </label>
 
                 <label className="commercial-field">
@@ -403,33 +543,47 @@ export function EditPropertyLiveWorkspace({
                     Total area <em>*</em>
                   </span>
                   <input
-                    className="commercial-number-input"
-                    type="number"
-                    min={1}
-                    step="any"
-                    inputMode="decimal"
-                    value={numberInputValue(value.totalAreaCommercial)}
-                    onChange={(event) =>
-                      setField('totalAreaCommercial', parseNonNegativeNumber(event.target.value))
-                    }
-                  />
-                </label>
+                  className="commercial-number-input"
+                  type="number"
+                  min={1}
+                  step="any"
+                  inputMode="decimal"
+                  ref={(node) => {
+                    fieldRefs.current.totalAreaCommercial = node
+                  }}
+                  value={numberInputValue(value.totalAreaCommercial)}
+                  onChange={(event) =>
+                    setField('totalAreaCommercial', parseNonNegativeNumber(event.target.value))
+                  }
+                />
+                {fieldErrors.totalAreaCommercial ? (
+                  <small className="commercial-field-error">
+                    {fieldErrors.totalAreaCommercial}
+                  </small>
+                ) : null}
+              </label>
 
                 <label className="commercial-field">
                   <span>
                     Number of floors <em>*</em>
                   </span>
                   <input
-                    className="commercial-number-input"
-                    type="number"
-                    min={1}
-                    inputMode="numeric"
-                    value={numberInputValue(value.numberOfFloors)}
-                    onChange={(event) =>
-                      setField('numberOfFloors', parsePositiveInteger(event.target.value))
-                    }
-                  />
-                </label>
+                  className="commercial-number-input"
+                  type="number"
+                  min={1}
+                  inputMode="numeric"
+                  ref={(node) => {
+                    fieldRefs.current.numberOfFloors = node
+                  }}
+                  value={numberInputValue(value.numberOfFloors)}
+                  onChange={(event) =>
+                    setField('numberOfFloors', parsePositiveInteger(event.target.value))
+                  }
+                />
+                {fieldErrors.numberOfFloors ? (
+                  <small className="commercial-field-error">{fieldErrors.numberOfFloors}</small>
+                ) : null}
+              </label>
 
                 <label className="commercial-field">
                   <span>Units / offices</span>
@@ -444,6 +598,44 @@ export function EditPropertyLiveWorkspace({
                     }
                   />
                 </label>
+              </div>
+            </section>
+          ) : null}
+
+          {priceHistory.length ? (
+            <section className="commercial-form-section">
+              <div className="commercial-form-section-heading">
+                <div>
+                  <h3>Price history</h3>
+                  <p>Tracks previous prices, when they changed, and who changed them.</p>
+                </div>
+              </div>
+              <div className="specialized-price-history-panel">
+                <button
+                  type="button"
+                  className="specialized-btn specialized-btn-block"
+                  onClick={() => setPriceHistoryOpen((open) => !open)}
+                >
+                  <IconHistory size={14} />
+                  {priceHistoryOpen
+                    ? 'Hide price history'
+                    : `View price history (${priceHistory.length})`}
+                </button>
+                {priceHistoryOpen ? (
+                  <div className="specialized-history-list">
+                    {priceHistory.map((entry) => (
+                      <article key={entry.id} className="specialized-history-item">
+                        <div>
+                          <strong>{formatCurrency(entry.newPrice)}</strong>
+                          <small>
+                            From {formatCurrency(entry.previousPrice)} · {entry.changedByName}
+                          </small>
+                        </div>
+                        <time>{formatHistoryDateTime(entry.changedAt)}</time>
+                      </article>
+                    ))}
+                  </div>
+                ) : null}
               </div>
             </section>
           ) : null}
