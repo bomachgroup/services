@@ -1,6 +1,7 @@
 import { Navigate } from '@tanstack/react-router'
 import type { ReactNode } from 'react'
 
+import { tokenStore } from '@/shared/auth/token-store'
 import { AppShellSkeleton } from '@/shared/ui/skeleton/AppShellSkeleton'
 
 import type { AuthUserKind } from './auth.types'
@@ -20,7 +21,15 @@ export function RequireAuth({
 }: RequireAuthProps) {
   const auth = useAuth()
 
-  if (auth.isLoading) {
+  const isEmbed =
+    typeof window !== 'undefined' &&
+    (window.location.search.includes('embed=true') ||
+      window.location.search.includes('embedded=true') ||
+      window.location.search.includes('token=') ||
+      window.location.search.includes('access_token=') ||
+      Boolean(tokenStore.getAccessToken()))
+
+  if (auth.isLoading || (isEmbed && (!auth.isAuthenticated || !auth.user))) {
     return loadingFallback
   }
 
