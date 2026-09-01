@@ -14,10 +14,10 @@ import type {
 } from '../types/service-administration.types'
 import { mapRequestFormDto } from '../mappers/request-form.mapper'
 import type { PricingConfigInputDto, WorkflowInputDto } from './service-administration.contracts'
+import { readSpecializedRequestContext, specializedPayload } from './specialized-service.utils'
 import { serviceAdministrationBackendApi } from './service-administration.backend-api'
-import { syncLiveSubservices } from './service-subservices.live'
 
-export type ServiceSetupStage = 'service-core' | 'subservices' | 'request-form'
+export type ServiceSetupStage = 'service-core' | 'request-form'
 
 export class ServiceSetupStageError extends Error {
   constructor(
@@ -85,24 +85,21 @@ export async function createServiceThroughRequestForm(
       name: input.name,
       code: input.code || null,
       category_id: input.categoryId,
-      division: input.division,
       description: input.description,
       base_price: input.pricing.rate,
       status: 'draft',
       default_sla_days: input.slaDays,
       fulfillment_mode: fulfillmentMode(input.fulfilmentMode),
       client_visibility: 'visible',
+      ...specializedPayload(
+        input.specializedDomain,
+        readSpecializedRequestContext(input.specializedConfig),
+      ),
     })
 
     serviceId = service.id
   } catch (error) {
     throw new ServiceSetupStageError('service-core', null, error)
-  }
-
-  try {
-    await syncLiveSubservices(serviceId, input.subservices)
-  } catch (error) {
-    throw new ServiceSetupStageError('subservices', serviceId, error)
   }
 
   try {

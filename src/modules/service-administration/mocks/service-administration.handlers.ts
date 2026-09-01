@@ -31,21 +31,18 @@ export const serviceAdministrationHandlers = [
     const body = (await request.json()) as {
       name?: string
       code?: string
-      division?: string
       description?: string
       owner?: string
     }
 
-    if (!body.name || !body.code || !body.division || !body.owner) {
+    if (!body.name || !body.code || !body.owner) {
       return HttpResponse.json(
         {
           code: 'VALIDATION_ERROR',
           detail: 'Complete the required service fields.',
           errors: {
             name: body.name ? undefined : 'Service name is required.',
-            code: body.code ? undefined : 'Service code is required.',
-            division: body.division ? undefined : 'Division is required.',
-            owner: body.owner ? undefined : 'Service owner is required.',
+            code: body.code ? undefined : 'Service code is required.',            owner: body.owner ? undefined : 'Service owner is required.',
           },
         },
         { status: 422 },
@@ -55,9 +52,7 @@ export const serviceAdministrationHandlers = [
     return HttpResponse.json(
       createMockService({
         name: body.name,
-        code: body.code,
-        division: body.division,
-        description: body.description ?? '',
+        code: body.code,        description: body.description ?? '',
         owner: body.owner,
       }),
       { status: 201 },
@@ -69,9 +64,9 @@ export const serviceAdministrationHandlers = [
     const body = await request.json()
 
     const input = body as Parameters<typeof createMockServiceWizard>[0]
-    if (!input.name || !input.code || !input.division || !input.owner) {
+    if (!input.name || !input.code || !input.owner) {
       return HttpResponse.json(
-        { detail: 'Service name, code, division and owner are required.' },
+        { detail: 'Service name, code and owner are required.' },
         { status: 422 },
       )
     }

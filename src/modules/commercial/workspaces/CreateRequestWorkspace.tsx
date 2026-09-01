@@ -279,7 +279,7 @@ export function CreateRequestWorkspace({
         phone: value.phone.trim(),
         email: value.email.trim(),
         service: selectedService.name,
-        division: selectedService.division,
+        division: selectedService.categoryName ?? '',
         branch: value.branch,
         source: value.source,
         priority: value.priority,
@@ -469,7 +469,7 @@ export function CreateRequestWorkspace({
             <div className="commercial-form-grid">
               <label className="commercial-field">
                 <span>Division</span>
-                <input value={selectedService?.division ?? ''} readOnly />
+                <input value={selectedService?.categoryName ?? ''} readOnly />
               </label>
 
               <form.Field name="serviceId">

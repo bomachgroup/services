@@ -70,8 +70,6 @@ export function mapServiceRequestListItem(payload: unknown): ServiceRequestListI
     clientName: text(value.client_name),
     serviceId: num(value.service_id),
     serviceName: text(value.service_name),
-    subserviceId: nullableNumber(value.subservice_id),
-    subserviceName: text(value.subservice_name),
     branchId: nullableNumber(value.branch_id),
     branchName: text(value.branch_name),
     quoteId: nullableNumber(value.quote_id),
@@ -209,7 +207,7 @@ export function mapServices(payload: unknown): ServiceOption[] {
       id: num(row.id),
       code: text(row.code),
       name: text(row.name),
-      division: text(row.division),
+      categoryName: text(row.category_name ?? row.categoryName),
       activeBranches: array(row.active_branches).map((item) => {
         const branch = record(item)
         return {
@@ -310,7 +308,8 @@ export function mapIntakeForm(payload: unknown): ServiceIntakeForm {
       id: num(service.id),
       code: text(service.code),
       name: text(service.name),
-      division: text(service.division),
+      categoryName: text(service.category_name),
+      specializedDomain: text(service.specialized_domain) || null,
       defaultSlaDays: num(service.default_sla_days),
       fulfillmentMode: text(service.fulfillment_mode),
     },
@@ -322,15 +321,5 @@ export function mapIntakeForm(payload: unknown): ServiceIntakeForm {
       active: form.is_active === true,
       fields: array(form.fields).map(mapField),
     },
-    subservices: array(root.subservices).map((item) => {
-      const row = record(item)
-      return {
-        id: num(row.id),
-        code: text(row.code),
-        name: text(row.name),
-        description: text(row.description),
-        status: text(row.status),
-      }
-    }),
   }
 }

@@ -33,11 +33,6 @@ export const VERIFIED_APP_PERMISSION_VALUES = [
 
   'roles.list',
 
-  'service_subservices.list',
-  'service_subservices.view',
-  'service_subservices.create',
-  'service_subservices.update',
-  'service_subservices.delete',
 
   'service_request_forms.list',
   'service_request_forms.view',

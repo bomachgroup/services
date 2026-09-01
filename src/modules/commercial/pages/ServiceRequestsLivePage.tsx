@@ -522,7 +522,7 @@ export function ServiceRequestsLivePage({ recordSearch }: { recordSearch: AppSec
                       </td>
                       <td>
                         <b>{request.serviceName}</b>
-                        <small>{request.subserviceName || '—'}</small>
+                        <small>{request.branchName || 'No branch'}</small>
                       </td>
                       <td>{request.source}</td>
                       <td>

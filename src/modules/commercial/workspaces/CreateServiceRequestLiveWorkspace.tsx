@@ -87,7 +87,6 @@ export function CreateServiceRequestLiveWorkspace({
   const selectedService = services.find((item) => item.id === serviceId) ?? null
   const branches = selectedService?.activeBranches ?? []
   const fields = intakeQuery.data?.form.fields ?? []
-  const subservices = intakeQuery.data?.subservices ?? []
   const hasBudgetField = fields.some(isBudgetField)
   const hasPreferredDateField = fields.some(isPreferredDateField)
   const hasScopeSummaryField = fields.some(isScopeField)
@@ -110,7 +109,6 @@ export function CreateServiceRequestLiveWorkspace({
         'sales_crm',
       sourceReference: '',
       priority: (choices.priorities[0]?.value ?? 'normal') as 'normal' | 'high' | 'critical',
-      subserviceId: 0,
       branchId: 0,
       budget: 0,
       estimatedValue: 0,
@@ -243,7 +241,6 @@ export function CreateServiceRequestLiveWorkspace({
           {
             clientId: value.clientId,
             serviceId,
-            ...(value.subserviceId ? { subserviceId: value.subserviceId } : {}),
             ...(value.branchId ? { branchId: value.branchId } : {}),
             contactName: value.contactName.trim(),
             contactPhone: value.contactPhone.trim(),
@@ -297,7 +294,6 @@ export function CreateServiceRequestLiveWorkspace({
     clearUploads()
     setServiceId(nextServiceId)
     form.setFieldValue('branchId', service?.activeBranches[0]?.id ?? 0)
-    form.setFieldValue('subserviceId', 0)
     form.setFieldValue('estimatedValue', 0)
     form.setFieldValue('answers', {})
     setAnswerValues({})
@@ -565,7 +561,7 @@ export function CreateServiceRequestLiveWorkspace({
 
                   <label className="commercial-field">
                     <span>Division</span>
-                    <input value={selectedService?.division ?? ''} readOnly />
+                    <input value={selectedService?.categoryName ?? ''} readOnly />
                   </label>
 
                   {branches.length > 1 ? (
@@ -592,27 +588,6 @@ export function CreateServiceRequestLiveWorkspace({
                       <input value={branches[0]?.name ?? 'No active branch'} readOnly />
                     </label>
                   )}
-
-                  {subservices.length > 0 ? (
-                    <form.Field name="subserviceId">
-                      {(field) => (
-                        <label className="commercial-field">
-                          <span>Sub-service</span>
-                          <select
-                            value={field.state.value}
-                            onChange={(event) => field.handleChange(Number(event.target.value))}
-                          >
-                            <option value={0}>None</option>
-                            {subservices.map((item) => (
-                              <option key={item.id} value={item.id}>
-                                {item.name}
-                              </option>
-                            ))}
-                          </select>
-                        </label>
-                      )}
-                    </form.Field>
-                  ) : null}
                 </div>
               </section>
 

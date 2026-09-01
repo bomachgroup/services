@@ -32,11 +32,6 @@ export const PERMISSIONS = {
 
   rolesList: 'roles.list',
 
-  serviceSubservicesList: 'service_subservices.list',
-  serviceSubservicesView: 'service_subservices.view',
-  serviceSubservicesCreate: 'service_subservices.create',
-  serviceSubservicesUpdate: 'service_subservices.update',
-  serviceSubservicesDelete: 'service_subservices.delete',
 
   serviceRequestFormsList: 'service_request_forms.list',
   serviceRequestFormsView: 'service_request_forms.view',

@@ -148,7 +148,6 @@ export const serviceRequestsApi = {
       await apiClient.post<unknown>('/service-requests/admin', {
         client_id: input.clientId,
         service_id: input.serviceId,
-        ...(input.subserviceId ? { subservice_id: input.subserviceId } : {}),
         ...(input.branchId ? { branch_id: input.branchId } : {}),
         contact_name: input.contactName,
         contact_phone: input.contactPhone,

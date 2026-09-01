@@ -1,4 +1,4 @@
-import { IconPlus, IconTrash, IconX } from '@tabler/icons-react'
+import { IconX } from '@tabler/icons-react'
 import { useRef, useState } from 'react'
 
 import { formatNumberFieldValue, parseNumberFieldValue } from '@/shared/lib/number-input'
@@ -14,20 +14,12 @@ import type {
   ServiceCategoryOption,
   ServiceCatalogueItem,
   ServiceRequestForm,
-  ServiceStatus,
-  ServiceSubserviceSetup,
   ServiceWorkflow,
 } from '../types/service-administration.types'
-
-const divisions = [
-  'Real Estate',
-  'Land Surveying & Geospatial',
-  'Engineering & Construction',
-  'Courier & Logistics',
-  'Information Technology',
-  'Food & Farms',
-  'Hospitality Services',
-]
+import {
+  SPECIALIZED_DOMAIN_OPTIONS,
+  readSpecializedRequestContext,
+} from '../api/specialized-service.utils'
 
 const requestFieldOptions = [
   'Client identity',
@@ -44,7 +36,7 @@ const requestFieldOptions = [
   'Lead / campaign source',
 ]
 
-const wizardSteps = ['Basic', 'Sub-services', 'Pricing', 'Request Form', 'Workflow', 'Publish']
+const wizardSteps = ['Basic', 'Pricing', 'Request Form', 'Workflow', 'Branches', 'Publish']
 
 function splitLines(value: string) {
   return value
@@ -53,20 +45,16 @@ function splitLines(value: string) {
     .filter(Boolean)
 }
 
-type CreateSubserviceDraft = ServiceSubserviceSetup & {
-  localId: string
-}
-
 type ServiceWizardFieldName =
   | 'name'
   | 'code'
   | 'categoryId'
-  | 'division'
   | 'ownerRoleId'
   | 'description'
   | 'slaDays'
   | 'fulfilmentMode'
-  | 'subservices'
+  | 'specializedDomain'
+  | 'specializedRequestContext'
   | 'pricingMethod'
   | 'rate'
   | 'depositPercent'
@@ -79,99 +67,6 @@ type ServiceWizardFieldName =
   | 'clientVisibility'
 
 type ServiceWizardFieldErrors = Partial<Record<ServiceWizardFieldName, string>>
-
-type SubserviceEditorFieldName = 'name' | 'code' | 'status' | 'defaultSlaDays' | 'description'
-
-type SubserviceEditorFieldErrors = Partial<Record<SubserviceEditorFieldName, string>>
-
-let subserviceDraftSequence = 0
-
-function nextSubserviceDraftId() {
-  subserviceDraftSequence += 1
-  return `subservice-draft-${subserviceDraftSequence}`
-}
-
-function slugifySubservice(value: string) {
-  return value
-    .trim()
-    .toLowerCase()
-    .replace(/&/g, ' and ')
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '')
-}
-
-function createSubserviceDraft(
-  defaultSlaDays: number,
-  overrides: Partial<ServiceSubserviceSetup> = {},
-): CreateSubserviceDraft {
-  return {
-    localId: nextSubserviceDraftId(),
-    code: overrides.code ?? '',
-    name: overrides.name ?? '',
-    description: overrides.description ?? '',
-    status: overrides.status ?? 'draft',
-    defaultSlaDays: overrides.defaultSlaDays ?? defaultSlaDays,
-  }
-}
-
-function buildInitialSubserviceDrafts(defaultSlaDays: number) {
-  void defaultSlaDays
-  return [] as CreateSubserviceDraft[]
-}
-
-function subserviceStatusForServiceStatus(status: ServiceStatus): CreateSubserviceDraft['status'] {
-  if (status === 'active') return 'active'
-  if (status === 'inactive') return 'inactive'
-  return 'draft'
-}
-
-function buildSubserviceDraftsFromNames(
-  names: string[],
-  defaultSlaDays: number,
-  status: ServiceStatus,
-) {
-  return names.map((name) =>
-    createSubserviceDraft(defaultSlaDays, {
-      name,
-      status: subserviceStatusForServiceStatus(status),
-    }),
-  )
-}
-
-function validateSubserviceDrafts(subserviceDrafts: CreateSubserviceDraft[]): string | null {
-  if (subserviceDrafts.length === 0) return 'Add at least one sub-service.'
-
-  const effectiveCodes = new Set<string>()
-
-  for (const [index, item] of subserviceDrafts.entries()) {
-    if (!item.name.trim()) return `Sub-service ${index + 1} needs a name.`
-    if (!Number.isFinite(item.defaultSlaDays) || item.defaultSlaDays < 1) {
-      return `Sub-service ${index + 1} must have an SLA of at least 1 day.`
-    }
-
-    const effectiveCode = slugifySubservice(item.code?.trim() || item.name)
-    if (!effectiveCode) return `Sub-service ${index + 1} needs a valid name or code.`
-    if (effectiveCodes.has(effectiveCode)) {
-      return 'Each sub-service must have a unique code or generated slug.'
-    }
-
-    effectiveCodes.add(effectiveCode)
-  }
-
-  return null
-}
-
-function serializeSubserviceDrafts(
-  subserviceDrafts: CreateSubserviceDraft[],
-): ServiceSubserviceSetup[] {
-  return subserviceDrafts.map(({ code: draftCode, description: draftDescription, ...item }) => ({
-    code: draftCode?.trim() ? draftCode.trim() : null,
-    name: item.name.trim(),
-    description: draftDescription.trim(),
-    status: item.status,
-    defaultSlaDays: item.defaultSlaDays,
-  }))
-}
 
 function focusField(
   fieldRefs: React.MutableRefObject<Record<string, HTMLElement | null>>,
@@ -196,22 +91,6 @@ function focusNotice(ref: React.RefObject<HTMLElement | null>) {
     ref.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })
     ref.current?.focus()
   })
-}
-
-function validateSubserviceEditorDraft(draft: CreateSubserviceDraft): SubserviceEditorFieldErrors {
-  const errors: SubserviceEditorFieldErrors = {}
-
-  if (!draft.name.trim()) {
-    errors.name = 'Sub-service name is required.'
-  }
-  if (!Number.isFinite(draft.defaultSlaDays) || draft.defaultSlaDays < 1) {
-    errors.defaultSlaDays = 'Default SLA must be at least 1 day.'
-  }
-  if (!slugifySubservice(draft.code?.trim() || draft.name)) {
-    errors.code = 'Enter a valid code or a name that can generate one.'
-  }
-
-  return errors
 }
 
 function ModalShell({
@@ -289,287 +168,55 @@ function Field({
   )
 }
 
-function SubserviceEditorModal({
-  draft,
-  pending,
-  title,
-  onClose,
-  onSave,
+function SpecializedProfileFields({
+  specializedDomain,
+  specializedRequestContext,
+  fieldErrors,
+  fieldRefs,
+  onDomainChange,
+  onRequestContextChange,
 }: {
-  draft: CreateSubserviceDraft
-  pending: boolean
-  title: string
-  onClose: () => void
-  onSave: (draft: CreateSubserviceDraft) => void
-}) {
-  const [localDraft, setLocalDraft] = useState<CreateSubserviceDraft>(draft)
-  const [error, setError] = useState('')
-  const [fieldErrors, setFieldErrors] = useState<SubserviceEditorFieldErrors>({})
-  const fieldRefs = useRef<Record<string, HTMLElement | null>>({})
-  const errorNoticeRef = useRef<HTMLDivElement | null>(null)
-
-  const save = () => {
-    const nextErrors = validateSubserviceEditorDraft(localDraft)
-    setFieldErrors(nextErrors)
-
-    const firstField = (
-      ['name', 'code', 'status', 'defaultSlaDays', 'description'] as SubserviceEditorFieldName[]
-    ).find((field) => nextErrors[field])
-
-    if (firstField) {
-      setError(nextErrors[firstField] ?? '')
-      focusField(fieldRefs, firstField)
-      return
-    }
-
-    setError('')
-    setFieldErrors({})
-    onSave({
-      ...localDraft,
-      name: localDraft.name.trim(),
-      code: localDraft.code?.trim() ?? '',
-      description: localDraft.description.trim(),
-    })
-  }
-
-  return (
-    <div
-      className="service-admin-modal-backdrop service-admin-modal-backdrop--nested"
-      role="presentation"
-      onMouseDown={onClose}
-    >
-      <section
-        role="dialog"
-        aria-modal="true"
-        aria-label={title}
-        className="service-admin-modal service-admin-modal--nested"
-        onMouseDown={(event) => event.stopPropagation()}
-      >
-        <header className="service-admin-modal-header">
-          <h2 className="service-admin-modal-title">{title}</h2>
-          <button
-            type="button"
-            className="service-admin-modal-close"
-            aria-label="Close"
-            onClick={onClose}
-          >
-            <IconX size={16} />
-          </button>
-        </header>
-        <div className="service-admin-modal-body">
-          {error ? (
-            <div
-              ref={errorNoticeRef}
-              tabIndex={-1}
-              className="service-admin-notice service-admin-notice-red"
-            >
-              {error}
-            </div>
-          ) : null}
-          <div className="service-admin-form-grid">
-            <Field label="Sub-service name" required error={fieldErrors.name}>
-              <input
-                ref={(node) => {
-                  fieldRefs.current.name = node
-                }}
-                aria-invalid={fieldErrors.name ? true : undefined}
-                value={localDraft.name}
-                placeholder="e.g. Priority Site Assessment"
-                onChange={(event) =>
-                  setLocalDraft((current) => ({
-                    ...current,
-                    name: event.target.value,
-                  }))
-                }
-              />
-            </Field>
-            <Field label="Code" error={fieldErrors.code}>
-              <input
-                ref={(node) => {
-                  fieldRefs.current.code = node
-                }}
-                aria-invalid={fieldErrors.code ? true : undefined}
-                value={localDraft.code ?? ''}
-                placeholder="Optional custom code"
-                onChange={(event) =>
-                  setLocalDraft((current) => ({
-                    ...current,
-                    code: event.target.value,
-                  }))
-                }
-              />
-            </Field>
-            <Field label="Status" required error={fieldErrors.status}>
-              <select
-                ref={(node) => {
-                  fieldRefs.current.status = node
-                }}
-                aria-invalid={fieldErrors.status ? true : undefined}
-                value={localDraft.status}
-                onChange={(event) =>
-                  setLocalDraft((current) => ({
-                    ...current,
-                    status: event.target.value as CreateSubserviceDraft['status'],
-                  }))
-                }
-              >
-                <option value="draft">Draft</option>
-                <option value="active">Active</option>
-                <option value="inactive">Inactive</option>
-              </select>
-            </Field>
-            <Field label="Default SLA (days)" required error={fieldErrors.defaultSlaDays}>
-              <input
-                ref={(node) => {
-                  fieldRefs.current.defaultSlaDays = node
-                }}
-                aria-invalid={fieldErrors.defaultSlaDays ? true : undefined}
-                type="number"
-                min={1}
-                value={formatNumberFieldValue(localDraft.defaultSlaDays)}
-                onChange={(event) =>
-                  setLocalDraft((current) => ({
-                    ...current,
-                    defaultSlaDays: parseNumberFieldValue(event.target.value),
-                  }))
-                }
-              />
-            </Field>
-          </div>
-          <Field label="Description" full error={fieldErrors.description}>
-            <textarea
-              ref={(node) => {
-                fieldRefs.current.description = node
-              }}
-              aria-invalid={fieldErrors.description ? true : undefined}
-              className="service-admin-wizard-textarea"
-              rows={4}
-              value={localDraft.description}
-              placeholder="Optional scope, packaging notes, or client-facing explanation."
-              onChange={(event) =>
-                setLocalDraft((current) => ({
-                  ...current,
-                  description: event.target.value,
-                }))
-              }
-            />
-          </Field>
-        </div>
-        <footer className="service-admin-modal-footer">
-          <button
-            type="button"
-            className="service-admin-button"
-            disabled={pending}
-            onClick={onClose}
-          >
-            Cancel
-          </button>
-          <button
-            type="button"
-            className="service-admin-button service-admin-button-primary"
-            disabled={pending}
-            onClick={save}
-          >
-            Save Sub-service
-          </button>
-        </footer>
-      </section>
-    </div>
-  )
-}
-
-function SubserviceStagePanel({
-  drafts,
-  pending,
-  error,
-  addButtonRef,
-  onAdd,
-  onEdit,
-  onRemove,
-}: {
-  drafts: CreateSubserviceDraft[]
-  pending: boolean
-  error?: string | undefined
-  addButtonRef?: React.Ref<HTMLButtonElement>
-  onAdd: () => void
-  onEdit: (localId: string) => void
-  onRemove: (localId: string) => void
+  specializedDomain: string
+  specializedRequestContext: string
+  fieldErrors: ServiceWizardFieldErrors
+  fieldRefs: React.MutableRefObject<Record<string, HTMLElement | null>>
+  onDomainChange: (value: string) => void
+  onRequestContextChange: (value: string) => void
 }) {
   return (
-    <div className="service-admin-subservice-stack">
-      <div className="service-admin-card">
-        <div className="service-admin-card-header">
-          <div>
-            <div className="service-admin-card-title">Sub-services</div>
-            <div className="service-admin-card-subtitle">
-              Define the service variants that should be available for setup, pricing, and request
-              intake.
-            </div>
-          </div>
-          <button
-            type="button"
-            ref={addButtonRef}
-            className="service-admin-button service-admin-button-primary"
-            disabled={pending}
-            onClick={onAdd}
-          >
-            <IconPlus size={14} />
-            Add Sub-service
-          </button>
-        </div>
-
-        {drafts.length === 0 ? (
-          <div className="service-admin-notice service-admin-notice-blue">
-            No sub-services added yet.
-          </div>
-        ) : (
-          <div className="service-admin-subservice-list">
-            {drafts.map((item, index) => {
-              const effectiveCode = item.code?.trim() || slugifySubservice(item.name)
-
-              return (
-                <article key={item.localId} className="service-admin-subservice-card">
-                  <div className="service-admin-subservice-card-meta">
-                    <div className="service-admin-subservice-card-name">
-                      {item.name.trim() || `Sub-service ${index + 1}`}
-                    </div>
-                    <div className="service-admin-subservice-card-subtitle">
-                      {effectiveCode || 'Code will be generated from the name'} ·{' '}
-                      {item.defaultSlaDays} day SLA · {item.status}
-                    </div>
-                    {item.description.trim() ? (
-                      <div className="service-admin-subservice-card-description">
-                        {item.description.trim()}
-                      </div>
-                    ) : null}
-                  </div>
-                  <div className="service-admin-subservice-card-actions">
-                    <button
-                      type="button"
-                      className="service-admin-button"
-                      disabled={pending}
-                      onClick={() => onEdit(item.localId)}
-                    >
-                      Edit
-                    </button>
-                    <button
-                      type="button"
-                      className="service-admin-button"
-                      disabled={pending}
-                      onClick={() => onRemove(item.localId)}
-                    >
-                      <IconTrash size={14} />
-                      Remove
-                    </button>
-                  </div>
-                </article>
-              )
-            })}
-          </div>
-        )}
-        {error ? <small className="service-admin-field-error">{error}</small> : null}
-      </div>
-    </div>
+    <>
+      <Field label="Specialized domain" error={fieldErrors.specializedDomain}>
+        <select
+          ref={(node) => {
+            fieldRefs.current.specializedDomain = node
+          }}
+          value={specializedDomain}
+          onChange={(event) => onDomainChange(event.target.value)}
+        >
+          {SPECIALIZED_DOMAIN_OPTIONS.map((option) => (
+            <option key={option.value || 'none'} value={option.value}>
+              {option.label}
+            </option>
+          ))}
+        </select>
+      </Field>
+      {specializedDomain ? (
+        <Field
+          label="Request context"
+          full
+          error={fieldErrors.specializedRequestContext}
+        >
+          <input
+            ref={(node) => {
+              fieldRefs.current.specializedRequestContext = node
+            }}
+            value={specializedRequestContext}
+            placeholder="e.g. property_sale, estate_management"
+            onChange={(event) => onRequestContextChange(event.target.value)}
+          />
+        </Field>
+      ) : null}
+    </>
   )
 }
 
@@ -618,7 +265,6 @@ export function CreateServiceWizard({
   onRetryFailed?: () => void
 }) {
   const access: CreateServiceStageAccess = stageAccess ?? {
-    subservices: true,
     pricing: true,
     requestForm: true,
     workflow: true,
@@ -632,18 +278,12 @@ export function CreateServiceWizard({
   const [name, setName] = useState('')
   const [code, setCode] = useState('')
   const [categoryId, setCategoryId] = useState<number>(0)
-  const [division, setDivision] = useState(divisions[0] ?? '')
   const [ownerRoleId, setOwnerRoleId] = useState<number | null>(null)
   const [description, setDescription] = useState('')
   const [slaDays, setSlaDays] = useState(5)
   const [fulfilmentMode, setFulfilmentMode] = useState('Quick service order')
-  const [subserviceDrafts, setSubserviceDrafts] = useState<CreateSubserviceDraft[]>(() =>
-    buildInitialSubserviceDrafts(5),
-  )
-  const [subserviceEditorDraft, setSubserviceEditorDraft] = useState<CreateSubserviceDraft | null>(
-    null,
-  )
-  const [editingSubserviceId, setEditingSubserviceId] = useState<string | null>(null)
+  const [specializedDomain, setSpecializedDomain] = useState('')
+  const [specializedRequestContext, setSpecializedRequestContext] = useState('')
   const [pricingMethod, setPricingMethod] = useState('Fixed')
   const [rate, setRate] = useState(100000)
   const [depositPercent, setDepositPercent] = useState(70)
@@ -675,10 +315,9 @@ export function CreateServiceWizard({
   if (!open) return null
 
   type WizardStage =
-    'basic' | 'subservices' | 'pricing' | 'request-form' | 'workflow' | 'branches' | 'review'
+    'basic' | 'pricing' | 'request-form' | 'workflow' | 'branches' | 'review'
   const steps: Array<{ id: WizardStage; label: string }> = [
     { id: 'basic', label: 'Basic' },
-    ...(access.subservices ? [{ id: 'subservices' as const, label: 'Sub-services' }] : []),
     ...(access.pricing ? [{ id: 'pricing' as const, label: 'Pricing' }] : []),
     ...(access.requestForm ? [{ id: 'request-form' as const, label: 'Request Form' }] : []),
     ...(access.workflow ? [{ id: 'workflow' as const, label: 'Workflow' }] : []),
@@ -720,7 +359,6 @@ export function CreateServiceWizard({
       if (!name.trim()) return { message: 'Service name is required.', field: 'name' }
       if (!code.trim()) return { message: 'Service code is required.', field: 'code' }
       if (!categoryId) return { message: 'Service category is required.', field: 'categoryId' }
-      if (!division.trim()) return { message: 'Division is required.', field: 'division' }
       if (!description.trim()) return { message: 'Description is required.', field: 'description' }
       if (!Number.isFinite(slaDays) || slaDays < 1) {
         return { message: 'SLA must be at least 1 day.', field: 'slaDays' }
@@ -728,10 +366,6 @@ export function CreateServiceWizard({
       if (!fulfilmentMode.trim()) {
         return { message: 'Fulfillment mode is required.', field: 'fulfilmentMode' }
       }
-    }
-    if (stage === 'subservices') {
-      const subserviceError = validateSubserviceDrafts(subserviceDrafts)
-      return subserviceError ? { message: subserviceError, field: 'subservices' } : null
     }
     if (stage === 'pricing') {
       if (!pricingMethod.trim()) {
@@ -786,7 +420,6 @@ export function CreateServiceWizard({
     }
 
     const enabledStages: ServiceSetupStageId[] = [
-      ...(access.subservices ? ['subservices' as const] : []),
       ...(access.pricing ? ['pricing' as const] : []),
       ...(access.requestForm ? ['request-form' as const] : []),
       ...(access.workflow ? ['workflow' as const] : []),
@@ -804,7 +437,6 @@ export function CreateServiceWizard({
       name: name.trim(),
       categoryId,
       code: code.trim(),
-      division,
       description: description.trim(),
       owner: selectedOwner?.name ?? '',
       ownerRoleId,
@@ -814,47 +446,15 @@ export function CreateServiceWizard({
       clientVisibility,
       branchNames: selectedBranches.map((branch) => branch.name),
       branchIds: effectiveSelectedBranchIds,
-      subservices: serializeSubserviceDrafts(subserviceDrafts),
+      specializedDomain: specializedDomain || null,
+      specializedConfig: specializedDomain
+        ? { ...(specializedRequestContext.trim() ? { request_context: specializedRequestContext.trim() } : {}) }
+        : {},
       pricing: { method: pricingMethod, rate, depositPercent, taxPercent, discountApprovalPercent },
       requestFields,
       workflowStages: splitLines(workflow),
       enabledStages,
     })
-  }
-
-  const addSubservice = () => {
-    setEditingSubserviceId(null)
-    setSubserviceEditorDraft(createSubserviceDraft(slaDays))
-    setError('')
-  }
-
-  const editSubservice = (localId: string) => {
-    const currentDraft = subserviceDrafts.find((item) => item.localId === localId)
-    if (!currentDraft) return
-    setEditingSubserviceId(localId)
-    setSubserviceEditorDraft(currentDraft)
-  }
-
-  const removeSubservice = (localId: string) => {
-    setSubserviceDrafts((current) => current.filter((item) => item.localId !== localId))
-    if (editingSubserviceId === localId) {
-      setEditingSubserviceId(null)
-      setSubserviceEditorDraft(null)
-    }
-    setError('')
-  }
-
-  const saveSubserviceDraft = (draft: CreateSubserviceDraft) => {
-    if (editingSubserviceId) {
-      setSubserviceDrafts((current) =>
-        current.map((item) => (item.localId === editingSubserviceId ? draft : item)),
-      )
-    } else {
-      setSubserviceDrafts((current) => [...current, draft])
-    }
-    setEditingSubserviceId(null)
-    setSubserviceEditorDraft(null)
-    setError('')
   }
 
   const next = () => {
@@ -1018,23 +618,6 @@ export function CreateServiceWizard({
                   ))}
                 </select>
               </Field>
-              <Field label="Division" required error={fieldErrors.division}>
-                <select
-                  ref={(node) => {
-                    fieldRefs.current.division = node
-                  }}
-                  aria-invalid={fieldErrors.division ? true : undefined}
-                  value={division}
-                  onChange={(event) => {
-                    clearFieldError('division')
-                    setDivision(event.target.value)
-                  }}
-                >
-                  {divisions.map((item) => (
-                    <option key={item}>{item}</option>
-                  ))}
-                </select>
-              </Field>
               {access.ownerRoles ? (
                 <Field label="Owner role">
                   <select
@@ -1105,21 +688,24 @@ export function CreateServiceWizard({
                 </select>
               </Field>
             </div>
+            <div className="service-admin-form-grid">
+              <SpecializedProfileFields
+                specializedDomain={specializedDomain}
+                specializedRequestContext={specializedRequestContext}
+                fieldErrors={fieldErrors}
+                fieldRefs={fieldRefs}
+                onDomainChange={(value) => {
+                  clearFieldError('specializedDomain')
+                  setSpecializedDomain(value)
+                  if (!value) setSpecializedRequestContext('')
+                }}
+                onRequestContextChange={(value) => {
+                  clearFieldError('specializedRequestContext')
+                  setSpecializedRequestContext(value)
+                }}
+              />
+            </div>
           </>
-        ) : null}
-
-        {currentStage === 'subservices' ? (
-          <SubserviceStagePanel
-            drafts={subserviceDrafts}
-            pending={pending}
-            error={fieldErrors.subservices}
-            addButtonRef={(node) => {
-              fieldRefs.current.subservices = node
-            }}
-            onAdd={addSubservice}
-            onEdit={editSubservice}
-            onRemove={removeSubservice}
-          />
         ) : null}
 
         {currentStage === 'pricing' ? (
@@ -1402,18 +988,6 @@ export function CreateServiceWizard({
           </>
         ) : null}
       </ModalShell>
-      {subserviceEditorDraft ? (
-        <SubserviceEditorModal
-          draft={subserviceEditorDraft}
-          pending={pending}
-          title={editingSubserviceId ? 'Edit Sub-service' : 'Add Sub-service'}
-          onClose={() => {
-            setEditingSubserviceId(null)
-            setSubserviceEditorDraft(null)
-          }}
-          onSave={saveSubserviceDraft}
-        />
-      ) : null}
     </>
   )
 }
@@ -1444,7 +1018,6 @@ export function ConfigureServiceWorkspace({
   const [step, setStep] = useState(0)
   const [name, setName] = useState(service.name)
   const [code, setCode] = useState(service.code)
-  const [division, setDivision] = useState(service.division)
   const [owner, setOwner] = useState(service.owner)
   const [ownerRoleId, setOwnerRoleId] = useState<number | null>(() => {
     const matchedRole = ownerRoles.find((role) => role.name === service.owner)
@@ -1455,13 +1028,10 @@ export function ConfigureServiceWorkspace({
   const [fulfilmentMode, setFulfilmentMode] = useState(
     service.fulfilmentMode ?? 'Quick service order',
   )
-  const [subserviceDrafts, setSubserviceDrafts] = useState<CreateSubserviceDraft[]>(() =>
-    buildSubserviceDraftsFromNames(service.subservices ?? [], service.slaDays ?? 5, service.status),
+  const [specializedDomain, setSpecializedDomain] = useState(service.specializedDomain ?? '')
+  const [specializedRequestContext, setSpecializedRequestContext] = useState(() =>
+    readSpecializedRequestContext(service.specializedConfig),
   )
-  const [subserviceEditorDraft, setSubserviceEditorDraft] = useState<CreateSubserviceDraft | null>(
-    null,
-  )
-  const [editingSubserviceId, setEditingSubserviceId] = useState<string | null>(null)
   const [pricingMethod, setPricingMethod] = useState(
     calculator?.charges.some((charge) => charge.kind === 'formula') ? 'Custom formula' : 'Fixed',
   )
@@ -1529,7 +1099,6 @@ export function ConfigureServiceWorkspace({
     id: service.id,
     name: name.trim(),
     code: code.trim(),
-    division,
     owner: owner.trim(),
     ownerRoleId,
     description: description.trim(),
@@ -1537,7 +1106,10 @@ export function ConfigureServiceWorkspace({
     fulfilmentMode,
     status,
     branchNames: selectedBranches,
-    subservices: serializeSubserviceDrafts(subserviceDrafts),
+    specializedDomain: specializedDomain || null,
+    specializedConfig: specializedDomain
+      ? { ...(specializedRequestContext.trim() ? { request_context: specializedRequestContext.trim() } : {}) }
+      : {},
     pricing: {
       method: pricingMethod,
       rate,
@@ -1574,7 +1146,6 @@ export function ConfigureServiceWorkspace({
     if (index === 0) {
       if (!name.trim()) return { message: 'Service name is required.', field: 'name' }
       if (!code.trim()) return { message: 'Service code is required.', field: 'code' }
-      if (!division.trim()) return { message: 'Division is required.', field: 'division' }
       if (!owner.trim()) return { message: 'Owner role is required.', field: 'ownerRoleId' }
       if (!description.trim()) return { message: 'Description is required.', field: 'description' }
       if (!Number.isFinite(slaDays) || slaDays < 1) {
@@ -1586,10 +1157,6 @@ export function ConfigureServiceWorkspace({
       return null
     }
     if (index === 1) {
-      const subserviceError = validateSubserviceDrafts(subserviceDrafts)
-      return subserviceError ? { message: subserviceError, field: 'subservices' } : null
-    }
-    if (index === 2) {
       if (!pricingMethod.trim()) {
         return { message: 'Pricing method is required.', field: 'pricingMethod' }
       }
@@ -1614,13 +1181,13 @@ export function ConfigureServiceWorkspace({
       }
       return null
     }
-    if (index === 3 && requestFields.length === 0) {
+    if (index === 2 && requestFields.length === 0) {
       return { message: 'Select at least one request form field.', field: 'requestFields' }
     }
-    if (index === 4 && splitLines(workflowText).length === 0) {
+    if (index === 3 && splitLines(workflowText).length === 0) {
       return { message: 'Add at least one workflow stage.', field: 'workflow' }
     }
-    if (index === 5 && selectedBranches.length === 0) {
+    if (index === 4 && selectedBranches.length === 0) {
       return { message: 'Select at least one active branch.', field: 'branches' }
     }
     return null
@@ -1654,45 +1221,6 @@ export function ConfigureServiceWorkspace({
       return
     }
     setStep((current) => Math.min(wizardSteps.length - 1, current + 1))
-  }
-
-  const addSubservice = () => {
-    setEditingSubserviceId(null)
-    setSubserviceEditorDraft(
-      createSubserviceDraft(slaDays, {
-        status: subserviceStatusForServiceStatus(status),
-      }),
-    )
-    setError('')
-  }
-
-  const editSubservice = (localId: string) => {
-    const currentDraft = subserviceDrafts.find((item) => item.localId === localId)
-    if (!currentDraft) return
-    setEditingSubserviceId(localId)
-    setSubserviceEditorDraft(currentDraft)
-  }
-
-  const removeSubservice = (localId: string) => {
-    setSubserviceDrafts((current) => current.filter((item) => item.localId !== localId))
-    if (editingSubserviceId === localId) {
-      setEditingSubserviceId(null)
-      setSubserviceEditorDraft(null)
-    }
-    setError('')
-  }
-
-  const saveSubserviceDraft = (draft: CreateSubserviceDraft) => {
-    if (editingSubserviceId) {
-      setSubserviceDrafts((current) =>
-        current.map((item) => (item.localId === editingSubserviceId ? draft : item)),
-      )
-    } else {
-      setSubserviceDrafts((current) => [...current, draft])
-    }
-    setEditingSubserviceId(null)
-    setSubserviceEditorDraft(null)
-    setError('')
   }
 
   return (
@@ -1827,24 +1355,6 @@ export function ConfigureServiceWorkspace({
                     }}
                   />
                 </Field>
-                <Field label="Division" required error={fieldErrors.division}>
-                  <select
-                    ref={(node) => {
-                      fieldRefs.current.division = node
-                    }}
-                    aria-invalid={fieldErrors.division ? true : undefined}
-                    value={division}
-                    required
-                    onChange={(event) => {
-                      clearFieldError('division')
-                      setDivision(event.target.value)
-                    }}
-                  >
-                    {divisions.map((item) => (
-                      <option key={item}>{item}</option>
-                    ))}
-                  </select>
-                </Field>
                 <Field label="Owner role" required error={fieldErrors.ownerRoleId}>
                   <select
                     ref={(node) => {
@@ -1929,24 +1439,27 @@ export function ConfigureServiceWorkspace({
                   </select>
                 </Field>
               </div>
+              <div className="service-admin-form-grid">
+                <SpecializedProfileFields
+                  specializedDomain={specializedDomain}
+                  specializedRequestContext={specializedRequestContext}
+                  fieldErrors={fieldErrors}
+                  fieldRefs={fieldRefs}
+                  onDomainChange={(value) => {
+                    clearFieldError('specializedDomain')
+                    setSpecializedDomain(value)
+                    if (!value) setSpecializedRequestContext('')
+                  }}
+                  onRequestContextChange={(value) => {
+                    clearFieldError('specializedRequestContext')
+                    setSpecializedRequestContext(value)
+                  }}
+                />
+              </div>
             </>
           ) : null}
 
           {step === 1 ? (
-            <SubserviceStagePanel
-              drafts={subserviceDrafts}
-              pending={pending}
-              error={fieldErrors.subservices}
-              addButtonRef={(node) => {
-                fieldRefs.current.subservices = node
-              }}
-              onAdd={addSubservice}
-              onEdit={editSubservice}
-              onRemove={removeSubservice}
-            />
-          ) : null}
-
-          {step === 2 ? (
             <div className="service-admin-form-grid">
               <Field label="Pricing method" required error={fieldErrors.pricingMethod}>
                 <select
@@ -2042,7 +1555,7 @@ export function ConfigureServiceWorkspace({
             </div>
           ) : null}
 
-          {step === 3 ? (
+          {step === 2 ? (
             <>
               <div className="service-admin-notice service-admin-notice-blue">
                 Select information required before submission.
@@ -2079,7 +1592,7 @@ export function ConfigureServiceWorkspace({
             </>
           ) : null}
 
-          {step === 4 ? (
+          {step === 3 ? (
             <Field
               label="Workflow stages — one per line"
               full
@@ -2105,7 +1618,7 @@ export function ConfigureServiceWorkspace({
             </Field>
           ) : null}
 
-          {step === 5 ? (
+          {step === 4 ? (
             <>
               <Field label="Active branches" full required error={fieldErrors.branches}>
                 <div
@@ -2166,18 +1679,6 @@ export function ConfigureServiceWorkspace({
           ) : null}
         </fieldset>
       </ModalShell>
-      {subserviceEditorDraft ? (
-        <SubserviceEditorModal
-          draft={subserviceEditorDraft}
-          pending={pending}
-          title={editingSubserviceId ? 'Edit Sub-service' : 'Add Sub-service'}
-          onClose={() => {
-            setEditingSubserviceId(null)
-            setSubserviceEditorDraft(null)
-          }}
-          onSave={saveSubserviceDraft}
-        />
-      ) : null}
     </>
   )
 }

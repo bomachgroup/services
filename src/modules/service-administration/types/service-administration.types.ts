@@ -3,7 +3,7 @@ export type ConfigurationStatus = 'active' | 'draft' | 'inactive'
 export type PricingType = 'fixed' | 'unit_rate' | 'area_rate' | 'percentage' | 'formula'
 export type BranchActivationState = 'active' | 'inactive' | 'setup-required'
 export type ServiceSetupStageId =
-  'service-core' | 'subservices' | 'pricing' | 'request-form' | 'workflow' | 'branches' | 'publish'
+  'service-core' | 'pricing' | 'request-form' | 'workflow' | 'branches' | 'publish'
 
 export type ServiceSetupStageState = 'pending' | 'running' | 'success' | 'failed' | 'skipped'
 
@@ -15,7 +15,6 @@ export interface ServiceSetupStageProgress {
 }
 
 export interface CreateServiceStageAccess {
-  subservices: boolean
   pricing: boolean
   requestForm: boolean
   workflow: boolean
@@ -71,19 +70,20 @@ export interface ServiceCatalogueItem {
   id: string
   code: string
   name: string
-  division: string
+  categoryName?: string
   description: string
   owner: string
   status: ServiceStatus
   branchNames: string[]
-  subserviceCount: number
+  specializedServiceId?: number | null
+  specializedDomain?: string | null
+  specializedConfig?: Record<string, unknown>
   calculatorName?: string
   requestFormName?: string
   workflowName?: string
   readiness: number
   slaDays?: number
   fulfilmentMode?: string
-  subservices?: string[]
   requestFields?: string[]
   workflowStages?: string[]
   activeCalculator?: PricingCalculator
@@ -204,7 +204,7 @@ export interface ServiceAdministrationWorkspace {
 export interface CreateServiceInput {
   name: string
   code: string
-  division: string
+  categoryName?: string
   description: string
   owner: string
 }
@@ -261,26 +261,19 @@ export interface ServicePricingSetup {
   discountApprovalPercent: number
 }
 
-export interface ServiceSubserviceSetup {
-  code?: string | null
-  name: string
-  description: string
-  status: 'draft' | 'active' | 'inactive'
-  defaultSlaDays: number
-}
-
 export interface CreateServiceWizardInput {
   name: string
   categoryId: number
   code: string
-  division: string
   description: string
   owner: string
   slaDays: number
   fulfilmentMode: string
   status: ServiceStatus
   branchNames: string[]
-  subservices: ServiceSubserviceSetup[]
+  specializedServiceId?: number | null
+  specializedDomain?: string | null
+  specializedConfig?: Record<string, unknown>
   pricing: ServicePricingSetup
   requestFields: string[]
   workflowStages: string[]
@@ -294,7 +287,6 @@ export interface ConfigureServiceInput {
   id: string
   name: string
   code: string
-  division: string
   owner: string
   ownerRoleId?: number | null
   description: string
@@ -302,7 +294,9 @@ export interface ConfigureServiceInput {
   fulfilmentMode: string
   status: ServiceStatus
   branchNames: string[]
-  subservices: ServiceSubserviceSetup[]
+  specializedServiceId?: number | null
+  specializedDomain?: string | null
+  specializedConfig?: Record<string, unknown>
   pricing: ServicePricingSetup
   requestFields: string[]
   workflowStages: string[]
