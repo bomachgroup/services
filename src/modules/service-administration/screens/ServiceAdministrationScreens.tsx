@@ -1,5 +1,5 @@
 import { IconApps, IconCopy } from '@tabler/icons-react'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
 import { AccessLockIcon } from '@/shared/ui/module-controls'
 import type {
@@ -34,7 +34,6 @@ export function ServiceCatalogueScreen({
   services,
   totalCount,
   query,
-  division,
   status,
   page,
   pageSize,
@@ -51,11 +50,10 @@ export function ServiceCatalogueScreen({
   services: ServiceCatalogueItem[]
   totalCount: number
   query: string
-  division: string
   status: string
   page: number
   pageSize: number
-  onFiltersChange: (filters: { query: string; division: string; status: string }) => void
+  onFiltersChange: (filters: { query: string; status: string }) => void
   onPageChange: (page: number) => void
   onConfigure?: ((service: ServiceCatalogueItem) => void) | undefined
   configureLabel?: 'Configure' | 'View'
@@ -65,16 +63,11 @@ export function ServiceCatalogueScreen({
   branchAvailabilityDisabled?: boolean
   onDuplicate?: ((service: ServiceCatalogueItem) => void) | undefined
 }) {
-  const hasActiveFilters = query.trim().length > 0 || division.length > 0 || status.length > 0
-  const divisions = useMemo(
-    () => Array.from(new Set(services.map((service) => service.division))),
-    [services],
-  )
+  const hasActiveFilters = query.trim().length > 0 || status.length > 0
   const pageCount = Math.max(1, Math.ceil(totalCount / pageSize))
   const [searchDraft, setSearchDraft] = useState(query)
   const [syncedQuery, setSyncedQuery] = useState(query)
   const onFiltersChangeRef = useRef(onFiltersChange)
-  const divisionRef = useRef(division)
   const statusRef = useRef(status)
 
   if (query !== syncedQuery) {
@@ -87,9 +80,8 @@ export function ServiceCatalogueScreen({
   }, [onFiltersChange])
 
   useEffect(() => {
-    divisionRef.current = division
     statusRef.current = status
-  }, [division, status])
+  }, [status])
 
   useEffect(() => {
     if (searchDraft === query) return
@@ -97,7 +89,6 @@ export function ServiceCatalogueScreen({
     const timeoutId = window.setTimeout(() => {
       onFiltersChangeRef.current({
         query: searchDraft,
-        division: divisionRef.current,
         status: statusRef.current,
       })
     }, 350)
@@ -119,25 +110,14 @@ export function ServiceCatalogueScreen({
               if (event.key !== 'Enter') return
               event.preventDefault()
               if (searchDraft === query) return
-              onFiltersChange({ query: searchDraft, division, status })
+              onFiltersChange({ query: searchDraft, status })
             }}
             placeholder="Search services..."
           />
           <select
-            value={division}
-            onChange={(event) =>
-              onFiltersChange({ query: searchDraft, division: event.target.value, status })
-            }
-          >
-            <option value="">All divisions</option>
-            {divisions.map((item) => (
-              <option key={item}>{item}</option>
-            ))}
-          </select>
-          <select
             value={status}
             onChange={(event) =>
-              onFiltersChange({ query: searchDraft, division, status: event.target.value })
+              onFiltersChange({ query: searchDraft, status: event.target.value })
             }
           >
             <option value="">All statuses</option>
@@ -191,7 +171,7 @@ export function ServiceCatalogueScreen({
                     <button
                       type="button"
                       className="service-admin-button service-admin-button-primary"
-                      onClick={() => onFiltersChange({ query: '', division: '', status: '' })}
+                      onClick={() => onFiltersChange({ query: '', status: '' })}
                     >
                       Clear filters
                     </button>
@@ -230,7 +210,7 @@ export function ServiceCatalogueScreen({
 
           {services.map((service) => {
             const divisionClassName =
-              divisionClassNames[service.division] ?? 'service-admin-service-icon--default'
+              divisionClassNames[service.categoryName ?? ''] ?? 'service-admin-service-icon--default'
 
             return (
               <article key={service.id} className="service-admin-service-card">
@@ -240,7 +220,7 @@ export function ServiceCatalogueScreen({
                 <div className="service-admin-service-name">{service.name}</div>
                 <p className="service-admin-service-description">{service.description}</p>
                 <div className="service-admin-row-subtitle service-admin-service-meta">
-                  {service.code} · {service.subserviceCount} sub-services · {service.slaDays ?? '—'}
+                  {service.code} · {service.categoryName ?? 'Uncategorized'}
                   d SLA
                 </div>
                 <div className="service-admin-service-footer">

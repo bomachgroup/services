@@ -1,5 +1,5 @@
 import { serviceAdministrationBackendApi } from './service-administration.backend-api'
-import { syncLiveSubservices } from './service-subservices.live'
+import { readSpecializedRequestContext, specializedPayload } from './specialized-service.utils'
 import type {
   CreateServiceStageAccess,
   CreateServiceWizardInput,
@@ -10,7 +10,6 @@ import type {
 
 const labels: Record<ServiceSetupStageId, string> = {
   'service-core': 'Service',
-  subservices: 'Sub-services',
   pricing: 'Pricing',
   'request-form': 'Request Form',
   workflow: 'Workflow',
@@ -64,7 +63,6 @@ function slug(value: string): string {
 
 function allowed(stage: ServiceSetupStageId, access: CreateServiceStageAccess): boolean {
   if (stage === 'service-core') return true
-  if (stage === 'subservices') return access.subservices
   if (stage === 'pricing') return access.pricing
   if (stage === 'request-form') return access.requestForm
   if (stage === 'workflow') return access.workflow
@@ -112,7 +110,6 @@ export async function runLiveServiceSetup(
         name: input.name,
         code: input.code || null,
         category_id: input.categoryId,
-        division: input.division,
         description: input.description,
         base_price: input.pricing.rate,
         status: 'draft',
@@ -120,6 +117,10 @@ export async function runLiveServiceSetup(
         default_sla_days: input.slaDays,
         fulfillment_mode: fulfillmentMode(input.fulfilmentMode),
         client_visibility: input.clientVisibility ?? 'visible',
+        ...specializedPayload(
+          input.specializedDomain,
+          readSpecializedRequestContext(input.specializedConfig),
+        ),
       })
       serviceId = service.id
       emit('service-core', 'success')
@@ -133,7 +134,6 @@ export async function runLiveServiceSetup(
     options.onlyStages ??
     input.enabledStages ??
     ([
-      'subservices',
       'pricing',
       'request-form',
       'workflow',
@@ -151,9 +151,7 @@ export async function runLiveServiceSetup(
     emit(stage, 'running')
 
     try {
-      if (stage === 'subservices') {
-        await syncLiveSubservices(serviceId, input.subservices)
-      } else if (stage === 'pricing') {
+      if (stage === 'pricing') {
         await serviceAdministrationBackendApi.createPricingConfig(serviceId, {
           name: `${input.name} Pricing`,
           version: 1,

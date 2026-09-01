@@ -12,10 +12,10 @@ export interface MessageDto {
 export interface ServiceListFilters {
   status?: string
   categoryId?: number
-  division?: string
   ownerRoleId?: number
   clientVisibility?: string
   branchId?: number
+  specializedDomain?: string
   search?: string
   limit?: number
   offset?: number
@@ -31,7 +31,6 @@ export interface PricingConfigListFilters {
 }
 
 export interface BranchActivationMatrixFilters {
-  division?: string
   status?: string
   branchId?: number
   search?: string
@@ -79,7 +78,6 @@ export interface ServiceCoreDto {
   name: string
   category_id: number
   category_name: string
-  division: string
   description: string
   base_price: BackendDecimal
   delivery_time: string
@@ -92,24 +90,13 @@ export interface ServiceCoreDto {
   active_request_form_id: number | null
   active_pricing_config_id: number | null
   active_workflow_id: number | null
-  subservice_count: number
+  specialized_service_id: number | null
+  specialized_domain: string | null
+  specialized_config: Record<string, unknown>
   branch_activation_count: number
   created_at: string
   updated_at: string
   created_by_id: number
-}
-
-export interface ServiceSubserviceDto {
-  id: number
-  service_id: number
-  code: string | null
-  name: string
-  description: string
-  status: string
-  default_sla_days: number
-  sort_order: number
-  created_at: string
-  updated_at: string
 }
 
 export interface RequestFieldDto {
@@ -221,7 +208,6 @@ export interface ServiceCatalogueCardDto extends ServiceCoreDto {
 }
 
 export interface ServiceCatalogueDetailDto extends ServiceCatalogueCardDto {
-  subservices: ServiceSubserviceDto[]
   request_forms: RequestFormDto[]
   pricing_configs: PricingConfigDto[]
   workflows: WorkflowDto[]
@@ -232,7 +218,6 @@ export interface ServiceCreateDto {
   name: string
   code?: string | null
   category_id: number
-  division?: string
   description: string
   base_price?: BackendDecimal
   delivery_time?: string
@@ -241,13 +226,14 @@ export interface ServiceCreateDto {
   default_sla_days?: number
   fulfillment_mode?: string
   client_visibility?: string
+  specialized_domain?: string | null
+  specialized_config?: Record<string, unknown>
 }
 
 export interface ServiceUpdateDto {
   name?: string
   code?: string | null
   category_id?: number
-  division?: string
   description?: string
   base_price?: BackendDecimal
   delivery_time?: string
@@ -256,18 +242,9 @@ export interface ServiceUpdateDto {
   default_sla_days?: number
   fulfillment_mode?: string
   client_visibility?: string
+  specialized_domain?: string | null
+  specialized_config?: Record<string, unknown>
 }
-
-export interface ServiceSubserviceInputDto {
-  code?: string | null
-  name: string
-  description?: string
-  status?: string
-  default_sla_days?: number
-  sort_order?: number
-}
-
-export type ServiceSubserviceUpdateDto = Partial<ServiceSubserviceInputDto>
 
 export interface RequestFieldInputDto {
   key: string

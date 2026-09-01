@@ -33,7 +33,10 @@ import {
 } from '../api/service-administration.live-mutations'
 import { serviceAdministrationQueries } from '../api/service-administration.queries'
 import { runLiveServiceSetup } from '../api/service-setup.orchestrator'
-import { syncLiveSubservices } from '../api/service-subservices.live'
+import {
+  readSpecializedRequestContext,
+  specializedPayload,
+} from '../api/specialized-service.utils'
 import { BranchActivationScreen } from '../screens/BranchActivationScreen'
 import {
   CalculatorLibraryScreen,
@@ -100,7 +103,6 @@ const metadata: Record<
 export interface ServiceAdministrationRecordSearch {
   search?: string
   status?: string
-  division?: string
   page?: number
 }
 
@@ -117,15 +119,10 @@ export function ServiceAdministrationSectionPage({
   const toast = useToast()
   const capabilities = getServiceAdministrationCapabilities(user)
   const catalogueSearch = section === 'service-catalogue' ? (recordSearch.search ?? '') : ''
-  const catalogueDivision = section === 'service-catalogue' ? (recordSearch.division ?? '') : ''
   const catalogueStatus = section === 'service-catalogue' ? (recordSearch.status ?? '') : ''
   const cataloguePage = section === 'service-catalogue' ? Math.max(1, recordSearch.page ?? 1) : 1
   const cataloguePageSize = 12
   const createStageAccess: CreateServiceStageAccess = {
-    subservices:
-      capabilities.canListSubservices &&
-      capabilities.canCreateSubservices &&
-      capabilities.canUpdateSubservices,
     pricing: capabilities.canCreatePricingConfig,
     requestForm: capabilities.canCreateRequestForm,
     workflow: capabilities.canCreateWorkflow,
@@ -136,9 +133,6 @@ export function ServiceAdministrationSectionPage({
   const catalogueQuery = useQuery({
     ...serviceAdministrationQueries.catalogueList({
       ...(section === 'service-catalogue' && catalogueSearch ? { search: catalogueSearch } : {}),
-      ...(section === 'service-catalogue' && catalogueDivision
-        ? { division: catalogueDivision }
-        : {}),
       ...(section === 'service-catalogue' && catalogueStatus ? { status: catalogueStatus } : {}),
       limit: section === 'service-catalogue' ? cataloguePageSize : 100,
       offset: section === 'service-catalogue' ? (cataloguePage - 1) * cataloguePageSize : 0,
@@ -464,7 +458,6 @@ export function ServiceAdministrationSectionPage({
       await serviceAdministrationBackendApi.updateService(serviceId, {
         name: input.name,
         code: input.code || null,
-        division: input.division,
         description: input.description,
         status: input.status,
         ...(ownerRole ? { owner_role_id: ownerRole.id } : {}),
@@ -472,9 +465,12 @@ export function ServiceAdministrationSectionPage({
         fulfillment_mode:
           fulfillmentModeMap[input.fulfilmentMode.trim().toLowerCase()] ?? input.fulfilmentMode,
         client_visibility: 'visible',
+        ...specializedPayload(
+          input.specializedDomain,
+          readSpecializedRequestContext(input.specializedConfig),
+        ),
       })
 
-      await syncLiveSubservices(serviceId, input.subservices)
 
       await saveLivePricingConfig({
         ...(selectedCalculator ? { id: selectedCalculator.id } : {}),
@@ -745,7 +741,6 @@ export function ServiceAdministrationSectionPage({
             services={catalogue?.items ?? []}
             totalCount={catalogue?.count ?? 0}
             query={catalogueSearch}
-            division={catalogueDivision}
             status={catalogueStatus}
             page={cataloguePage}
             pageSize={cataloguePageSize}
@@ -756,14 +751,12 @@ export function ServiceAdministrationSectionPage({
                 search: (previous) => {
                   const next = { ...previous }
                   delete next.search
-                  delete next.division
                   delete next.status
                   delete next.page
 
                   return {
                     ...next,
                     ...(filters.query ? { search: filters.query } : {}),
-                    ...(filters.division ? { division: filters.division } : {}),
                     ...(filters.status ? { status: filters.status } : {}),
                   }
                 },

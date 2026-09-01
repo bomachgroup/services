@@ -96,7 +96,7 @@ export type AppSectionSearch = AppRecordSearch & {
   paymentStatus?: string
   source?: string
   highValue?: boolean
-  division?: string
+  specializedDomain?: string
   priority?: string
   branch?: string
   service?: string
@@ -147,7 +147,6 @@ export function parseRecordSearch(search: Record<string, unknown>): AppSectionSe
   const approvalHighValue =
     search.highValue === true ||
     (typeof search.highValue === 'string' && search.highValue.toLowerCase() === 'true')
-  const catalogueDivision = stringValue(search.division)
   const requestPriority = stringValue(search.priority)
   const requestBranch = stringValue(search.branch)
   const requestService = identifierValue(search.service)
@@ -190,10 +189,11 @@ export function parseRecordSearch(search: Record<string, unknown>): AppSectionSe
 
   if (catalogueSearch) result.search = catalogueSearch
   if (catalogueStatus) result.status = catalogueStatus
+  const specializedDomain = stringValue(search.specializedDomain)
+  if (specializedDomain) result.specializedDomain = specializedDomain
   if (orderPaymentStatus) result.paymentStatus = orderPaymentStatus
   if (approvalSource) result.source = approvalSource
   if (approvalHighValue) result.highValue = true
-  if (catalogueDivision) result.division = catalogueDivision
   if (requestPriority) result.priority = requestPriority
   if (requestBranch) result.branch = requestBranch
   if (requestService) result.service = requestService

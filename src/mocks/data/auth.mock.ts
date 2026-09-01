@@ -20,7 +20,6 @@ export const mockAuthUsers = {
       permissions: {
         dashboard: ['view'],
         services: ['list', 'view', 'create', 'update', 'delete'],
-        service_subservices: ['list', 'view', 'create', 'update', 'delete'],
         service_request_forms: ['list', 'view', 'create', 'update', 'delete'],
         service_pricing_configs: ['list', 'view', 'create', 'update', 'delete'],
         service_branch_activations: ['list', 'view', 'create', 'update', 'delete'],
@@ -63,7 +62,6 @@ export const mockAuthUsers = {
       permissions: {
         dashboard: ['view'],
         services: ['list', 'view', 'create', 'update', 'delete'],
-        service_subservices: ['list', 'view', 'create', 'update', 'delete'],
         service_request_forms: ['list', 'view', 'create', 'update', 'delete'],
         service_pricing_configs: ['list', 'view', 'create', 'update', 'delete'],
         service_branch_activations: ['list', 'view', 'create', 'update', 'delete'],
