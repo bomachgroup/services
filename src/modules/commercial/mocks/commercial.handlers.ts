@@ -129,7 +129,7 @@ export const commercialHandlers = [
             invoiceId: invoice.id,
             client: invoice.client,
             service: invoice.service,
-            division: request.division || service?.categoryName || 'Service Operations',
+            division: request.division || service?.parentName || 'Service Operations',
             value: invoice.total,
             dueAt: request.dueAt || invoice.dueAt,
             owner: service?.owner || 'Service Manager',

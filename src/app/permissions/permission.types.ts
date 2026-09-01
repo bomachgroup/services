@@ -21,13 +21,14 @@ export const VERIFIED_APP_PERMISSION_VALUES = [
   'workflow_rules.delete',
   'employees.list',
   'clients.list',
+  'clients.create',
   'services.list',
   'services.view',
   'services.create',
   'services.update',
   'services.delete',
 
-  'categories.list',
+  'service_parents.list',
 
   'branches.list',
 

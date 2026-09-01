@@ -18,7 +18,7 @@ import type {
   RoleDto,
   ServiceCatalogueCardDto,
   ServiceCatalogueDetailDto,
-  ServiceCategoryDto,
+  ServiceParentDto,
   ServiceCoreDto,
   ServiceCreateDto,
   ServiceListFilters,
@@ -54,7 +54,7 @@ function withQuery(
 function serviceListPath(path: string, filters: ServiceListFilters = {}) {
   return withQuery(path, {
     status: filters.status,
-    category_id: filters.categoryId,
+    parent_id: filters.parentId,
     owner_role_id: filters.ownerRoleId,
     client_visibility: filters.clientVisibility,
     branch_id: filters.branchId,
@@ -78,9 +78,9 @@ export const serviceAdministrationBackendApi = {
     )
   },
 
-  listCategories(limit = 100, offset = 0) {
-    return apiClient.get<LimitOffsetPageDto<ServiceCategoryDto>>(
-      withQuery('/categories', { limit, offset }),
+  listParents(limit = 100, offset = 0) {
+    return apiClient.get<LimitOffsetPageDto<ServiceParentDto>>(
+      withQuery('/service-parents', { limit, offset }),
     )
   },
 

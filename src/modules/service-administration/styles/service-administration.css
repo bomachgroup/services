@@ -113,6 +113,87 @@
   color: #566075;
 }
 
+.service-admin-service-icon--logistics {
+  background: #e0e7ff;
+  color: #3730a3;
+}
+
+.service-admin-service-icon--agriculture {
+  background: #ecfccb;
+  color: #3f6212;
+}
+
+.service-admin-service-icon--legal {
+  background: #fce7f3;
+  color: #9d174d;
+}
+
+.service-admin-parent-groups {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.service-admin-parent-group {
+  border: 1px solid var(--service-admin-border);
+  border-radius: 13px;
+  background: var(--service-admin-surface-muted);
+  overflow: hidden;
+}
+
+.service-admin-parent-group-header {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: 10px;
+  border: 0;
+  background: transparent;
+  padding: 12px 13px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.service-admin-parent-group-header:hover {
+  background: color-mix(in srgb, var(--service-admin-surface-subtle) 70%, white);
+}
+
+.service-admin-parent-group-chevron {
+  display: grid;
+  place-items: center;
+  color: var(--service-admin-foreground-muted);
+}
+
+.service-admin-parent-group-icon {
+  margin-bottom: 0;
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  font-size: 16px;
+}
+
+.service-admin-parent-group-copy {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.service-admin-parent-group-name {
+  font-size: 11.5px;
+  font-weight: 800;
+  color: var(--service-admin-foreground);
+}
+
+.service-admin-parent-group-meta {
+  color: var(--service-admin-foreground-subtle);
+  font-size: 9px;
+}
+
+.service-admin-parent-group-body {
+  padding: 0 10px 10px;
+}
+
 .service-admin-service-name {
   font-size: 11.5px;
   font-weight: 800;

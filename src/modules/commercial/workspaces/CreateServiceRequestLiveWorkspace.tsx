@@ -1,15 +1,22 @@
 import {
   IconAlertCircle,
+  IconArrowLeft,
   IconCalculator,
   IconChevronDown,
   IconLoader2,
+  IconSearch,
+  IconUserPlus,
   IconX,
 } from '@tabler/icons-react'
 import { useForm } from '@tanstack/react-form'
-import { useQuery } from '@tanstack/react-query'
-import { useRef, useState } from 'react'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+
+import { useAuth } from '@/app/auth'
+import { hasPermission, PERMISSIONS } from '@/app/permissions'
 
 import { presentError } from '@/shared/errors'
+import { ApiError } from '@/shared/api/api-error'
 import { formatCurrency } from '@/shared/lib/formatters'
 import { parseNumberFieldValue } from '@/shared/lib/number-input'
 import { Button } from '@/shared/ui/button'
@@ -17,6 +24,7 @@ import { EmptyState } from '@/shared/ui/empty-state'
 import { useToast } from '@/shared/ui/toast/useToast'
 
 import { serviceRequestsApi } from '../api/service-requests.api'
+import { serviceRequestKeys } from '../api/service-requests.keys'
 import { serviceRequestQueries } from '../api/service-requests.queries'
 import type {
   ClientOption,
@@ -44,6 +52,194 @@ import {
   validateAnswers,
 } from '../request-intake/request-intake.utils'
 
+type ServiceOptionGroup = {
+  parentName: string
+  services: ServiceOption[]
+}
+
+type NewClientField = 'firstName' | 'lastName' | 'email' | 'phoneNumber'
+
+const NEW_CLIENT_FIELD_ORDER: NewClientField[] = ['firstName', 'lastName', 'email', 'phoneNumber']
+
+function validateNewClientInput(input: {
+  firstName: string
+  lastName: string
+  email: string
+  phoneNumber: string
+}): Partial<Record<NewClientField, string>> {
+  const errors: Partial<Record<NewClientField, string>> = {}
+
+  if (!input.firstName.trim()) errors.firstName = 'First name is required.'
+  if (!input.lastName.trim()) errors.lastName = 'Last name is required.'
+
+  if (!input.email.trim()) {
+    errors.email = 'Email is required.'
+  } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(input.email.trim())) {
+    errors.email = 'Enter a valid email address.'
+  }
+
+  if (!input.phoneNumber.trim()) errors.phoneNumber = 'Phone number is required.'
+
+  return errors
+}
+
+function mapCreateClientApiErrors(error: unknown): {
+  fieldErrors: Partial<Record<NewClientField, string>>
+  formError: string
+} {
+  const presented = presentError(error, 'form-submit')
+  const fieldErrors: Partial<Record<NewClientField, string>> = {}
+
+  if (presented.fieldErrors) {
+    for (const [key, message] of Object.entries(presented.fieldErrors)) {
+      if (key === 'first_name' || key === 'firstName') fieldErrors.firstName = message
+      if (key === 'last_name' || key === 'lastName') fieldErrors.lastName = message
+      if (key === 'email') fieldErrors.email = message
+      if (key === 'phone_number' || key === 'phoneNumber') fieldErrors.phoneNumber = message
+    }
+  }
+
+  let detailMessage = presented.message
+  if (error instanceof ApiError && error.details && typeof error.details === 'object') {
+    const detail = (error.details as { detail?: unknown }).detail
+    if (typeof detail === 'string' && detail.trim()) detailMessage = detail.trim()
+  }
+
+  const lower = detailMessage.toLowerCase()
+  if (lower.includes('email') && !fieldErrors.email) fieldErrors.email = detailMessage
+  if (lower.includes('phone') && !fieldErrors.phoneNumber) fieldErrors.phoneNumber = detailMessage
+
+  return {
+    fieldErrors,
+    formError: Object.keys(fieldErrors).length > 0 ? '' : detailMessage,
+  }
+}
+
+function firstNewClientFieldWithError(
+  errors: Partial<Record<NewClientField, string>>,
+): NewClientField | null {
+  return NEW_CLIENT_FIELD_ORDER.find((field) => errors[field]) ?? null
+}
+
+function groupServiceOptions(services: ServiceOption[]): ServiceOptionGroup[] {
+  const grouped = new Map<string, ServiceOption[]>()
+
+  for (const service of services) {
+    const parentName = service.parentName.trim() || 'Other services'
+    const current = grouped.get(parentName) ?? []
+    current.push(service)
+    grouped.set(parentName, current)
+  }
+
+  return [...grouped.entries()]
+    .sort(([left], [right]) => left.localeCompare(right))
+    .map(([parentName, groupServices]) => ({
+      parentName,
+      services: groupServices.sort((left, right) => left.name.localeCompare(right.name)),
+    }))
+}
+
+function ClientResultsTable({
+  loading,
+  emptyMessage,
+  clients: clientRows,
+  selectedClientId = 0,
+  onSelect,
+  interactive = true,
+  compact = false,
+}: {
+  loading?: boolean
+  emptyMessage?: string
+  clients: ClientOption[]
+  selectedClientId?: number
+  onSelect?: (client: ClientOption) => void
+  interactive?: boolean
+  compact?: boolean
+}) {
+  const wrapClassName = compact
+    ? 'commercial-table-wrap commercial-client-table-wrap commercial-client-table-wrap--compact'
+    : 'commercial-table-wrap commercial-client-table-wrap'
+
+  if (loading) {
+    return (
+      <div className={wrapClassName}>
+        <div className="commercial-client-results-empty">Searching clients...</div>
+      </div>
+    )
+  }
+
+  if (clientRows.length === 0) {
+    return (
+      <div className={wrapClassName}>
+        <div className="commercial-client-results-empty">
+          {emptyMessage ?? 'No clients to show.'}
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className={wrapClassName}>
+      <table className="commercial-table commercial-table--fit commercial-client-table">
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Phone</th>
+            <th>Email</th>
+            <th>Company</th>
+          </tr>
+        </thead>
+        <tbody>
+          {clientRows.map((client) => {
+            const selected = selectedClientId === client.id
+            const rowClassName = selected ? 'commercial-table-row--selected' : undefined
+
+            if (!interactive || !onSelect) {
+              return (
+                <tr key={client.id} className={rowClassName}>
+                  <td>
+                    <b>{client.name}</b>
+                  </td>
+                  <td>{client.phone || '—'}</td>
+                  <td>{client.email || '—'}</td>
+                  <td>{client.companyName || '—'}</td>
+                </tr>
+              )
+            }
+
+            return (
+              <tr
+                key={client.id}
+                className={rowClassName}
+                tabIndex={0}
+                role="button"
+                aria-selected={selected}
+                onPointerDown={(event) => {
+                  if (event.button !== 0) return
+                  event.preventDefault()
+                  onSelect(client)
+                }}
+                onKeyDown={(event) => {
+                  if (event.key !== 'Enter' && event.key !== ' ') return
+                  event.preventDefault()
+                  onSelect(client)
+                }}
+              >
+                <td>
+                  <b>{client.name}</b>
+                </td>
+                <td>{client.phone || '—'}</td>
+                <td>{client.email || '—'}</td>
+                <td>{client.companyName || '—'}</td>
+              </tr>
+            )
+          })}
+        </tbody>
+      </table>
+    </div>
+  )
+}
+
 export function CreateServiceRequestLiveWorkspace({
   clients,
   services,
@@ -63,17 +259,52 @@ export function CreateServiceRequestLiveWorkspace({
   ) => Promise<unknown> | void
 }) {
   const toast = useToast()
+  const queryClient = useQueryClient()
+  const { user } = useAuth()
+  const canSearchClients = hasPermission(user, PERMISSIONS.clientsList)
+  const canCreateClient = hasPermission(user, PERMISSIONS.clientsCreate)
   const activeClients = clients.filter((item) => item.active)
-  const initialClient = activeClients[0] ?? null
+  const groupedServices = useMemo(() => groupServiceOptions(services), [services])
   const [serviceId, setServiceId] = useState(0)
   const [error, setError] = useState('')
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
   const [showInternalDetails, setShowInternalDetails] = useState(false)
+  const [showCreateClient, setShowCreateClient] = useState(false)
+  const [pickedClient, setPickedClient] = useState<ClientOption | null>(null)
+  const [newClientFieldErrors, setNewClientFieldErrors] = useState<
+    Partial<Record<NewClientField, string>>
+  >({})
+  const [createClientFormError, setCreateClientFormError] = useState('')
+  const [clientSearchDraft, setClientSearchDraft] = useState('')
+  const [clientSearch, setClientSearch] = useState('')
+  const [newClientFirstName, setNewClientFirstName] = useState('')
+  const [newClientLastName, setNewClientLastName] = useState('')
+  const [newClientEmail, setNewClientEmail] = useState('')
+  const [newClientPhone, setNewClientPhone] = useState('')
   const [uploadsByField, setUploadsByField] = useState<Record<string, PendingUpload[]>>({})
   const [answerValues, setAnswerValues] = useState<Record<string, unknown>>({})
   const controllersRef = useRef<Record<string, AbortController>>({})
   const uploadIdRef = useRef(0)
   const fieldRefs = useRef<Record<string, HTMLElement | null>>({})
+  const newClientFieldRefs = useRef<Partial<Record<NewClientField, HTMLInputElement | null>>>({})
+  const pickedClientRef = useRef<ClientOption | null>(null)
+
+  const focusNewClientField = useCallback((field: NewClientField) => {
+    window.requestAnimationFrame(() => {
+      const node = newClientFieldRefs.current[field]
+      node?.focus()
+      node?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    })
+  }, [])
+
+  const clearNewClientFieldError = useCallback((field: NewClientField) => {
+    setNewClientFieldErrors((current) => {
+      if (!current[field]) return current
+      const next = { ...current }
+      delete next[field]
+      return next
+    })
+  }, [])
 
   const intakeQuery = useQuery({
     ...serviceRequestQueries.intake(serviceId),
@@ -83,6 +314,22 @@ export function CreateServiceRequestLiveWorkspace({
     ...serviceRequestQueries.pricingConfig(serviceId),
     enabled: serviceId > 0,
   })
+  const clientSearchQuery = useQuery({
+    queryKey: [...serviceRequestKeys.clients(), 'search', clientSearch],
+    queryFn: () => serviceRequestsApi.searchClients(clientSearch),
+    enabled: canSearchClients && clientSearch.trim().length >= 2,
+    staleTime: 20_000,
+  })
+
+  useEffect(() => {
+    if (clientSearchDraft === clientSearch) return
+
+    const timeoutId = window.setTimeout(() => {
+      setClientSearch(clientSearchDraft.trim())
+    }, 350)
+
+    return () => window.clearTimeout(timeoutId)
+  }, [clientSearchDraft, clientSearch])
 
   const selectedService = services.find((item) => item.id === serviceId) ?? null
   const branches = selectedService?.activeBranches ?? []
@@ -98,10 +345,10 @@ export function CreateServiceRequestLiveWorkspace({
 
   const form = useForm({
     defaultValues: {
-      clientId: initialClient?.id ?? 0,
-      contactName: initialClient?.name ?? '',
-      contactPhone: initialClient?.phone ?? '',
-      contactEmail: initialClient?.email ?? '',
+      clientId: 0,
+      contactName: '',
+      contactPhone: '',
+      contactEmail: '',
       customerType: choices.customerTypes[0]?.value ?? 'individual',
       source:
         choices.sources.find((item) => item.value === 'sales_crm')?.value ??
@@ -119,7 +366,7 @@ export function CreateServiceRequestLiveWorkspace({
       answers: initialAnswers,
     },
     onSubmit: async ({ value }) => {
-      if (!value.clientId) {
+      if (!value.clientId && !pickedClientRef.current) {
         setError('Select a client.')
         return
       }
@@ -130,7 +377,7 @@ export function CreateServiceRequestLiveWorkspace({
       }
 
       if (branches.length > 0 && !value.branchId) {
-        setError('Select an active branch.')
+        setError('Select a fulfilling branch.')
         return
       }
 
@@ -239,7 +486,7 @@ export function CreateServiceRequestLiveWorkspace({
       try {
         await onSubmit(
           {
-            clientId: value.clientId,
+            clientId: value.clientId || pickedClientRef.current?.id || 0,
             serviceId,
             ...(value.branchId ? { branchId: value.branchId } : {}),
             contactName: value.contactName.trim(),
@@ -281,13 +528,126 @@ export function CreateServiceRequestLiveWorkspace({
     setUploadsByField({})
   }
 
-  const chooseClient = (clientId: number) => {
+  const chooseClient = useCallback(
+    (client: ClientOption) => {
+      pickedClientRef.current = client
+      setPickedClient(client)
+      setShowCreateClient(false)
+      setCreateClientFormError('')
+      setNewClientFieldErrors({})
+      form.setFieldValue('clientId', client.id)
+      form.setFieldValue('contactName', client.name)
+      form.setFieldValue('contactPhone', client.phone ?? '')
+      form.setFieldValue('contactEmail', client.email ?? '')
+      setError('')
+    },
+    [form],
+  )
+
+  const clearClientSelection = useCallback(() => {
+    pickedClientRef.current = null
+    setPickedClient(null)
+    form.setFieldValue('clientId', 0)
+    form.setFieldValue('contactName', '')
+    form.setFieldValue('contactPhone', '')
+    form.setFieldValue('contactEmail', '')
+    setError('')
+  }, [form])
+
+  const openCreateClient = useCallback(() => {
+    clearClientSelection()
+    setShowCreateClient(true)
+    setCreateClientFormError('')
+    setNewClientFieldErrors({})
+    setClientSearchDraft('')
+    setClientSearch('')
+  }, [clearClientSelection])
+
+  const closeCreateClient = useCallback(() => {
+    setShowCreateClient(false)
+    setCreateClientFormError('')
+    setNewClientFieldErrors({})
+  }, [])
+
+  const chooseClientById = (clientId: number) => {
     const client = clients.find((item) => item.id === clientId)
-    form.setFieldValue('clientId', clientId)
-    form.setFieldValue('contactName', client?.name ?? '')
-    form.setFieldValue('contactPhone', client?.phone ?? '')
-    form.setFieldValue('contactEmail', client?.email ?? '')
+    if (client) chooseClient(client)
   }
+
+  const submitNewClient = () => {
+    const validationErrors = validateNewClientInput({
+      firstName: newClientFirstName,
+      lastName: newClientLastName,
+      email: newClientEmail,
+      phoneNumber: newClientPhone,
+    })
+
+    if (Object.keys(validationErrors).length > 0) {
+      setNewClientFieldErrors(validationErrors)
+      setCreateClientFormError('')
+      const firstInvalidField = firstNewClientFieldWithError(validationErrors)
+      if (firstInvalidField) focusNewClientField(firstInvalidField)
+      return
+    }
+
+    setNewClientFieldErrors({})
+    setCreateClientFormError('')
+
+    createClientMutation.mutate({
+      firstName: newClientFirstName.trim(),
+      lastName: newClientLastName.trim(),
+      email: newClientEmail.trim(),
+      phoneNumber: newClientPhone.trim(),
+    })
+  }
+
+  const createClientMutation = useMutation({
+    mutationFn: (input: {
+      firstName: string
+      lastName: string
+      email: string
+      phoneNumber: string
+    }) =>
+      serviceRequestsApi.createClient({
+        firstName: input.firstName,
+        lastName: input.lastName,
+        email: input.email,
+        phoneNumber: input.phoneNumber,
+      }),
+    onSuccess: async (client) => {
+      await queryClient.invalidateQueries({ queryKey: serviceRequestKeys.clients() })
+      pickedClientRef.current = client
+      setPickedClient(client)
+      form.setFieldValue('clientId', client.id)
+      form.setFieldValue('contactName', client.name)
+      form.setFieldValue('contactPhone', client.phone ?? '')
+      form.setFieldValue('contactEmail', client.email ?? '')
+      setShowCreateClient(false)
+      setNewClientFirstName('')
+      setNewClientLastName('')
+      setNewClientEmail('')
+      setNewClientPhone('')
+      setNewClientFieldErrors({})
+      setCreateClientFormError('')
+      setError('')
+      toast.success('Client created', {
+        description: 'An invitation email with password setup instructions was sent.',
+      })
+    },
+    onError: (createError) => {
+      const { fieldErrors, formError } = mapCreateClientApiErrors(createError)
+      if (Object.keys(fieldErrors).length > 0) {
+        setNewClientFieldErrors(fieldErrors)
+        setCreateClientFormError('')
+        const firstInvalidField = firstNewClientFieldWithError(fieldErrors)
+        if (firstInvalidField) focusNewClientField(firstInvalidField)
+        return
+      }
+
+      setCreateClientFormError(formError)
+      toast.error('Client could not be created', { description: formError })
+    },
+  })
 
   const chooseService = (nextServiceId: number) => {
     const service = services.find((item) => item.id === nextServiceId)
@@ -414,7 +774,17 @@ export function CreateServiceRequestLiveWorkspace({
     })
   }
 
-  const ready = activeClients.length > 0 && services.length > 0
+  const ready = services.length > 0
+  const clientSearchResults = (clientSearchQuery.data ?? []).filter((item) => item.active)
+  const suggestedClients = activeClients.slice(0, 8)
+  const selectedClient = pickedClient
+  const clientPickerMode = showCreateClient ? 'create' : pickedClient ? 'selected' : 'browse'
+  const browseClients =
+    canSearchClients && clientSearch.trim().length >= 2 ? clientSearchResults : suggestedClients
+  const browseEmptyMessage =
+    canSearchClients && clientSearch.trim().length >= 2
+      ? 'No clients match that search.'
+      : 'Search for a client or create a new one to continue.'
   const intakeErrorMessage = intakeQuery.isError
     ? presentError(intakeQuery.error, 'section-load').message
     : ''
@@ -496,11 +866,7 @@ export function CreateServiceRequestLiveWorkspace({
           {!ready ? (
             <EmptyState
               title="Request cannot be created yet"
-              description={
-                activeClients.length === 0
-                  ? 'Add at least one active client before creating a service request.'
-                  : 'There are no active services available for request intake right now.'
-              }
+              description="There are no active services available for request intake right now."
             />
           ) : (
             <>
@@ -512,26 +878,253 @@ export function CreateServiceRequestLiveWorkspace({
                 <div className="commercial-form-section-heading">
                   <div>
                     <h3>Client</h3>
-                    <p>Select the existing client record for this request.</p>
+                    <p>
+                      {clientPickerMode === 'create'
+                        ? 'Add a new client record for this request.'
+                        : clientPickerMode === 'selected'
+                          ? 'Review the selected client or change your choice.'
+                          : 'Search the client directory or create a new client.'}
+                    </p>
                   </div>
                 </div>
-                <div className="commercial-form-grid">
-                  <form.Field name="clientId">
-                    {(field) => (
-                      <label className="commercial-field commercial-field--full">
-                        <span>Client / organization *</span>
-                        <select
-                          value={field.state.value}
-                          onChange={(event) => chooseClient(Number(event.target.value))}
+
+                <div className="commercial-client-picker">
+                  <div className="commercial-client-toolbar">
+                    {clientPickerMode === 'browse' ? (
+                      <>
+                        {canSearchClients ? (
+                          <label className="commercial-field commercial-client-search-field">
+                            <span>Search client</span>
+                            <div className="commercial-client-search">
+                              <IconSearch size={15} aria-hidden="true" />
+                              <input
+                                value={clientSearchDraft}
+                                onChange={(event) => setClientSearchDraft(event.target.value)}
+                                placeholder="Search by name or email..."
+                              />
+                            </div>
+                          </label>
+                        ) : (
+                          <div className="commercial-client-toolbar-copy">
+                            <strong>Browse clients</strong>
+                            <span>Select a client from the directory below.</span>
+                          </div>
+                        )}
+                        <button
+                          type="button"
+                          className="commercial-btn commercial-btn-small commercial-client-add-btn"
+                          disabled={!canCreateClient}
+                          title={
+                            !canCreateClient
+                              ? 'You do not have permission to create clients'
+                              : undefined
+                          }
+                          onClick={openCreateClient}
                         >
-                          {activeClients.map((client) => (
-                            <option key={client.id} value={client.id}>
-                              {client.name} — {client.email}
-                            </option>
-                          ))}
-                        </select>
-                      </label>
-                    )}
+                          <IconUserPlus size={14} />
+                          New client
+                        </button>
+                      </>
+                    ) : null}
+
+                    {clientPickerMode === 'selected' ? (
+                      <>
+                        <div className="commercial-client-toolbar-copy">
+                          <strong>Client selected</strong>
+                          <span>{selectedClient?.name}</span>
+                        </div>
+                        <button
+                          type="button"
+                          className="commercial-btn commercial-btn-small commercial-client-add-btn"
+                          onClick={clearClientSelection}
+                        >
+                          <IconX size={14} />
+                          Clear selection
+                        </button>
+                      </>
+                    ) : null}
+
+                    {clientPickerMode === 'create' ? (
+                      <>
+                        <div className="commercial-client-toolbar-copy">
+                          <strong>New client</strong>
+                          <span>Invitation email will be sent after creation.</span>
+                        </div>
+                        <button
+                          type="button"
+                          className="commercial-btn commercial-btn-small commercial-client-add-btn"
+                          onClick={closeCreateClient}
+                        >
+                          <IconArrowLeft size={14} />
+                          Back to search
+                        </button>
+                      </>
+                    ) : null}
+                  </div>
+
+                  <div className="commercial-client-workspace">
+                    {clientPickerMode === 'browse' ? (
+                      <ClientResultsTable
+                        loading={canSearchClients && clientSearch.trim().length >= 2 && clientSearchQuery.isFetching}
+                        emptyMessage={browseEmptyMessage}
+                        clients={browseClients}
+                        selectedClientId={0}
+                        onSelect={chooseClient}
+                      />
+                    ) : null}
+
+                    {clientPickerMode === 'selected' && selectedClient ? (
+                      <ClientResultsTable
+                        clients={[selectedClient]}
+                        selectedClientId={selectedClient.id}
+                        interactive={false}
+                        compact
+                      />
+                    ) : null}
+
+                    {clientPickerMode === 'create' ? (
+                      <div className="commercial-client-create-panel commercial-client-create-panel--full">
+                        {createClientFormError ? (
+                          <div className="service-admin-notice service-admin-notice-red">
+                            {createClientFormError}
+                          </div>
+                        ) : null}
+                        <div className="commercial-form-grid">
+                          <label
+                            className={`commercial-field${newClientFieldErrors.firstName ? ' commercial-field--invalid' : ''}`}
+                          >
+                            <span>First name *</span>
+                            <input
+                              ref={(node) => {
+                                newClientFieldRefs.current.firstName = node
+                              }}
+                              value={newClientFirstName}
+                              aria-invalid={Boolean(newClientFieldErrors.firstName)}
+                              onChange={(event) => {
+                                setNewClientFirstName(event.target.value)
+                                clearNewClientFieldError('firstName')
+                                setCreateClientFormError('')
+                              }}
+                              placeholder="Given name"
+                            />
+                            {newClientFieldErrors.firstName ? (
+                              <small className="commercial-field-error">
+                                {newClientFieldErrors.firstName}
+                              </small>
+                            ) : null}
+                          </label>
+                          <label
+                            className={`commercial-field${newClientFieldErrors.lastName ? ' commercial-field--invalid' : ''}`}
+                          >
+                            <span>Last name *</span>
+                            <input
+                              ref={(node) => {
+                                newClientFieldRefs.current.lastName = node
+                              }}
+                              value={newClientLastName}
+                              aria-invalid={Boolean(newClientFieldErrors.lastName)}
+                              onChange={(event) => {
+                                setNewClientLastName(event.target.value)
+                                clearNewClientFieldError('lastName')
+                                setCreateClientFormError('')
+                              }}
+                              placeholder="Family name"
+                            />
+                            {newClientFieldErrors.lastName ? (
+                              <small className="commercial-field-error">
+                                {newClientFieldErrors.lastName}
+                              </small>
+                            ) : null}
+                          </label>
+                          <label
+                            className={`commercial-field${newClientFieldErrors.email ? ' commercial-field--invalid' : ''}`}
+                          >
+                            <span>Email *</span>
+                            <input
+                              ref={(node) => {
+                                newClientFieldRefs.current.email = node
+                              }}
+                              type="email"
+                              value={newClientEmail}
+                              aria-invalid={Boolean(newClientFieldErrors.email)}
+                              onChange={(event) => {
+                                setNewClientEmail(event.target.value)
+                                clearNewClientFieldError('email')
+                                setCreateClientFormError('')
+                              }}
+                              placeholder="client@example.com"
+                            />
+                            {newClientFieldErrors.email ? (
+                              <small className="commercial-field-error">
+                                {newClientFieldErrors.email}
+                              </small>
+                            ) : null}
+                          </label>
+                          <label
+                            className={`commercial-field${newClientFieldErrors.phoneNumber ? ' commercial-field--invalid' : ''}`}
+                          >
+                            <span>Phone *</span>
+                            <input
+                              ref={(node) => {
+                                newClientFieldRefs.current.phoneNumber = node
+                              }}
+                              value={newClientPhone}
+                              aria-invalid={Boolean(newClientFieldErrors.phoneNumber)}
+                              onChange={(event) => {
+                                setNewClientPhone(event.target.value)
+                                clearNewClientFieldError('phoneNumber')
+                                setCreateClientFormError('')
+                              }}
+                              placeholder="+234..."
+                            />
+                            {newClientFieldErrors.phoneNumber ? (
+                              <small className="commercial-field-error">
+                                {newClientFieldErrors.phoneNumber}
+                              </small>
+                            ) : null}
+                          </label>
+                        </div>
+                        <p className="commercial-form-note">
+                          A welcome email with a password setup link will be sent to the client.
+                        </p>
+                        <div className="commercial-client-create-actions">
+                          <button type="button" className="commercial-btn" onClick={closeCreateClient}>
+                            Cancel
+                          </button>
+                          <button
+                            type="button"
+                            className="commercial-btn commercial-btn-primary"
+                            disabled={!canCreateClient || createClientMutation.isPending}
+                            onClick={submitNewClient}
+                          >
+                            {createClientMutation.isPending
+                              ? 'Creating client...'
+                              : 'Create & select client'}
+                          </button>
+                        </div>
+                      </div>
+                    ) : null}
+                  </div>
+
+                  <form.Field name="clientId">
+                    {(field) =>
+                      canSearchClients ? null : (
+                        <label className="commercial-field commercial-field--full">
+                          <span>Client / organization *</span>
+                          <select
+                            value={field.state.value}
+                            onChange={(event) => chooseClientById(Number(event.target.value))}
+                          >
+                            <option value={0}>Select a client</option>
+                            {activeClients.map((client) => (
+                              <option key={client.id} value={client.id}>
+                                {client.name} — {client.email}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+                      )
+                    }
                   </form.Field>
                 </div>
               </section>
@@ -544,50 +1137,64 @@ export function CreateServiceRequestLiveWorkspace({
                   </div>
                 </div>
                 <div className="commercial-form-grid">
-                  <label className="commercial-field">
+                  <label className="commercial-field commercial-field--full">
                     <span>Service *</span>
                     <select
                       value={serviceId}
                       onChange={(event) => chooseService(Number(event.target.value))}
                     >
                       <option value={0}>Select a service</option>
-                      {services.map((service) => (
-                        <option key={service.id} value={service.id}>
-                          {service.name}
-                        </option>
+                      {groupedServices.map((group) => (
+                        <optgroup key={group.parentName} label={group.parentName}>
+                          {group.services.map((service) => (
+                            <option key={service.id} value={service.id}>
+                              {service.name}
+                              {service.code ? ` (${service.code})` : ''}
+                            </option>
+                          ))}
+                        </optgroup>
                       ))}
                     </select>
                   </label>
 
-                  <label className="commercial-field">
-                    <span>Division</span>
-                    <input value={selectedService?.categoryName ?? ''} readOnly />
-                  </label>
-
-                  {branches.length > 1 ? (
-                    <form.Field name="branchId">
-                      {(field) => (
-                        <label className="commercial-field">
-                          <span>Active branch *</span>
-                          <select
-                            value={field.state.value}
-                            onChange={(event) => field.handleChange(Number(event.target.value))}
-                          >
-                            {branches.map((branch) => (
-                              <option key={branch.id} value={branch.id}>
-                                {branch.name}
-                              </option>
-                            ))}
-                          </select>
-                        </label>
-                      )}
-                    </form.Field>
-                  ) : (
-                    <label className="commercial-field">
-                      <span>Active branch</span>
-                      <input value={branches[0]?.name ?? 'No active branch'} readOnly />
-                    </label>
-                  )}
+                  {selectedService ? (
+                    branches.length === 0 ? (
+                      <div className="commercial-field commercial-field--full">
+                        <span>Fulfilling branch</span>
+                        <p className="commercial-form-note commercial-form-note-warning">
+                          No branch is activated for this service yet. You can still create the
+                          request, but configure branch availability in Service Administration for
+                          proper routing.
+                        </p>
+                      </div>
+                    ) : branches.length === 1 ? (
+                      <div className="commercial-field commercial-field--full">
+                        <span>Fulfilling branch</span>
+                        <p className="commercial-form-note">
+                          This request will be handled by <strong>{branches[0]?.name}</strong>.
+                        </p>
+                      </div>
+                    ) : (
+                      <form.Field name="branchId">
+                        {(field) => (
+                          <label className="commercial-field commercial-field--full">
+                            <span>Fulfilling branch *</span>
+                            <select
+                              value={field.state.value}
+                              onChange={(event) => field.handleChange(Number(event.target.value))}
+                            >
+                              {branches.map((branch) => (
+                                <option key={branch.id} value={branch.id}>
+                                  {branch.name}
+                                </option>
+                              ))}
+                            </select>
+                            <small>Which office will handle and deliver this request.</small>
+                          </label>
+                        )}
+                      </form.Field>
+                    )
+                  ) : null}
                 </div>
               </section>
 

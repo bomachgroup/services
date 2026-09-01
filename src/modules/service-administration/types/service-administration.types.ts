@@ -29,7 +29,7 @@ export interface ServiceSetupRunResult {
   complete: boolean
 }
 
-export interface ServiceCategoryOption {
+export interface ServiceParentOption {
   id: number
   name: string
 }
@@ -70,7 +70,8 @@ export interface ServiceCatalogueItem {
   id: string
   code: string
   name: string
-  categoryName?: string
+  parentId?: number | null
+  parentName?: string
   description: string
   owner: string
   status: ServiceStatus
@@ -204,7 +205,7 @@ export interface ServiceAdministrationWorkspace {
 export interface CreateServiceInput {
   name: string
   code: string
-  categoryName?: string
+  parentName?: string
   description: string
   owner: string
 }
@@ -263,7 +264,7 @@ export interface ServicePricingSetup {
 
 export interface CreateServiceWizardInput {
   name: string
-  categoryId: number
+  parentId?: number | null
   code: string
   description: string
   owner: string

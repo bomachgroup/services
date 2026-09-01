@@ -101,7 +101,7 @@ export function ServiceCatalogueGrid({
                   {service.name}
                 </p>
                 <p className="text-foreground-subtle mt-0.5 text-[0.5625rem]">
-                  {service.code} · {service.categoryName ?? 'Uncategorized'}
+                  {service.code} · {service.parentName ?? 'No parent'}
                 </p>
               </div>
             </div>
@@ -160,7 +160,7 @@ export function ServiceDetailPanel({
             </p>
             <h2 className="text-foreground mt-1 text-base font-extrabold">{service.name}</h2>
             <p className="text-foreground-subtle text-[0.625rem]">
-              {service.code} · {service.categoryName ?? 'Uncategorized'}
+              {service.code} · {service.parentName ?? 'No parent'}
             </p>
           </div>
           <CompactActionButton onClick={onClose} tone="ghost">

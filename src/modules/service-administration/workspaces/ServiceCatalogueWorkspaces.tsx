@@ -11,7 +11,7 @@ import type {
   CreateServiceStageAccess,
   CreateServiceWizardInput,
   PricingCalculator,
-  ServiceCategoryOption,
+  ServiceParentOption,
   ServiceCatalogueItem,
   ServiceRequestForm,
   ServiceWorkflow,
@@ -48,7 +48,7 @@ function splitLines(value: string) {
 type ServiceWizardFieldName =
   | 'name'
   | 'code'
-  | 'categoryId'
+  | 'parentId'
   | 'ownerRoleId'
   | 'description'
   | 'slaDays'
@@ -220,29 +220,10 @@ function SpecializedProfileFields({
   )
 }
 
-/** Backend stores category slugs; show human labels in the wizard. */
-const SERVICE_CATEGORY_LABELS: Record<string, string> = {
-  surveying: 'Surveying',
-  construction: 'Construction',
-  it: 'Information Technology (IT)',
-  civil_engineering: 'Civil Engineering',
-  mechanical_engineering: 'Mechanical Engineering',
-  electrical_engineering: 'Electrical Engineering',
-  environmental_engineering: 'Environmental Engineering',
-  project_management: 'Project Management',
-  property_sale_rent: 'Property Sale/Rent',
-  maintenance: 'Maintenance & Technical Support',
-  others: 'Others',
-}
-
-function categoryLabel(name: string) {
-  return SERVICE_CATEGORY_LABELS[name] ?? name
-}
-
 export function CreateServiceWizard({
   open,
   pending,
-  categories,
+  parents,
   branches: branchOptions = [],
   ownerRoles = [],
   stageAccess,
@@ -254,7 +235,7 @@ export function CreateServiceWizard({
 }: {
   open: boolean
   pending: boolean
-  categories: ServiceCategoryOption[]
+  parents: ServiceParentOption[]
   branches?: Array<{ id: number; name: string; code: string }>
   ownerRoles?: WorkflowOwnerRoleOption[]
   stageAccess?: CreateServiceStageAccess
@@ -277,7 +258,7 @@ export function CreateServiceWizard({
   const [maxReachedStep, setMaxReachedStep] = useState(0)
   const [name, setName] = useState('')
   const [code, setCode] = useState('')
-  const [categoryId, setCategoryId] = useState<number>(0)
+  const [parentId, setParentId] = useState<number>(0)
   const [ownerRoleId, setOwnerRoleId] = useState<number | null>(null)
   const [description, setDescription] = useState('')
   const [slaDays, setSlaDays] = useState(5)
@@ -358,7 +339,6 @@ export function CreateServiceWizard({
     if (stage === 'basic') {
       if (!name.trim()) return { message: 'Service name is required.', field: 'name' }
       if (!code.trim()) return { message: 'Service code is required.', field: 'code' }
-      if (!categoryId) return { message: 'Service category is required.', field: 'categoryId' }
       if (!description.trim()) return { message: 'Description is required.', field: 'description' }
       if (!Number.isFinite(slaDays) || slaDays < 1) {
         return { message: 'SLA must be at least 1 day.', field: 'slaDays' }
@@ -435,7 +415,7 @@ export function CreateServiceWizard({
     setFieldErrors({})
     onSubmit({
       name: name.trim(),
-      categoryId,
+      parentId: parentId || null,
       code: code.trim(),
       description: description.trim(),
       owner: selectedOwner?.name ?? '',
@@ -598,22 +578,22 @@ export function CreateServiceWizard({
                   }}
                 />
               </Field>
-              <Field label="Category" required error={fieldErrors.categoryId}>
+              <Field label="Service parent" error={fieldErrors.parentId}>
                 <select
                   ref={(node) => {
-                    fieldRefs.current.categoryId = node
+                    fieldRefs.current.parentId = node
                   }}
-                  aria-invalid={fieldErrors.categoryId ? true : undefined}
-                  value={categoryId || ''}
+                  aria-invalid={fieldErrors.parentId ? true : undefined}
+                  value={parentId || ''}
                   onChange={(event) => {
-                    clearFieldError('categoryId')
-                    setCategoryId(Number(event.target.value))
+                    clearFieldError('parentId')
+                    setParentId(Number(event.target.value))
                   }}
                 >
-                  <option value="">Select a category</option>
-                  {categories.map((item) => (
+                  <option value="">Select a parent (optional)</option>
+                  {parents.map((item) => (
                     <option key={item.id} value={item.id}>
-                      {categoryLabel(item.name)}
+                      {item.name}
                     </option>
                   ))}
                 </select>

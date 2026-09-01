@@ -109,7 +109,7 @@ export async function runLiveServiceSetup(
       const service = await serviceAdministrationBackendApi.createService({
         name: input.name,
         code: input.code || null,
-        category_id: input.categoryId,
+        parent_id: input.parentId ?? null,
         description: input.description,
         base_price: input.pricing.rate,
         status: 'draft',
