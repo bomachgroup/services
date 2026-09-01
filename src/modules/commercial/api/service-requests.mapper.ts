@@ -180,23 +180,25 @@ export function mapServiceRequestChoices(payload: unknown): ServiceRequestChoice
   }
 }
 
+export function mapClient(payload: unknown): ClientOption {
+  const row = record(payload)
+  return {
+    id: num(row.id),
+    name:
+      text(row.company_name) ||
+      [text(row.first_name), text(row.last_name)].filter(Boolean).join(' ') ||
+      text(row.full_name) ||
+      text(row.email),
+    email: text(row.email),
+    phone: text(row.phone) || text(row.phone_number),
+    companyName: text(row.company_name),
+    active: row.is_active !== false,
+  }
+}
+
 export function mapClients(payload: unknown): ClientOption[] {
   const { rows } = paginatedRows(payload)
-  return rows.map((item) => {
-    const row = record(item)
-    return {
-      id: num(row.id),
-      name:
-        text(row.company_name) ||
-        text(row.full_name) ||
-        [text(row.first_name), text(row.last_name)].filter(Boolean).join(' ') ||
-        text(row.email),
-      email: text(row.email),
-      phone: text(row.phone) || text(row.phone_number),
-      companyName: text(row.company_name),
-      active: row.is_active !== false,
-    }
-  })
+  return rows.map((item) => mapClient(item))
 }
 
 export function mapServices(payload: unknown): ServiceOption[] {
@@ -207,7 +209,7 @@ export function mapServices(payload: unknown): ServiceOption[] {
       id: num(row.id),
       code: text(row.code),
       name: text(row.name),
-      categoryName: text(row.category_name ?? row.categoryName),
+      parentName: text(row.parent_name ?? row.parentName),
       activeBranches: array(row.active_branches).map((item) => {
         const branch = record(item)
         return {
@@ -308,7 +310,7 @@ export function mapIntakeForm(payload: unknown): ServiceIntakeForm {
       id: num(service.id),
       code: text(service.code),
       name: text(service.name),
-      categoryName: text(service.category_name),
+      parentName: text(service.parent_name),
       specializedDomain: text(service.specialized_domain) || null,
       defaultSlaDays: num(service.default_sla_days),
       fulfillmentMode: text(service.fulfillment_mode),

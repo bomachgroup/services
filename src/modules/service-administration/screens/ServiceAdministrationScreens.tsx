@@ -1,5 +1,5 @@
-import { IconApps, IconCopy } from '@tabler/icons-react'
-import { useEffect, useRef, useState } from 'react'
+import { IconApps, IconChevronDown, IconChevronRight, IconCopy } from '@tabler/icons-react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 
 import { AccessLockIcon } from '@/shared/ui/module-controls'
 import type {
@@ -8,20 +8,162 @@ import type {
   RequestFieldTypeOption,
   RequestFormField,
   ServiceCatalogueItem,
+  ServiceParentOption,
   SaveRequestFormInput,
   ServiceRequestForm,
 } from '../types/service-administration.types'
 import { formatNumberFieldValue, parseNumberFieldValue } from '@/shared/lib/number-input'
 import { formatCurrency } from '@/shared/lib/formatters'
 
-const divisionClassNames: Record<string, string> = {
+const parentClassNames: Record<string, string> = {
   'Real Estate': 'service-admin-service-icon--real-estate',
+  'Real Estate Development & Brokerage': 'service-admin-service-icon--real-estate',
   Engineering: 'service-admin-service-icon--engineering',
   'Engineering & Construction': 'service-admin-service-icon--engineering',
   Survey: 'service-admin-service-icon--survey',
   'Land Surveying & Geospatial': 'service-admin-service-icon--survey',
   ICT: 'service-admin-service-icon--ict',
   'Information Technology': 'service-admin-service-icon--ict',
+  'Courier, Logistics & E-commerce': 'service-admin-service-icon--logistics',
+  'Agriculture & Food Processing': 'service-admin-service-icon--agriculture',
+  'Legal Services': 'service-admin-service-icon--legal',
+}
+
+type ServiceParentGroup = {
+  key: string
+  parentId: number | null
+  parentName: string
+  services: ServiceCatalogueItem[]
+}
+
+function parentGroupKey(parentId: number | null | undefined, parentName?: string) {
+  if (parentId != null) return `parent-${parentId}`
+  return `parent-name-${parentName?.trim() || 'none'}`
+}
+
+const EXPANDED_PARENT_GROUPS_KEY = 'bomach.service-catalogue.expanded-parent-groups'
+
+function readExpandedParentGroups(): Set<string> {
+  if (typeof window === 'undefined') return new Set()
+
+  try {
+    const raw = window.localStorage.getItem(EXPANDED_PARENT_GROUPS_KEY)
+    if (!raw) return new Set()
+
+    const parsed: unknown = JSON.parse(raw)
+    if (!Array.isArray(parsed)) return new Set()
+
+    return new Set(parsed.filter((item): item is string => typeof item === 'string'))
+  } catch {
+    return new Set()
+  }
+}
+
+function writeExpandedParentGroups(expanded: Set<string>) {
+  if (typeof window === 'undefined') return
+
+  window.localStorage.setItem(EXPANDED_PARENT_GROUPS_KEY, JSON.stringify([...expanded]))
+}
+
+function parentIconClass(parentName?: string) {
+  return parentClassNames[parentName ?? ''] ?? 'service-admin-service-icon--default'
+}
+
+function groupServicesByParent(
+  services: ServiceCatalogueItem[],
+  parents: ServiceParentOption[],
+): ServiceParentGroup[] {
+  const grouped = new Map<string, ServiceParentGroup>()
+
+  for (const service of services) {
+    const key = parentGroupKey(service.parentId, service.parentName)
+    const existing = grouped.get(key)
+    if (existing) {
+      existing.services.push(service)
+      continue
+    }
+
+    grouped.set(key, {
+      key,
+      parentId: service.parentId ?? null,
+      parentName: service.parentName?.trim() || 'Unassigned',
+      services: [service],
+    })
+  }
+
+  const orderIndex = new Map(parents.map((parent, index) => [parent.id, index]))
+
+  return [...grouped.values()].sort((left, right) => {
+    const leftOrder =
+      left.parentId != null && orderIndex.has(left.parentId)
+        ? orderIndex.get(left.parentId)!
+        : Number.MAX_SAFE_INTEGER
+    const rightOrder =
+      right.parentId != null && orderIndex.has(right.parentId)
+        ? orderIndex.get(right.parentId)!
+        : Number.MAX_SAFE_INTEGER
+
+    if (leftOrder !== rightOrder) return leftOrder - rightOrder
+    return left.parentName.localeCompare(right.parentName)
+  })
+}
+
+function ServiceCatalogueCard({
+  service,
+  onConfigure,
+  configureLabel,
+  onDuplicate,
+  showParentMeta = false,
+}: {
+  service: ServiceCatalogueItem
+  onConfigure?: ((service: ServiceCatalogueItem) => void) | undefined
+  configureLabel?: 'Configure' | 'View'
+  onDuplicate?: ((service: ServiceCatalogueItem) => void) | undefined
+  showParentMeta?: boolean
+}) {
+  const parentClassName = parentIconClass(service.parentName)
+
+  return (
+    <article className="service-admin-service-card">
+      <div className={`service-admin-service-icon ${parentClassName}`}>
+        <IconApps size={18} />
+      </div>
+      <div className="service-admin-service-name">{service.name}</div>
+      <p className="service-admin-service-description">{service.description}</p>
+      <div className="service-admin-row-subtitle service-admin-service-meta">
+        {service.code}
+        {showParentMeta ? ` · ${service.parentName ?? 'No parent'}` : null}
+        {service.slaDays != null ? ` · ${service.slaDays}d SLA` : null}
+      </div>
+      <div className="service-admin-service-footer">
+        <span className={`service-admin-pill ${statusClass(service.status)}`}>{service.status}</span>
+        <div className="flex gap-1">
+          <button
+            type="button"
+            className="service-admin-button service-admin-button-small"
+            disabled={!onConfigure}
+            title={
+              !onConfigure ? 'You do not have permission to view this service' : undefined
+            }
+            onClick={() => onConfigure?.(service)}
+          >
+            <AccessLockIcon show={!onConfigure} size={11} />
+            {configureLabel}
+          </button>
+          {onDuplicate ? (
+            <button
+              type="button"
+              className="service-admin-button service-admin-button-small"
+              aria-label="Duplicate service"
+              onClick={() => onDuplicate(service)}
+            >
+              <IconCopy size={13} />
+            </button>
+          ) : null}
+        </div>
+      </div>
+    </article>
+  )
 }
 
 function statusClass(status: string) {
@@ -35,6 +177,8 @@ export function ServiceCatalogueScreen({
   totalCount,
   query,
   status,
+  parentId,
+  parents,
   page,
   pageSize,
   onFiltersChange,
@@ -51,9 +195,11 @@ export function ServiceCatalogueScreen({
   totalCount: number
   query: string
   status: string
+  parentId: number | null
+  parents: ServiceParentOption[]
   page: number
   pageSize: number
-  onFiltersChange: (filters: { query: string; status: string }) => void
+  onFiltersChange: (filters: { query: string; status: string; parentId?: number }) => void
   onPageChange: (page: number) => void
   onConfigure?: ((service: ServiceCatalogueItem) => void) | undefined
   configureLabel?: 'Configure' | 'View'
@@ -63,12 +209,19 @@ export function ServiceCatalogueScreen({
   branchAvailabilityDisabled?: boolean
   onDuplicate?: ((service: ServiceCatalogueItem) => void) | undefined
 }) {
-  const hasActiveFilters = query.trim().length > 0 || status.length > 0
+  const hasActiveFilters =
+    query.trim().length > 0 || status.length > 0 || parentId != null
   const pageCount = Math.max(1, Math.ceil(totalCount / pageSize))
   const [searchDraft, setSearchDraft] = useState(query)
   const [syncedQuery, setSyncedQuery] = useState(query)
+  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(readExpandedParentGroups)
   const onFiltersChangeRef = useRef(onFiltersChange)
   const statusRef = useRef(status)
+  const parentIdRef = useRef(parentId)
+  const groupedServices = useMemo(
+    () => groupServicesByParent(services, parents),
+    [parents, services],
+  )
 
   if (query !== syncedQuery) {
     setSyncedQuery(query)
@@ -84,12 +237,17 @@ export function ServiceCatalogueScreen({
   }, [status])
 
   useEffect(() => {
+    parentIdRef.current = parentId
+  }, [parentId])
+
+  useEffect(() => {
     if (searchDraft === query) return
 
     const timeoutId = window.setTimeout(() => {
       onFiltersChangeRef.current({
         query: searchDraft,
         status: statusRef.current,
+        ...(parentIdRef.current ? { parentId: parentIdRef.current } : {}),
       })
     }, 350)
 
@@ -97,6 +255,31 @@ export function ServiceCatalogueScreen({
   }, [searchDraft, query])
 
   const recordCountLabel = `${totalCount} service${totalCount === 1 ? '' : 's'}`
+  const showGroupedLayout = parentId == null
+
+  const toggleGroup = (groupKey: string) => {
+    setExpandedGroups((current) => {
+      const next = new Set(current)
+      if (next.has(groupKey)) {
+        next.delete(groupKey)
+      } else {
+        next.add(groupKey)
+      }
+      writeExpandedParentGroups(next)
+      return next
+    })
+  }
+
+  const applyFilters = (next: { query?: string; status?: string; parentId?: number | null }) => {
+    const resolvedParentId =
+      next.parentId === null ? undefined : (next.parentId ?? parentId ?? undefined)
+
+    onFiltersChange({
+      query: next.query ?? searchDraft,
+      status: next.status ?? status,
+      ...(resolvedParentId ? { parentId: resolvedParentId } : {}),
+    })
+  }
 
   return (
     <div className="service-admin-page service-admin-content">
@@ -110,21 +293,37 @@ export function ServiceCatalogueScreen({
               if (event.key !== 'Enter') return
               event.preventDefault()
               if (searchDraft === query) return
-              onFiltersChange({ query: searchDraft, status })
+              applyFilters({ query: searchDraft })
             }}
             placeholder="Search services..."
           />
           <select
             value={status}
-            onChange={(event) =>
-              onFiltersChange({ query: searchDraft, status: event.target.value })
-            }
+            onChange={(event) => applyFilters({ status: event.target.value })}
           >
             <option value="">All statuses</option>
             <option value="active">Active</option>
             <option value="draft">Draft</option>
             <option value="inactive">Inactive</option>
           </select>
+          {parents.length > 0 ? (
+            <select
+              value={parentId ?? ''}
+              onChange={(event) => {
+                const value = event.target.value
+                applyFilters({
+                  parentId: value ? Number(value) : null,
+                })
+              }}
+            >
+              <option value="">All parent services</option>
+              {parents.map((parent) => (
+                <option key={parent.id} value={parent.id}>
+                  {parent.name}
+                </option>
+              ))}
+            </select>
+          ) : null}
           <span className="service-admin-grow" />
           <button
             type="button"
@@ -152,114 +351,142 @@ export function ServiceCatalogueScreen({
           </button>
         </div>
 
-        <div className="service-admin-service-grid">
-          {services.length === 0 ? (
-            <section className="service-admin-card col-span-full border-dashed p-6 sm:p-8">
-              <div className="mx-auto max-w-xl text-center">
-                <div className="service-admin-card-title">
-                  {hasActiveFilters
-                    ? 'No services match the current filters'
-                    : 'No services in the catalogue yet'}
-                </div>
-                <div className="service-admin-card-subtitle mt-1">
-                  {hasActiveFilters
-                    ? 'Try clearing or adjusting the search and filter settings to see more services.'
-                    : 'Service cards will appear here after the first Service is created. You can still search, filter, review branch availability, and start the setup flow from this page.'}
-                </div>
-                <div className="mt-4 flex flex-wrap justify-center gap-2">
-                  {hasActiveFilters ? (
-                    <button
-                      type="button"
-                      className="service-admin-button service-admin-button-primary"
-                      onClick={() => onFiltersChange({ query: '', status: '' })}
-                    >
-                      Clear filters
-                    </button>
-                  ) : (
-                    <button
-                      type="button"
-                      className="service-admin-button service-admin-button-primary"
-                      disabled={createDisabled || !onCreate}
-                      title={
-                        createDisabled ? 'You do not have permission to create services' : undefined
-                      }
-                      onClick={() => onCreate?.()}
-                    >
-                      <AccessLockIcon show={createDisabled} />
-                      Create first Service
-                    </button>
-                  )}
+        {services.length === 0 ? (
+          <section className="service-admin-card col-span-full border-dashed p-6 sm:p-8">
+            <div className="mx-auto max-w-xl text-center">
+              <div className="service-admin-card-title">
+                {hasActiveFilters
+                  ? 'No services match the current filters'
+                  : 'No services in the catalogue yet'}
+              </div>
+              <div className="service-admin-card-subtitle mt-1">
+                {hasActiveFilters
+                  ? 'Try clearing or adjusting the search and filter settings to see more services.'
+                  : 'Service cards will appear here after the first Service is created. You can still search, filter, review branch availability, and start the setup flow from this page.'}
+              </div>
+              <div className="mt-4 flex flex-wrap justify-center gap-2">
+                {hasActiveFilters ? (
                   <button
                     type="button"
-                    className="service-admin-button"
-                    disabled={branchAvailabilityDisabled || !onBranchAvailability}
-                    title={
-                      branchAvailabilityDisabled
-                        ? 'You do not have permission to view branch availability'
-                        : undefined
-                    }
-                    onClick={() => onBranchAvailability?.()}
+                    className="service-admin-button service-admin-button-primary"
+                    onClick={() => applyFilters({ query: '', status: '', parentId: null })}
                   >
-                    <AccessLockIcon show={branchAvailabilityDisabled} />
-                    Branch Availability
+                    Clear filters
                   </button>
-                </div>
+                ) : (
+                  <button
+                    type="button"
+                    className="service-admin-button service-admin-button-primary"
+                    disabled={createDisabled || !onCreate}
+                    title={
+                      createDisabled ? 'You do not have permission to create services' : undefined
+                    }
+                    onClick={() => onCreate?.()}
+                  >
+                    <AccessLockIcon show={createDisabled} />
+                    Create first Service
+                  </button>
+                )}
+                <button
+                  type="button"
+                  className="service-admin-button"
+                  disabled={branchAvailabilityDisabled || !onBranchAvailability}
+                  title={
+                    branchAvailabilityDisabled
+                      ? 'You do not have permission to view branch availability'
+                      : undefined
+                  }
+                  onClick={() => onBranchAvailability?.()}
+                >
+                  <AccessLockIcon show={branchAvailabilityDisabled} />
+                  Branch Availability
+                </button>
               </div>
-            </section>
-          ) : null}
+            </div>
+          </section>
+        ) : showGroupedLayout ? (
+          <div className="service-admin-parent-groups">
+            {groupedServices.map((group) => {
+              const collapsed = !expandedGroups.has(group.key)
+              const activeCount = group.services.filter(
+                (service) => service.status === 'active',
+              ).length
+              const draftCount = group.services.filter(
+                (service) => service.status === 'draft',
+              ).length
 
-          {services.map((service) => {
-            const divisionClassName =
-              divisionClassNames[service.categoryName ?? ''] ?? 'service-admin-service-icon--default'
-
-            return (
-              <article key={service.id} className="service-admin-service-card">
-                <div className={`service-admin-service-icon ${divisionClassName}`}>
-                  <IconApps size={18} />
-                </div>
-                <div className="service-admin-service-name">{service.name}</div>
-                <p className="service-admin-service-description">{service.description}</p>
-                <div className="service-admin-row-subtitle service-admin-service-meta">
-                  {service.code} · {service.categoryName ?? 'Uncategorized'}
-                  d SLA
-                </div>
-                <div className="service-admin-service-footer">
-                  <span className={`service-admin-pill ${statusClass(service.status)}`}>
-                    {service.status}
-                  </span>
-                  <div className="flex gap-1">
-                    <button
-                      type="button"
-                      className="service-admin-button service-admin-button-small"
-                      disabled={!onConfigure}
-                      title={
-                        !onConfigure ? 'You do not have permission to view this service' : undefined
-                      }
-                      onClick={() => onConfigure?.(service)}
+              return (
+                <section key={group.key} className="service-admin-parent-group">
+                  <button
+                    type="button"
+                    className="service-admin-parent-group-header"
+                    aria-expanded={!collapsed}
+                    onClick={() => toggleGroup(group.key)}
+                  >
+                    <span
+                      className="service-admin-parent-group-chevron"
+                      aria-hidden="true"
                     >
-                      <AccessLockIcon show={!onConfigure} size={11} />
-                      {configureLabel}
-                    </button>
-                    {onDuplicate ? (
-                      <button
-                        type="button"
-                        className="service-admin-button service-admin-button-small"
-                        aria-label="Duplicate service"
-                        onClick={() => onDuplicate(service)}
-                      >
-                        <IconCopy size={13} />
-                      </button>
-                    ) : null}
-                  </div>
-                </div>
-              </article>
-            )
-          })}
-        </div>
+                      {collapsed ? <IconChevronRight size={16} /> : <IconChevronDown size={16} />}
+                    </span>
+                    <span
+                      className={`service-admin-service-icon service-admin-parent-group-icon ${parentIconClass(group.parentName)}`}
+                    >
+                      <IconApps size={16} />
+                    </span>
+                    <span className="service-admin-parent-group-copy">
+                      <span className="service-admin-parent-group-name">{group.parentName}</span>
+                      <span className="service-admin-parent-group-meta">
+                        {group.services.length} service{group.services.length === 1 ? '' : 's'}
+                        {activeCount > 0 ? ` · ${activeCount} active` : ''}
+                        {draftCount > 0 ? ` · ${draftCount} draft` : ''}
+                      </span>
+                    </span>
+                  </button>
+
+                  {!collapsed ? (
+                    <div className="service-admin-service-grid service-admin-parent-group-body">
+                      {group.services.map((service) => (
+                        <ServiceCatalogueCard
+                          key={service.id}
+                          service={service}
+                          onConfigure={onConfigure}
+                          configureLabel={configureLabel}
+                          onDuplicate={onDuplicate}
+                        />
+                      ))}
+                    </div>
+                  ) : null}
+                </section>
+              )
+            })}
+          </div>
+        ) : (
+          <div className="service-admin-service-grid">
+            {services.map((service) => (
+              <ServiceCatalogueCard
+                key={service.id}
+                service={service}
+                onConfigure={onConfigure}
+                configureLabel={configureLabel}
+                onDuplicate={onDuplicate}
+                showParentMeta
+              />
+            ))}
+          </div>
+        )}
 
         <div className="service-admin-table-pagination">
           <div className="service-admin-table-pagination-summary">
             <span className="service-admin-table-pagination-count">{recordCountLabel}</span>
+            {showGroupedLayout ? (
+              <>
+                <span className="service-admin-table-pagination-divider" aria-hidden="true" />
+                <span>
+                  {groupedServices.length} parent group{groupedServices.length === 1 ? '' : 's'}
+                </span>
+              </>
+            ) : null}
             <span className="service-admin-table-pagination-divider" aria-hidden="true" />
             <span>
               Page <b>{page}</b> of <b>{pageCount}</b>

@@ -130,6 +130,13 @@ export interface ServiceRequestSummary {
   highPriority: number
 }
 
+export interface CreateClientInput {
+  email: string
+  firstName: string
+  lastName: string
+  phoneNumber: string
+}
+
 export interface ClientOption {
   id: number
   name: string
@@ -148,7 +155,7 @@ export interface ServiceOption {
   id: number
   code: string
   name: string
-  categoryName: string
+  parentName: string
   activeBranches: BranchOption[]
 }
 
@@ -216,7 +223,7 @@ export interface ServiceIntakeForm {
     id: number
     code: string
     name: string
-    categoryName: string
+    parentName: string
     specializedDomain: string | null
     defaultSlaDays: number
     fulfillmentMode: string

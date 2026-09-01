@@ -11,7 +11,7 @@ export interface MessageDto {
 
 export interface ServiceListFilters {
   status?: string
-  categoryId?: number
+  parentId?: number
   ownerRoleId?: number
   clientVisibility?: string
   branchId?: number
@@ -57,10 +57,11 @@ export interface BranchDto {
   is_operational: boolean
 }
 
-export interface ServiceCategoryDto {
+export interface ServiceParentDto {
   id: number
   name: string
   description: string
+  status: string
   created_at: string
   updated_at: string
 }
@@ -76,8 +77,8 @@ export interface ServiceCoreDto {
   id: number
   code: string | null
   name: string
-  category_id: number
-  category_name: string
+  parent_id: number | null
+  parent_name: string
   description: string
   base_price: BackendDecimal
   delivery_time: string
@@ -217,7 +218,7 @@ export interface ServiceCatalogueDetailDto extends ServiceCatalogueCardDto {
 export interface ServiceCreateDto {
   name: string
   code?: string | null
-  category_id: number
+  parent_id?: number | null
   description: string
   base_price?: BackendDecimal
   delivery_time?: string
@@ -233,7 +234,7 @@ export interface ServiceCreateDto {
 export interface ServiceUpdateDto {
   name?: string
   code?: string | null
-  category_id?: number
+  parent_id?: number | null
   description?: string
   base_price?: BackendDecimal
   delivery_time?: string

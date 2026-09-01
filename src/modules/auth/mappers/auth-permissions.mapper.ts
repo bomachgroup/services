@@ -36,6 +36,19 @@ export function mapBackendPermissions(
   }
 
   if (
+    backendPermissions.includes('categories.list') ||
+    backendPermissions.includes('service_parents.list') ||
+    backendPermissions.includes('services.create')
+  ) {
+    granted.add(PERMISSIONS.serviceParentsList)
+  }
+
+  if (backendPermissions.includes('service_requests.create')) {
+    granted.add(PERMISSIONS.clientsList)
+    granted.add(PERMISSIONS.clientsCreate)
+  }
+
+  if (
     backendPermissions.includes('documents.view') ||
     backendPermissions.includes('orders.view') ||
     backendPermissions.includes('orders.list')

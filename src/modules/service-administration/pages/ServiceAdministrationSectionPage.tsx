@@ -103,6 +103,7 @@ const metadata: Record<
 export interface ServiceAdministrationRecordSearch {
   search?: string
   status?: string
+  parentId?: number
   page?: number
 }
 
@@ -120,8 +121,10 @@ export function ServiceAdministrationSectionPage({
   const capabilities = getServiceAdministrationCapabilities(user)
   const catalogueSearch = section === 'service-catalogue' ? (recordSearch.search ?? '') : ''
   const catalogueStatus = section === 'service-catalogue' ? (recordSearch.status ?? '') : ''
+  const catalogueParentId =
+    section === 'service-catalogue' ? (recordSearch.parentId ?? null) : null
   const cataloguePage = section === 'service-catalogue' ? Math.max(1, recordSearch.page ?? 1) : 1
-  const cataloguePageSize = 12
+  const cataloguePageSize = section === 'service-catalogue' ? 100 : 12
   const createStageAccess: CreateServiceStageAccess = {
     pricing: capabilities.canCreatePricingConfig,
     requestForm: capabilities.canCreateRequestForm,
@@ -134,15 +137,20 @@ export function ServiceAdministrationSectionPage({
     ...serviceAdministrationQueries.catalogueList({
       ...(section === 'service-catalogue' && catalogueSearch ? { search: catalogueSearch } : {}),
       ...(section === 'service-catalogue' && catalogueStatus ? { status: catalogueStatus } : {}),
+      ...(section === 'service-catalogue' && catalogueParentId
+        ? { parentId: catalogueParentId }
+        : {}),
       limit: section === 'service-catalogue' ? cataloguePageSize : 100,
       offset: section === 'service-catalogue' ? (cataloguePage - 1) * cataloguePageSize : 0,
     }),
     enabled: true,
     placeholderData: (previousData) => previousData,
   })
-  const categoryQuery = useQuery({
-    ...serviceAdministrationQueries.categories(),
-    enabled: capabilities.canCreateInitialServiceSetup,
+  const parentQuery = useQuery({
+    ...serviceAdministrationQueries.parents(),
+    enabled:
+      capabilities.canListParents &&
+      (section === 'service-catalogue' || capabilities.canCreateInitialServiceSetup),
   })
   const fieldTypesQuery = useQuery({
     ...serviceAdministrationQueries.requestFieldTypes(),
@@ -742,6 +750,8 @@ export function ServiceAdministrationSectionPage({
             totalCount={catalogue?.count ?? 0}
             query={catalogueSearch}
             status={catalogueStatus}
+            parentId={catalogueParentId}
+            parents={parentQuery.data ?? []}
             page={cataloguePage}
             pageSize={cataloguePageSize}
             onFiltersChange={(filters) => {
@@ -752,12 +762,14 @@ export function ServiceAdministrationSectionPage({
                   const next = { ...previous }
                   delete next.search
                   delete next.status
+                  delete next.parentId
                   delete next.page
 
                   return {
                     ...next,
                     ...(filters.query ? { search: filters.query } : {}),
                     ...(filters.status ? { status: filters.status } : {}),
+                    ...(filters.parentId ? { parentId: filters.parentId } : {}),
                   }
                 },
                 replace: true,
@@ -975,7 +987,7 @@ export function ServiceAdministrationSectionPage({
       {capabilities.canCreateInitialServiceSetup && newServiceOpen ? (
         <CreateServiceWizard
           open
-          categories={categoryQuery.data ?? []}
+          parents={parentQuery.data ?? []}
           branches={createWizardBranchesQuery.data ?? []}
           ownerRoles={rolesQuery.data ?? []}
           stageAccess={createStageAccess}

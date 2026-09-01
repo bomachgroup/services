@@ -1,5 +1,5 @@
 import type { AuthUser } from '@/app/auth'
-import { PERMISSIONS, hasPermission, hasPermissions } from '@/app/permissions'
+import { PERMISSIONS, hasPermission } from '@/app/permissions'
 
 export interface ServiceAdministrationCapabilities {
   canListServices: boolean
@@ -7,7 +7,7 @@ export interface ServiceAdministrationCapabilities {
   canCreateService: boolean
   canUpdateService: boolean
   canDeleteService: boolean
-  canListCategories: boolean
+  canListParents: boolean
   canCreateInitialServiceSetup: boolean
 
   canListPricingConfigs: boolean
@@ -41,12 +41,8 @@ export function getServiceAdministrationCapabilities(
     canCreateService: hasPermission(user, PERMISSIONS.servicesCreate),
     canUpdateService: hasPermission(user, PERMISSIONS.servicesUpdate),
     canDeleteService: hasPermission(user, PERMISSIONS.servicesDelete),
-    canListCategories: hasPermission(user, PERMISSIONS.categoriesList),
-    canCreateInitialServiceSetup: hasPermissions(
-      user,
-      [PERMISSIONS.servicesCreate, PERMISSIONS.categoriesList],
-      'all',
-    ),
+    canListParents: hasPermission(user, PERMISSIONS.serviceParentsList),
+    canCreateInitialServiceSetup: hasPermission(user, PERMISSIONS.servicesCreate),
     canListPricingConfigs: hasPermission(user, PERMISSIONS.servicePricingConfigsList),
     canViewPricingConfig: hasPermission(user, PERMISSIONS.servicePricingConfigsView),
     canCreatePricingConfig: hasPermission(user, PERMISSIONS.servicePricingConfigsCreate),

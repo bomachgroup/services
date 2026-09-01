@@ -107,6 +107,7 @@ export type AppSectionSearch = AppRecordSearch & {
   estate?: string
   property?: string
   page?: number
+  parentId?: number
 }
 
 export function parseRecordSearch(search: Record<string, unknown>): AppSectionSearch {
@@ -174,6 +175,20 @@ export function parseRecordSearch(search: Record<string, unknown>): AppSectionSe
         : undefined
   const cataloguePage =
     rawPage !== undefined && Number.isInteger(rawPage) && rawPage > 0 ? rawPage : undefined
+  const rawParentId =
+    typeof search.parentId === 'number'
+      ? search.parentId
+      : typeof search.parentId === 'string'
+        ? Number(search.parentId)
+        : typeof search.parent === 'number'
+          ? search.parent
+          : typeof search.parent === 'string'
+            ? Number(search.parent)
+            : undefined
+  const catalogueParentId =
+    rawParentId !== undefined && Number.isInteger(rawParentId) && rawParentId > 0
+      ? rawParentId
+      : undefined
 
   if (request) result.request = request
   if (quotation) result.quotation = quotation
@@ -189,6 +204,7 @@ export function parseRecordSearch(search: Record<string, unknown>): AppSectionSe
 
   if (catalogueSearch) result.search = catalogueSearch
   if (catalogueStatus) result.status = catalogueStatus
+  if (catalogueParentId) result.parentId = catalogueParentId
   const specializedDomain = stringValue(search.specializedDomain)
   if (specializedDomain) result.specializedDomain = specializedDomain
   if (orderPaymentStatus) result.paymentStatus = orderPaymentStatus
