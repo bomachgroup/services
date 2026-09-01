@@ -1,5 +1,7 @@
 import { redirect } from '@tanstack/react-router'
 
+import { tokenStore } from '@/shared/auth/token-store'
+
 import type { AuthContextValue, AuthUserKind } from './auth.types'
 
 interface RequireAuthenticatedUserOptions {
@@ -13,7 +15,15 @@ export function requireAuthenticatedUser({
   locationHref,
   allowedKinds,
 }: RequireAuthenticatedUserOptions): void | ReturnType<typeof redirect> {
-  if (auth.isLoading) {
+  const isEmbed =
+    typeof window !== 'undefined' &&
+    (window.location.search.includes('embed=true') ||
+      window.location.search.includes('embedded=true') ||
+      window.location.search.includes('token=') ||
+      window.location.search.includes('access_token=') ||
+      Boolean(tokenStore.getAccessToken()))
+
+  if (auth.isLoading || (isEmbed && (!auth.isAuthenticated || !auth.user))) {
     return
   }
 
