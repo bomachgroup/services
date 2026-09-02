@@ -668,8 +668,8 @@ export function createMockServiceWizard(input: CreateServiceWizardInput) {
     readiness: input.status === 'active' ? 100 : 82,
     slaDays: input.slaDays,
     fulfilmentMode: input.fulfilmentMode,
-    requestFields: input.requestFields,
-    workflowStages: input.workflowStages,
+    requestFields: input.requestFields.map((field) => field.label),
+    workflowStages: input.workflowStages.map((stage) => stage.name),
   }
 
   services.unshift(service)
@@ -742,15 +742,9 @@ export function createMockServiceWizard(input: CreateServiceWizardInput) {
     serviceName: input.name,
     status: input.status,
     version: 1,
-    fields: input.requestFields.map((label, index) => ({
-      id: `field-${stamp}-${index}`,
-      label,
-      key: label
-        .toLowerCase()
-        .replace(/[^a-z0-9]+/g, '_')
-        .replace(/^_|_$/g, ''),
-      type: label.toLowerCase().includes('document') ? 'file' : 'text',
-      required: true,
+    fields: input.requestFields.map((field, index) => ({
+      ...field,
+      id: field.id || `field-${stamp}-${index}`,
     })),
     updatedAt: new Date().toISOString(),
   })
@@ -762,18 +756,10 @@ export function createMockServiceWizard(input: CreateServiceWizardInput) {
     serviceName: input.name,
     status: input.status,
     version: 1,
-    stages: input.workflowStages.map((name, index) => ({
-      id: `stage-${stamp}-${index}`,
-      name,
+    stages: input.workflowStages.map((stage, index) => ({
+      ...stage,
+      id: stage.id || `stage-${stamp}-${index}`,
       order: index + 1,
-      ownerRole: input.owner,
-      slaHours: Math.max(
-        1,
-        Math.round((input.slaDays * 24) / Math.max(1, input.workflowStages.length)),
-      ),
-      requiresEvidence: index > 0,
-      requiresApproval: name.toLowerCase().includes('approval'),
-      clientVisible: true,
     })),
     updatedAt: new Date().toISOString(),
   })
@@ -808,38 +794,27 @@ export function configureMockService(input: ConfigureServiceInput) {
     fulfilmentMode: input.fulfilmentMode,
     status: input.status,
     branchNames: input.branchNames,
-    requestFields: input.requestFields,
-    workflowStages: input.workflowStages,
+    requestFields: input.requestFields.map((field) => field.label),
+    workflowStages: input.workflowStages.map((stage) => stage.name),
     readiness: input.status === 'active' ? 100 : Math.min(service.readiness, 90),
   })
 
   const form = requestForms.find((item) => item.serviceId === input.id)
   if (form) {
     form.serviceName = input.name
-    form.fields = input.requestFields.map((label, index) => ({
-      id: form.fields[index]?.id ?? `field-${Date.now()}-${index}`,
-      label,
-      key: label
-        .toLowerCase()
-        .replace(/[^a-z0-9]+/g, '_')
-        .replace(/^_|_$/g, ''),
-      type: form.fields[index]?.type ?? 'text',
-      required: form.fields[index]?.required ?? true,
+    form.fields = input.requestFields.map((field, index) => ({
+      ...field,
+      id: form.fields[index]?.id ?? field.id ?? `field-${Date.now()}-${index}`,
     }))
   }
 
   const workflow = workflows.find((item) => item.serviceId === input.id)
   if (workflow) {
     workflow.serviceName = input.name
-    workflow.stages = input.workflowStages.map((name, index) => ({
-      id: workflow.stages[index]?.id ?? `stage-${Date.now()}-${index}`,
-      name,
+    workflow.stages = input.workflowStages.map((stage, index) => ({
+      ...stage,
+      id: workflow.stages[index]?.id ?? stage.id ?? `stage-${Date.now()}-${index}`,
       order: index + 1,
-      ownerRole: workflow.stages[index]?.ownerRole ?? input.owner,
-      slaHours: workflow.stages[index]?.slaHours ?? 24,
-      requiresEvidence: workflow.stages[index]?.requiresEvidence ?? index > 0,
-      requiresApproval: workflow.stages[index]?.requiresApproval ?? false,
-      clientVisible: workflow.stages[index]?.clientVisible ?? true,
     }))
   }
 

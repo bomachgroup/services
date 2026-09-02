@@ -12,6 +12,18 @@ import { useToast } from '@/shared/ui'
 import { AuthContext } from './auth.context'
 import type { AuthContextValue, AuthUser } from './auth.types'
 
+type AuthTokenMessage = {
+  type: 'BOMACH_AUTH_TOKEN'
+  token: string
+  refreshToken?: string
+}
+
+function isAuthTokenMessage(value: unknown): value is AuthTokenMessage {
+  if (!value || typeof value !== 'object') return false
+  const payload = value as Record<string, unknown>
+  return payload.type === 'BOMACH_AUTH_TOKEN' && typeof payload.token === 'string'
+}
+
 export function AuthProvider({ children }: PropsWithChildren) {
   const queryClient = useQueryClient()
   const toast = useToast()
@@ -58,19 +70,20 @@ export function AuthProvider({ children }: PropsWithChildren) {
         accessToken: queryToken,
         refreshToken: queryRefreshToken || queryToken,
       })
-      queryClient.invalidateQueries({
+      void queryClient.invalidateQueries({
         queryKey: currentUserQueryOptions.queryKey,
       })
     }
 
-    const handleMessage = (e: MessageEvent) => {
-      if (e.data && e.data.type === 'BOMACH_AUTH_TOKEN' && e.data.token) {
-        const t = String(e.data.token)
+    const handleMessage = (event: MessageEvent<unknown>) => {
+      if (isAuthTokenMessage(event.data)) {
+        const token = event.data.token
         tokenStore.set({
-          accessToken: t,
-          refreshToken: e.data.refreshToken ? String(e.data.refreshToken) : t,
+          accessToken: token,
+          refreshToken:
+            typeof event.data.refreshToken === 'string' ? event.data.refreshToken : token,
         })
-        queryClient.invalidateQueries({
+        void queryClient.invalidateQueries({
           queryKey: currentUserQueryOptions.queryKey,
         })
       }

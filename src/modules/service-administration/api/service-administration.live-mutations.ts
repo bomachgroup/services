@@ -1,3 +1,4 @@
+import { mapRequestFormFieldsToBackend } from '../mappers/request-form.mapper'
 import { mapServiceCatalogueDetail } from '../mappers/service-catalogue.mapper'
 import { mapSaveRequestFormInput } from '../mappers/request-form.mapper'
 import { mapPricingConfigDto, mapSaveCalculatorInput } from '../mappers/pricing-config.mapper'
@@ -49,32 +50,6 @@ function fulfillmentMode(value: string): string {
   return map[normalized] ?? value
 }
 
-function slug(value: string): string {
-  return value
-    .toLowerCase()
-    .replace(/&/g, ' and ')
-    .replace(/[^a-z0-9]+/g, '_')
-    .replace(/^_|_$/g, '')
-}
-
-function requestFieldType(label: string): string {
-  const normalized = label.toLowerCase()
-
-  if (normalized.includes('budget')) return 'money'
-  if (normalized.includes('date')) return 'date'
-  if (normalized.includes('scope') || normalized.includes('message')) return 'textarea'
-  if (
-    normalized.includes('upload') ||
-    normalized.includes('document') ||
-    normalized.includes('image')
-  ) {
-    return 'file'
-  }
-  if (normalized.includes('location') || normalized.includes('site')) return 'location'
-  if (normalized.includes('consent')) return 'checkbox'
-  return 'text'
-}
-
 export async function createServiceThroughRequestForm(
   input: CreateServiceWizardInput,
 ): Promise<ServiceCatalogueItem> {
@@ -108,17 +83,7 @@ export async function createServiceThroughRequestForm(
       version: 1,
       status: 'draft',
       is_active: false,
-      fields: input.requestFields.map((label, index) => ({
-        key: slug(label) || `field_${index + 1}`,
-        label,
-        field_type: requestFieldType(label),
-        required: true,
-        options: [],
-        validation: {},
-        help_text: '',
-        placeholder: '',
-        sort_order: index,
-      })),
+      fields: mapRequestFormFieldsToBackend(input.requestFields),
     })
   } catch (error) {
     throw new ServiceSetupStageError('request-form', serviceId, error)

@@ -276,8 +276,8 @@ export interface CreateServiceWizardInput {
   specializedDomain?: string | null
   specializedConfig?: Record<string, unknown>
   pricing: ServicePricingSetup
-  requestFields: string[]
-  workflowStages: string[]
+  requestFields: RequestFormField[]
+  workflowStages: WorkflowStage[]
   ownerRoleId?: number | null
   clientVisibility?: 'visible' | 'internal' | 'hidden'
   branchIds?: number[]
@@ -299,8 +299,8 @@ export interface ConfigureServiceInput {
   specializedDomain?: string | null
   specializedConfig?: Record<string, unknown>
   pricing: ServicePricingSetup
-  requestFields: string[]
-  workflowStages: string[]
+  requestFields: RequestFormField[]
+  workflowStages: WorkflowStage[]
 }
 
 export interface BranchActivationMatrixUpdate {

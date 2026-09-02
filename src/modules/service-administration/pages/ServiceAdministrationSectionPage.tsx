@@ -52,6 +52,7 @@ import type {
   ServiceSetupStageId,
   CreateServiceStageAccess,
   PricingCalculator,
+  RequestFieldTypeOption,
   ServiceCatalogueItem,
   ServiceRequestForm,
   ServiceWorkflow,
@@ -154,7 +155,11 @@ export function ServiceAdministrationSectionPage({
   })
   const fieldTypesQuery = useQuery({
     ...serviceAdministrationQueries.requestFieldTypes(),
-    enabled: section === 'request-form-builder' && capabilities.canListRequestForms,
+    enabled:
+      capabilities.canListRequestForms &&
+      (section === 'request-form-builder' ||
+        section === 'service-catalogue' ||
+        capabilities.canCreateInitialServiceSetup),
   })
   const pricingQuery = useQuery({
     ...serviceAdministrationQueries.pricingConfigs(capabilities.canViewPricingConfig),
@@ -442,27 +447,6 @@ export function ServiceAdministrationSectionPage({
         'custom formula': 'formula',
       }
 
-      const requestFieldType = (label: string) => {
-        const normalized = label.toLowerCase()
-        if (normalized.includes('budget')) return 'money' as const
-        if (normalized.includes('date')) return 'date' as const
-        if (normalized.includes('scope') || normalized.includes('message'))
-          return 'textarea' as const
-        if (
-          normalized.includes('upload') ||
-          normalized.includes('document') ||
-          normalized.includes('image')
-        ) {
-          return 'file' as const
-        }
-        if (normalized.includes('location') || normalized.includes('site'))
-          return 'location' as const
-        if (normalized.includes('consent')) return 'checkbox' as const
-        if (normalized.includes('phone')) return 'phone' as const
-        if (normalized.includes('email')) return 'email' as const
-        return 'text' as const
-      }
-
       await serviceAdministrationBackendApi.updateService(serviceId, {
         name: input.name,
         code: input.code || null,
@@ -547,15 +531,9 @@ export function ServiceAdministrationSectionPage({
               : input.status === 'active'
                 ? 'active'
                 : 'draft',
-          fields: input.requestFields.map((label, index) => ({
-            id: selectedRequestForm?.fields[index]?.id ?? `field-${index + 1}`,
-            label,
-            key: label
-              .toLowerCase()
-              .replace(/[^a-z0-9]+/g, '_')
-              .replace(/^_|_$/g, ''),
-            type: selectedRequestForm?.fields[index]?.type ?? requestFieldType(label),
-            required: selectedRequestForm?.fields[index]?.required ?? true,
+          fields: input.requestFields.map((field, index) => ({
+            ...field,
+            id: selectedRequestForm?.fields[index]?.id ?? field.id ?? `field-${index + 1}`,
           })),
         },
         input.name,
@@ -572,16 +550,10 @@ export function ServiceAdministrationSectionPage({
               : input.status === 'active'
                 ? 'active'
                 : 'draft',
-          stages: input.workflowStages.map((name, index) => ({
-            id: selectedWorkflow?.stages[index]?.id ?? `stage-${index + 1}`,
-            name,
+          stages: input.workflowStages.map((stage, index) => ({
+            ...stage,
+            id: selectedWorkflow?.stages[index]?.id ?? stage.id ?? `stage-${index + 1}`,
             order: index + 1,
-            ownerRole: selectedWorkflow?.stages[index]?.ownerRole ?? input.owner,
-            ownerRoleId: selectedWorkflow?.stages[index]?.ownerRoleId ?? ownerRole?.id ?? null,
-            slaHours: selectedWorkflow?.stages[index]?.slaHours ?? 24,
-            requiresEvidence: selectedWorkflow?.stages[index]?.requiresEvidence ?? index > 0,
-            requiresApproval: selectedWorkflow?.stages[index]?.requiresApproval ?? false,
-            clientVisible: selectedWorkflow?.stages[index]?.clientVisible ?? true,
           })),
         },
         input.name,
@@ -930,6 +902,7 @@ export function ServiceAdministrationSectionPage({
               readOnly?: boolean
               branches?: Array<{ id: number; name: string; code: string }>
               ownerRoles?: WorkflowOwnerRoleOption[]
+              fieldTypes?: RequestFieldTypeOption[]
               calculator?: PricingCalculator
               requestForm?: ServiceRequestForm
               workflow?: ServiceWorkflow
@@ -959,6 +932,7 @@ export function ServiceAdministrationSectionPage({
 
             configureWorkspaceProps.branches = createWizardBranchesQuery.data ?? []
             configureWorkspaceProps.ownerRoles = rolesQuery.data ?? []
+            configureWorkspaceProps.fieldTypes = fieldTypesQuery.data ?? []
 
             return <ConfigureServiceWorkspace {...configureWorkspaceProps} />
           })()
@@ -990,6 +964,7 @@ export function ServiceAdministrationSectionPage({
           parents={parentQuery.data ?? []}
           branches={createWizardBranchesQuery.data ?? []}
           ownerRoles={rolesQuery.data ?? []}
+          fieldTypes={fieldTypesQuery.data ?? []}
           stageAccess={createStageAccess}
           progress={serviceSetupProgress}
           setupServiceId={serviceSetupId}

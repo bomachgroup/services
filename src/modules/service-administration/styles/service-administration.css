@@ -1858,6 +1858,35 @@ button.service-admin-wizard-step.service-admin-wizard-step--reachable:not(:disab
   font-size: 9px;
 }
 
+.service-admin-request-builder--embedded {
+  grid-template-columns: 220px 1fr;
+  gap: 10px;
+}
+
+.service-admin-request-builder--embedded .service-admin-request-palette,
+.service-admin-request-builder--embedded .service-admin-request-canvas {
+  padding: 10px;
+}
+
+.service-admin-request-builder--embedded .service-admin-request-canvas-header h2 {
+  font-size: 11px;
+}
+
+.service-admin-workflow-panel--embedded {
+  border: 0;
+  padding: 0;
+  background: transparent;
+}
+
+.service-admin-workflow-panel--embedded .service-admin-card-header {
+  padding: 0 0 8px;
+}
+
+.service-admin-modal--wizard .service-admin-request-builder--embedded,
+.service-admin-modal--wizard .service-admin-workflow-panel--embedded {
+  min-height: 320px;
+}
+
 .service-admin-request-builder {
   display: grid;
   grid-template-columns: 260px 1fr;
