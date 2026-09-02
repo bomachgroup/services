@@ -38,6 +38,7 @@ export interface AuthContextValue {
   user: AuthUser | null
   isAuthenticated: boolean
   isLoading: boolean
+  authBootstrapError: string | null
   accessIssue: AuthAccessIssue | null
   login: (credentials: LoginCredentials) => Promise<LoginResult>
   verifyTwoFactor: (sessionToken: string, code: string) => Promise<AuthUser>

@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useCallback, useEffect, useMemo, type PropsWithChildren } from 'react'
+import { useCallback, useEffect, useMemo, useState, type PropsWithChildren } from 'react'
 
 import { authMutations } from '@/modules/auth/api/auth.mutations'
 import { authQueries } from '@/modules/auth/api/auth.queries'
@@ -15,7 +15,18 @@ import type { AuthContextValue, AuthUser } from './auth.types'
 export function AuthProvider({ children }: PropsWithChildren) {
   const queryClient = useQueryClient()
   const toast = useToast()
-  const currentUserQueryOptions = useMemo(() => authQueries.currentUser(), [])
+  const isEmbedded = useMemo(() => {
+    if (typeof window === 'undefined') return false
+    return new URLSearchParams(window.location.search).get('embed') === 'true'
+  }, [])
+  const [embedAuthReady, setEmbedAuthReady] = useState(
+    () => !isEmbedded || Boolean(tokenStore.getAccessToken() || tokenStore.hasRefreshToken()),
+  )
+  const [authBootstrapError, setAuthBootstrapError] = useState<string | null>(null)
+  const currentUserQueryOptions = useMemo(
+    () => authQueries.currentUser(embedAuthReady),
+    [embedAuthReady],
+  )
   const currentUserQuery = useQuery(currentUserQueryOptions)
   const { mutateAsync: loginMutateAsync } = useMutation(authMutations.login())
   const { mutateAsync: verifyTwoFactorMutateAsync } = useMutation(authMutations.verifyTwoFactor())
@@ -58,18 +69,47 @@ export function AuthProvider({ children }: PropsWithChildren) {
         accessToken: queryToken,
         refreshToken: queryRefreshToken || queryToken,
       })
+      setEmbedAuthReady(true)
+      setAuthBootstrapError(null)
       queryClient.invalidateQueries({
         queryKey: currentUserQueryOptions.queryKey,
       })
     }
 
+    if (!isEmbedded || window.parent === window) return
+
+    const parentOrigin = (() => {
+      try {
+        return document.referrer ? new URL(document.referrer).origin : '*'
+      } catch {
+        return '*'
+      }
+    })()
+    let readyAnnouncements = 0
+    const announceReady = () => {
+      window.parent.postMessage({ type: 'BOMACH_AUTH_READY' }, parentOrigin)
+      readyAnnouncements += 1
+    }
+
     const handleMessage = (e: MessageEvent) => {
+      if (
+        e.source !== window.parent ||
+        (parentOrigin !== '*' && e.origin !== parentOrigin) ||
+        !e.data ||
+        e.data.type !== 'BOMACH_AUTH_TOKEN' ||
+        !e.data.token
+      ) {
+        return
+      }
+
       if (e.data && e.data.type === 'BOMACH_AUTH_TOKEN' && e.data.token) {
         const t = String(e.data.token)
         tokenStore.set({
           accessToken: t,
           refreshToken: e.data.refreshToken ? String(e.data.refreshToken) : t,
         })
+        setEmbedAuthReady(true)
+        setAuthBootstrapError(null)
         queryClient.invalidateQueries({
           queryKey: currentUserQueryOptions.queryKey,
         })
@@ -77,8 +117,28 @@ export function AuthProvider({ children }: PropsWithChildren) {
     }
 
     window.addEventListener('message', handleMessage)
-    return () => window.removeEventListener('message', handleMessage)
-  }, [currentUserQueryOptions.queryKey, queryClient])
+    announceReady()
+    const retryTimer = window.setInterval(() => {
+      if (tokenStore.getAccessToken() || readyAnnouncements >= 12) {
+        window.clearInterval(retryTimer)
+        return
+      }
+      announceReady()
+    }, 1000)
+    const timeout = window.setTimeout(() => {
+      if (!tokenStore.getAccessToken()) {
+        setAuthBootstrapError(
+          'Bomach OS did not provide a valid session to Services. Return to Bomach OS and open Services again.',
+        )
+      }
+    }, 12000)
+
+    return () => {
+      window.clearInterval(retryTimer)
+      window.clearTimeout(timeout)
+      window.removeEventListener('message', handleMessage)
+    }
+  }, [currentUserQueryOptions.queryKey, isEmbedded, queryClient])
 
   const loadCurrentUser = useCallback(async (): Promise<AuthUser> => {
     const user = await queryClient.fetchQuery({
@@ -163,7 +223,9 @@ export function AuthProvider({ children }: PropsWithChildren) {
     () => ({
       user: currentUserQuery.data ?? null,
       isAuthenticated: Boolean(currentUserQuery.data),
-      isLoading: currentUserQuery.isPending && !currentUserQuery.data,
+      isLoading:
+        currentUserQuery.isPending && !currentUserQuery.data && authBootstrapError === null,
+      authBootstrapError,
       accessIssue: isAuthAccessError(currentUserQuery.error) ? currentUserQuery.error.issue : null,
       login,
       verifyTwoFactor,
@@ -173,6 +235,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
       currentUserQuery.data,
       currentUserQuery.error,
       currentUserQuery.isPending,
+      authBootstrapError,
       login,
       signOut,
       verifyTwoFactor,
