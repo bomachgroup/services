@@ -2,6 +2,10 @@ import { IconApps, IconChevronDown, IconChevronRight, IconCopy } from '@tabler/i
 import { useEffect, useMemo, useRef, useState } from 'react'
 
 import { AccessLockIcon } from '@/shared/ui/module-controls'
+import {
+  RequestFormBuilderPanel,
+  RequestFormBuilderSaveButton,
+} from '../components/RequestFormBuilderPanel'
 import type {
   PricingCalculator,
   PricingType,
@@ -779,19 +783,14 @@ export function RequestFormBuilderScreen({
     form?.status ?? 'draft',
   )
   const [fields, setFields] = useState<RequestFormField[]>(form?.fields ?? [])
-  const [editingIndex, setEditingIndex] = useState<number | null>(null)
 
   if (formSourceKey !== draftKey) {
     setDraftKey(formSourceKey)
     setFormStatus(form?.status ?? 'draft')
     setFields(form?.fields ?? [])
-    setEditingIndex(null)
   }
 
-  const editingField = editingIndex === null ? undefined : fields[editingIndex]
-  const paletteDisabled = !canEdit || !selectedService
   const saveDisabled = !canEdit || !selectedService || saving
-  const saveLocked = !canEdit
 
   const saveForm = () => {
     if (!selectedService || !onSave) return
@@ -807,232 +806,49 @@ export function RequestFormBuilderScreen({
 
   return (
     <div className="service-admin-page service-admin-content">
-      <div className="service-admin-request-builder">
-        <aside className="service-admin-request-palette">
-          <h2>Field Palette</h2>
-          <div className="service-admin-request-palette-list">
-            {fieldTypes.map((item) => (
-              <button
-                key={item.value}
-                type="button"
-                disabled={paletteDisabled}
-                onClick={() =>
-                  setFields((current) => [
-                    ...current,
-                    {
-                      id: `field-${Date.now()}`,
-                      label: item.label,
-                      key: item.label.toLowerCase().replace(/[^a-z0-9]+/g, '_'),
-                      type: item.value,
-                      required: false,
-                    },
-                  ])
-                }
-              >
-                <span>+</span>
-                {item.label}
-              </button>
-            ))}
-            {fieldTypes.length === 0 ? (
-              <div className="service-admin-card-subtitle py-3">
-                Field types will load once the form builder is available.
-              </div>
-            ) : null}
-          </div>
-          <label className="service-admin-field">
-            <span>Form status</span>
+      <RequestFormBuilderPanel
+        fieldTypes={fieldTypes}
+        fields={fields}
+        onFieldsChange={setFields}
+        formStatus={formStatus}
+        onFormStatusChange={setFormStatus}
+        canEdit={canEdit && Boolean(selectedService)}
+        emptyTitle={selectedService ? 'No fields on this form yet' : 'No service selected'}
+        emptyDescription={
+          selectedService
+            ? 'Add fields from the palette to define what clients must provide for this service.'
+            : 'Choose a service to start designing its request form.'
+        }
+        headerAction={
+          <label className="service-admin-request-service-picker">
+            <span>Service</span>
             <select
-              value={formStatus}
-              disabled={!canEdit || !selectedService}
-              onChange={(event) =>
-                setFormStatus(event.target.value as ServiceRequestForm['status'])
-              }
+              aria-label="Select service"
+              value={selectedService?.id ?? ''}
+              disabled={services.length === 0}
+              onChange={(event) => onSelectedServiceChange(event.target.value)}
             >
-              <option value="draft">Draft</option>
-              <option value="active">Active</option>
-              <option value="inactive">Inactive</option>
+              {services.length === 0 ? (
+                <option value="">Create a service first</option>
+              ) : (
+                services.map((service) => (
+                  <option key={service.id} value={service.id}>
+                    {service.name}
+                  </option>
+                ))
+              )}
             </select>
           </label>
-          <button
-            type="button"
-            className="service-admin-request-save"
+        }
+        paletteFooter={
+          <RequestFormBuilderSaveButton
+            canEdit={canEdit}
             disabled={saveDisabled}
-            title={
-              saveLocked
-                ? 'You do not have permission to save this form'
-                : !selectedService
-                  ? 'Select a service before saving'
-                  : undefined
-            }
+            saving={saving}
             onClick={saveForm}
-          >
-            <AccessLockIcon show={saveLocked && saveDisabled} />
-            {saving ? 'Saving…' : 'Save Form'}
-          </button>
-        </aside>
-
-        <section className="service-admin-request-canvas">
-          <div className="service-admin-request-canvas-header">
-            <div>
-              <h2>Service Request Form Builder</h2>
-              <p>Create the exact information required per service</p>
-            </div>
-            <label className="service-admin-request-service-picker">
-              <span>Service</span>
-              <select
-                aria-label="Select service"
-                value={selectedService?.id ?? ''}
-                disabled={services.length === 0}
-                onChange={(event) => onSelectedServiceChange(event.target.value)}
-              >
-                {services.length === 0 ? (
-                  <option value="">Create a service first</option>
-                ) : (
-                  services.map((service) => (
-                    <option key={service.id} value={service.id}>
-                      {service.name}
-                    </option>
-                  ))
-                )}
-              </select>
-            </label>
-          </div>
-
-          {fields.length === 0 ? (
-            <div className="service-admin-empty-table-state" role="status">
-              <div className="service-admin-card-title">
-                {selectedService ? 'No fields on this form yet' : 'No service selected'}
-              </div>
-              <div className="service-admin-card-subtitle mt-1">
-                {selectedService
-                  ? 'Add fields from the palette to define what clients must provide for this service.'
-                  : 'Choose a service to start designing its request form.'}
-              </div>
-            </div>
-          ) : (
-            <div className="service-admin-request-field-list">
-              {fields.map((field, index) => (
-                <article key={field.id} className="service-admin-request-field-row">
-                  <span className="service-admin-request-drag">::</span>
-                  <div className="service-admin-grow">
-                    <b>{field.label}</b>
-                    <small>
-                      {field.type} · {field.required ? 'Required' : 'Optional'}
-                    </small>
-                  </div>
-                  {canEdit ? (
-                    <button type="button" onClick={() => setEditingIndex(index)}>
-                      Edit
-                    </button>
-                  ) : null}
-                  {canEdit ? (
-                    <button
-                      type="button"
-                      onClick={() =>
-                        setFields((current) =>
-                          current.filter((_, itemIndex) => itemIndex !== index),
-                        )
-                      }
-                    >
-                      Delete
-                    </button>
-                  ) : null}
-                </article>
-              ))}
-            </div>
-          )}
-        </section>
-      </div>
-
-      {canEdit && editingField && editingIndex !== null ? (
-        <div
-          className="service-admin-editor-backdrop"
-          role="presentation"
-          onMouseDown={() => setEditingIndex(null)}
-        >
-          <section
-            className="service-admin-field-editor-modal"
-            role="dialog"
-            aria-modal="true"
-            aria-label={`Edit ${editingField.label}`}
-            onMouseDown={(event) => event.stopPropagation()}
-          >
-            <header>
-              <h2>Edit Field</h2>
-              <button type="button" onClick={() => setEditingIndex(null)}>
-                ×
-              </button>
-            </header>
-            <div className="service-admin-field-editor-body">
-              <label>
-                <span>Label</span>
-                <input
-                  value={editingField.label}
-                  onChange={(event) =>
-                    setFields((current) =>
-                      current.map((item, index) =>
-                        index === editingIndex ? { ...item, label: event.target.value } : item,
-                      ),
-                    )
-                  }
-                />
-              </label>
-              <label>
-                <span>Type</span>
-                <select
-                  value={editingField.type}
-                  onChange={(event) =>
-                    setFields((current) =>
-                      current.map((item, index) =>
-                        index === editingIndex
-                          ? { ...item, type: event.target.value as RequestFormField['type'] }
-                          : item,
-                      ),
-                    )
-                  }
-                >
-                  {fieldTypes.length > 0 ? (
-                    fieldTypes.map((type) => (
-                      <option key={type.value} value={type.value}>
-                        {type.label}
-                      </option>
-                    ))
-                  ) : (
-                    <>
-                      <option value="text">Text</option>
-                      <option value="textarea">Long text</option>
-                      <option value="number">Number</option>
-                      <option value="date">Date</option>
-                      <option value="select">Dropdown</option>
-                      <option value="file">File upload</option>
-                      <option value="checkbox">Checkbox</option>
-                    </>
-                  )}
-                </select>
-              </label>
-              <label className="service-admin-field-editor-check">
-                <input
-                  type="checkbox"
-                  checked={editingField.required}
-                  onChange={(event) =>
-                    setFields((current) =>
-                      current.map((item, index) =>
-                        index === editingIndex ? { ...item, required: event.target.checked } : item,
-                      ),
-                    )
-                  }
-                />
-                Required field
-              </label>
-            </div>
-            <footer>
-              <button type="button" onClick={() => setEditingIndex(null)}>
-                Done
-              </button>
-            </footer>
-          </section>
-        </div>
-      ) : null}
+          />
+        }
+      />
     </div>
   )
 }

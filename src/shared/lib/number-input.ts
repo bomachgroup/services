@@ -16,6 +16,15 @@ export function parseNumberFieldValue(raw: string): number {
   return Number.isFinite(parsed) ? parsed : 0
 }
 
+/** Parse numeric input text; blank input stays unset (null). */
+export function parseOptionalNumberFieldValue(raw: string): number | null {
+  const trimmed = raw.trim()
+  if (trimmed === '') return null
+
+  const parsed = Number(trimmed)
+  return Number.isFinite(parsed) ? parsed : null
+}
+
 /** For string-backed dynamic numeric fields (intake forms, calculators). */
 export function formatNumericStringFieldValue(value: string | number | null | undefined): string {
   if (value === null || value === undefined) return ''

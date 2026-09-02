@@ -1,3 +1,5 @@
+import { mapRequestFormFieldsToBackend } from '../mappers/request-form.mapper'
+import { mapSaveWorkflowInput } from '../mappers/workflow.mapper'
 import { serviceAdministrationBackendApi } from './service-administration.backend-api'
 import { readSpecializedRequestContext, specializedPayload } from './specialized-service.utils'
 import type {
@@ -37,28 +39,6 @@ function pricingType(value: string): string {
     'custom formula': 'formula',
   }
   return map[value.trim().toLowerCase()] ?? 'fixed'
-}
-
-function requestFieldType(label: string): string {
-  const value = label.toLowerCase()
-  if (value.includes('budget')) return 'money'
-  if (value.includes('date')) return 'date'
-  if (value.includes('scope') || value.includes('message')) return 'textarea'
-  if (value.includes('upload') || value.includes('document') || value.includes('image'))
-    return 'file'
-  if (value.includes('location') || value.includes('site')) return 'location'
-  if (value.includes('consent')) return 'checkbox'
-  if (value.includes('phone')) return 'phone'
-  if (value.includes('email')) return 'email'
-  return 'text'
-}
-
-function slug(value: string): string {
-  return value
-    .toLowerCase()
-    .replace(/&/g, ' and ')
-    .replace(/[^a-z0-9]+/g, '_')
-    .replace(/^_|_$/g, '')
 }
 
 function allowed(stage: ServiceSetupStageId, access: CreateServiceStageAccess): boolean {
@@ -170,34 +150,21 @@ export async function runLiveServiceSetup(
           version: 1,
           status: nestedStatus,
           is_active: activeNested,
-          fields: input.requestFields.map((label, index) => ({
-            key: slug(label) || `field_${index + 1}`,
-            label,
-            field_type: requestFieldType(label),
-            required: true,
-            options: [],
-            validation: {},
-            help_text: '',
-            placeholder: '',
-            sort_order: index,
-          })),
+          fields: mapRequestFormFieldsToBackend(input.requestFields),
         })
       } else if (stage === 'workflow') {
-        await serviceAdministrationBackendApi.createWorkflow(serviceId, {
-          name: `${input.name} Workflow`,
-          version: 1,
-          status: nestedStatus,
-          is_active: activeNested,
-          stages: input.workflowStages.map((name, index) => ({
-            name,
-            owner_role_id: null,
-            sla_days: input.slaDays,
-            requires_approval: false,
-            requires_evidence: false,
-            client_visible: true,
-            sort_order: index,
-          })),
-        })
+        await serviceAdministrationBackendApi.createWorkflow(
+          serviceId,
+          mapSaveWorkflowInput({
+            name: `${input.name} Workflow`,
+            serviceId: String(serviceId),
+            status: nestedStatus,
+            stages: input.workflowStages.map((workflowStage, index) => ({
+              ...workflowStage,
+              order: index + 1,
+            })),
+          }) as Parameters<typeof serviceAdministrationBackendApi.createWorkflow>[1],
+        )
       } else if (stage === 'branches') {
         const branchIds = input.branchIds ?? []
 

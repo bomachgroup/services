@@ -315,10 +315,8 @@ export function CreateServiceRequestLiveWorkspace({
     enabled: serviceId > 0,
   })
   const clientSearchQuery = useQuery({
-    queryKey: [...serviceRequestKeys.clients(), 'search', clientSearch],
-    queryFn: () => serviceRequestsApi.searchClients(clientSearch),
+    ...serviceRequestQueries.clientSearch(clientSearch),
     enabled: canSearchClients && clientSearch.trim().length >= 2,
-    staleTime: 20_000,
   })
 
   useEffect(() => {
@@ -561,13 +559,20 @@ export function CreateServiceRequestLiveWorkspace({
     setNewClientFieldErrors({})
     setClientSearchDraft('')
     setClientSearch('')
-  }, [clearClientSelection])
+  }, [
+    clearClientSelection,
+    setClientSearch,
+    setClientSearchDraft,
+    setCreateClientFormError,
+    setNewClientFieldErrors,
+    setShowCreateClient,
+  ])
 
   const closeCreateClient = useCallback(() => {
     setShowCreateClient(false)
     setCreateClientFormError('')
     setNewClientFieldErrors({})
-  }, [])
+  }, [setCreateClientFormError, setNewClientFieldErrors, setShowCreateClient])
 
   const chooseClientById = (clientId: number) => {
     const client = clients.find((item) => item.id === clientId)
