@@ -19,12 +19,12 @@ const services: ServiceCatalogueItem[] = [
     id: 'service-estate-plot-sales',
     code: 'RES-PLT',
     name: 'Estate Plot Sales',
-    division: 'Real Estate',
     description: 'Plot reservation, commercial processing, documentation, allocation and handover.',
     owner: 'Head of Real Estate',
     status: 'active',
     branchNames: ['Enugu', 'Abuja', 'Lagos'],
-    subserviceCount: 4,
+    specializedDomain: 'real_estate',
+    specializedConfig: { request_context: 'property_sale' },
     calculatorName: 'Estate Plot Pricing',
     requestFormName: 'Plot Purchase Request',
     workflowName: 'Plot Sales Standard',
@@ -34,13 +34,12 @@ const services: ServiceCatalogueItem[] = [
     id: 'service-building-construction',
     code: 'ENG-CON',
     name: 'Building Construction',
-    division: 'Engineering',
     description:
       'Construction delivery from assessment and quotation through milestones and handover.',
     owner: 'Head of Engineering',
     status: 'active',
     branchNames: ['Enugu', 'Port Harcourt', 'Lagos', 'Abuja'],
-    subserviceCount: 6,
+    specializedDomain: 'engineering',
     calculatorName: 'Construction Estimate',
     requestFormName: 'Construction Intake',
     workflowName: 'Construction Delivery',
@@ -50,12 +49,11 @@ const services: ServiceCatalogueItem[] = [
     id: 'service-cadastral-survey',
     code: 'SRV-CAD',
     name: 'Cadastral Land Survey',
-    division: 'Survey',
     description: 'Boundary survey, beacon confirmation, field work and survey-plan delivery.',
     owner: 'Chief Surveyor',
     status: 'active',
     branchNames: ['Enugu', 'Abuja'],
-    subserviceCount: 3,
+    specializedDomain: 'engineering',
     calculatorName: 'Survey Pricing',
     requestFormName: 'Survey Request Form',
     workflowName: 'Survey Standard',
@@ -65,12 +63,10 @@ const services: ServiceCatalogueItem[] = [
     id: 'service-software-development',
     code: 'ICT-SWD',
     name: 'Software Development',
-    division: 'ICT',
     description: 'Discovery, solution design, implementation, testing, deployment and support.',
     owner: 'Head of ICT',
     status: 'draft',
     branchNames: ['Enugu'],
-    subserviceCount: 5,
     requestFormName: 'Software Discovery Form',
     workflowName: 'Software Delivery',
     readiness: 68,
@@ -79,12 +75,10 @@ const services: ServiceCatalogueItem[] = [
     id: 'service-structural-inspection',
     code: 'ENG-STI',
     name: 'Structural Inspection',
-    division: 'Engineering',
     description: 'Site inspection, technical findings, risk classification and engineering report.',
     owner: 'Structural Engineering Lead',
     status: 'draft',
     branchNames: [],
-    subserviceCount: 2,
     requestFormName: 'Inspection Intake',
     readiness: 45,
   },
@@ -502,7 +496,6 @@ export function getServiceAdministrationWorkspace(): ServiceAdministrationWorksp
 export function createMockService(input: {
   name: string
   code: string
-  division: string
   description: string
   owner: string
 }) {
@@ -511,7 +504,6 @@ export function createMockService(input: {
     ...input,
     status: 'draft',
     branchNames: [],
-    subserviceCount: 0,
     readiness: 20,
   }
   services.unshift(item)
@@ -666,21 +658,18 @@ export function createMockServiceWizard(input: CreateServiceWizardInput) {
     id: serviceId,
     code: input.code,
     name: input.name,
-    division: input.division,
     description: input.description,
     owner: input.owner,
     status: input.status,
     branchNames: input.branchNames,
-    subserviceCount: input.subservices.length,
     calculatorName: `${input.name} Calculator`,
     requestFormName: `${input.name} Request Form`,
     workflowName: `${input.name} Workflow`,
     readiness: input.status === 'active' ? 100 : 82,
     slaDays: input.slaDays,
     fulfilmentMode: input.fulfilmentMode,
-    subservices: input.subservices.map((item) => item.name),
-    requestFields: input.requestFields,
-    workflowStages: input.workflowStages,
+    requestFields: input.requestFields.map((field) => field.label),
+    workflowStages: input.workflowStages.map((stage) => stage.name),
   }
 
   services.unshift(service)
@@ -753,15 +742,9 @@ export function createMockServiceWizard(input: CreateServiceWizardInput) {
     serviceName: input.name,
     status: input.status,
     version: 1,
-    fields: input.requestFields.map((label, index) => ({
-      id: `field-${stamp}-${index}`,
-      label,
-      key: label
-        .toLowerCase()
-        .replace(/[^a-z0-9]+/g, '_')
-        .replace(/^_|_$/g, ''),
-      type: label.toLowerCase().includes('document') ? 'file' : 'text',
-      required: true,
+    fields: input.requestFields.map((field, index) => ({
+      ...field,
+      id: field.id || `field-${stamp}-${index}`,
     })),
     updatedAt: new Date().toISOString(),
   })
@@ -773,18 +756,10 @@ export function createMockServiceWizard(input: CreateServiceWizardInput) {
     serviceName: input.name,
     status: input.status,
     version: 1,
-    stages: input.workflowStages.map((name, index) => ({
-      id: `stage-${stamp}-${index}`,
-      name,
+    stages: input.workflowStages.map((stage, index) => ({
+      ...stage,
+      id: stage.id || `stage-${stamp}-${index}`,
       order: index + 1,
-      ownerRole: input.owner,
-      slaHours: Math.max(
-        1,
-        Math.round((input.slaDays * 24) / Math.max(1, input.workflowStages.length)),
-      ),
-      requiresEvidence: index > 0,
-      requiresApproval: name.toLowerCase().includes('approval'),
-      clientVisible: true,
     })),
     updatedAt: new Date().toISOString(),
   })
@@ -813,47 +788,33 @@ export function configureMockService(input: ConfigureServiceInput) {
   Object.assign(service, {
     name: input.name,
     code: input.code,
-    division: input.division,
     owner: input.owner,
     description: input.description,
     slaDays: input.slaDays,
     fulfilmentMode: input.fulfilmentMode,
     status: input.status,
     branchNames: input.branchNames,
-    subservices: input.subservices.map((item) => item.name),
-    subserviceCount: input.subservices.length,
-    requestFields: input.requestFields,
-    workflowStages: input.workflowStages,
+    requestFields: input.requestFields.map((field) => field.label),
+    workflowStages: input.workflowStages.map((stage) => stage.name),
     readiness: input.status === 'active' ? 100 : Math.min(service.readiness, 90),
   })
 
   const form = requestForms.find((item) => item.serviceId === input.id)
   if (form) {
     form.serviceName = input.name
-    form.fields = input.requestFields.map((label, index) => ({
-      id: form.fields[index]?.id ?? `field-${Date.now()}-${index}`,
-      label,
-      key: label
-        .toLowerCase()
-        .replace(/[^a-z0-9]+/g, '_')
-        .replace(/^_|_$/g, ''),
-      type: form.fields[index]?.type ?? 'text',
-      required: form.fields[index]?.required ?? true,
+    form.fields = input.requestFields.map((field, index) => ({
+      ...field,
+      id: form.fields[index]?.id ?? field.id ?? `field-${Date.now()}-${index}`,
     }))
   }
 
   const workflow = workflows.find((item) => item.serviceId === input.id)
   if (workflow) {
     workflow.serviceName = input.name
-    workflow.stages = input.workflowStages.map((name, index) => ({
-      id: workflow.stages[index]?.id ?? `stage-${Date.now()}-${index}`,
-      name,
+    workflow.stages = input.workflowStages.map((stage, index) => ({
+      ...stage,
+      id: workflow.stages[index]?.id ?? stage.id ?? `stage-${Date.now()}-${index}`,
       order: index + 1,
-      ownerRole: workflow.stages[index]?.ownerRole ?? input.owner,
-      slaHours: workflow.stages[index]?.slaHours ?? 24,
-      requiresEvidence: workflow.stages[index]?.requiresEvidence ?? index > 0,
-      requiresApproval: workflow.stages[index]?.requiresApproval ?? false,
-      clientVisible: workflow.stages[index]?.clientVisible ?? true,
     }))
   }
 

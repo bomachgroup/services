@@ -8,6 +8,7 @@ export const serviceRequestKeys = {
   detail: (id: number) => [...serviceRequestKeys.details(), id] as const,
   choices: () => [...serviceRequestKeys.all, 'choices'] as const,
   clients: () => [...serviceRequestKeys.all, 'clients'] as const,
+  clientSearch: (search: string) => [...serviceRequestKeys.clients(), 'search', search] as const,
   services: () => [...serviceRequestKeys.all, 'services'] as const,
   employees: () => [...serviceRequestKeys.all, 'employees'] as const,
   intake: (id: number) => [...serviceRequestKeys.all, 'intake', id] as const,

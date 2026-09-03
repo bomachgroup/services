@@ -30,6 +30,12 @@ export const serviceRequestQueries = {
       queryFn: () => serviceRequestsApi.clients(),
       staleTime: 60_000,
     }),
+  clientSearch: (search: string) =>
+    queryOptions({
+      queryKey: serviceRequestKeys.clientSearch(search),
+      queryFn: () => serviceRequestsApi.searchClients(search),
+      staleTime: 20_000,
+    }),
   services: () =>
     queryOptions({
       queryKey: serviceRequestKeys.services(),

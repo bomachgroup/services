@@ -12,6 +12,18 @@ import { useToast } from '@/shared/ui'
 import { AuthContext } from './auth.context'
 import type { AuthContextValue, AuthUser } from './auth.types'
 
+type AuthTokenMessage = {
+  type: 'BOMACH_AUTH_TOKEN'
+  token: string
+  refreshToken?: string
+}
+
+function isAuthTokenMessage(value: unknown): value is AuthTokenMessage {
+  if (!value || typeof value !== 'object') return false
+  const payload = value as Record<string, unknown>
+  return payload.type === 'BOMACH_AUTH_TOKEN' && typeof payload.token === 'string'
+}
+
 export function AuthProvider({ children }: PropsWithChildren) {
   const queryClient = useQueryClient()
   const toast = useToast()
@@ -71,7 +83,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
       })
       setEmbedAuthReady(true)
       setAuthBootstrapError(null)
-      queryClient.invalidateQueries({
+      void queryClient.invalidateQueries({
         queryKey: currentUserQueryOptions.queryKey,
       })
     }
@@ -91,29 +103,25 @@ export function AuthProvider({ children }: PropsWithChildren) {
       readyAnnouncements += 1
     }
 
-    const handleMessage = (e: MessageEvent) => {
+    const handleMessage = (event: MessageEvent<unknown>) => {
       if (
-        e.source !== window.parent ||
-        (parentOrigin !== '*' && e.origin !== parentOrigin) ||
-        !e.data ||
-        e.data.type !== 'BOMACH_AUTH_TOKEN' ||
-        !e.data.token
+        event.source !== window.parent ||
+        (parentOrigin !== '*' && event.origin !== parentOrigin) ||
+        !isAuthTokenMessage(event.data)
       ) {
         return
       }
 
-      if (e.data && e.data.type === 'BOMACH_AUTH_TOKEN' && e.data.token) {
-        const t = String(e.data.token)
-        tokenStore.set({
-          accessToken: t,
-          refreshToken: e.data.refreshToken ? String(e.data.refreshToken) : t,
-        })
-        setEmbedAuthReady(true)
-        setAuthBootstrapError(null)
-        queryClient.invalidateQueries({
-          queryKey: currentUserQueryOptions.queryKey,
-        })
-      }
+      const token = event.data.token
+      tokenStore.set({
+        accessToken: token,
+        refreshToken: typeof event.data.refreshToken === 'string' ? event.data.refreshToken : token,
+      })
+      setEmbedAuthReady(true)
+      setAuthBootstrapError(null)
+      void queryClient.invalidateQueries({
+        queryKey: currentUserQueryOptions.queryKey,
+      })
     }
 
     window.addEventListener('message', handleMessage)

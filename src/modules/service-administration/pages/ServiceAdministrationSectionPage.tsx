@@ -33,7 +33,10 @@ import {
 } from '../api/service-administration.live-mutations'
 import { serviceAdministrationQueries } from '../api/service-administration.queries'
 import { runLiveServiceSetup } from '../api/service-setup.orchestrator'
-import { syncLiveSubservices } from '../api/service-subservices.live'
+import {
+  readSpecializedRequestContext,
+  specializedPayload,
+} from '../api/specialized-service.utils'
 import { BranchActivationScreen } from '../screens/BranchActivationScreen'
 import {
   CalculatorLibraryScreen,
@@ -49,6 +52,7 @@ import type {
   ServiceSetupStageId,
   CreateServiceStageAccess,
   PricingCalculator,
+  RequestFieldTypeOption,
   ServiceCatalogueItem,
   ServiceRequestForm,
   ServiceWorkflow,
@@ -100,7 +104,7 @@ const metadata: Record<
 export interface ServiceAdministrationRecordSearch {
   search?: string
   status?: string
-  division?: string
+  parentId?: number
   page?: number
 }
 
@@ -117,15 +121,12 @@ export function ServiceAdministrationSectionPage({
   const toast = useToast()
   const capabilities = getServiceAdministrationCapabilities(user)
   const catalogueSearch = section === 'service-catalogue' ? (recordSearch.search ?? '') : ''
-  const catalogueDivision = section === 'service-catalogue' ? (recordSearch.division ?? '') : ''
   const catalogueStatus = section === 'service-catalogue' ? (recordSearch.status ?? '') : ''
+  const catalogueParentId =
+    section === 'service-catalogue' ? (recordSearch.parentId ?? null) : null
   const cataloguePage = section === 'service-catalogue' ? Math.max(1, recordSearch.page ?? 1) : 1
-  const cataloguePageSize = 12
+  const cataloguePageSize = section === 'service-catalogue' ? 100 : 12
   const createStageAccess: CreateServiceStageAccess = {
-    subservices:
-      capabilities.canListSubservices &&
-      capabilities.canCreateSubservices &&
-      capabilities.canUpdateSubservices,
     pricing: capabilities.canCreatePricingConfig,
     requestForm: capabilities.canCreateRequestForm,
     workflow: capabilities.canCreateWorkflow,
@@ -136,23 +137,29 @@ export function ServiceAdministrationSectionPage({
   const catalogueQuery = useQuery({
     ...serviceAdministrationQueries.catalogueList({
       ...(section === 'service-catalogue' && catalogueSearch ? { search: catalogueSearch } : {}),
-      ...(section === 'service-catalogue' && catalogueDivision
-        ? { division: catalogueDivision }
-        : {}),
       ...(section === 'service-catalogue' && catalogueStatus ? { status: catalogueStatus } : {}),
+      ...(section === 'service-catalogue' && catalogueParentId
+        ? { parentId: catalogueParentId }
+        : {}),
       limit: section === 'service-catalogue' ? cataloguePageSize : 100,
       offset: section === 'service-catalogue' ? (cataloguePage - 1) * cataloguePageSize : 0,
     }),
     enabled: true,
     placeholderData: (previousData) => previousData,
   })
-  const categoryQuery = useQuery({
-    ...serviceAdministrationQueries.categories(),
-    enabled: capabilities.canCreateInitialServiceSetup,
+  const parentQuery = useQuery({
+    ...serviceAdministrationQueries.parents(),
+    enabled:
+      capabilities.canListParents &&
+      (section === 'service-catalogue' || capabilities.canCreateInitialServiceSetup),
   })
   const fieldTypesQuery = useQuery({
     ...serviceAdministrationQueries.requestFieldTypes(),
-    enabled: section === 'request-form-builder' && capabilities.canListRequestForms,
+    enabled:
+      capabilities.canListRequestForms &&
+      (section === 'request-form-builder' ||
+        section === 'service-catalogue' ||
+        capabilities.canCreateInitialServiceSetup),
   })
   const pricingQuery = useQuery({
     ...serviceAdministrationQueries.pricingConfigs(capabilities.canViewPricingConfig),
@@ -440,31 +447,9 @@ export function ServiceAdministrationSectionPage({
         'custom formula': 'formula',
       }
 
-      const requestFieldType = (label: string) => {
-        const normalized = label.toLowerCase()
-        if (normalized.includes('budget')) return 'money' as const
-        if (normalized.includes('date')) return 'date' as const
-        if (normalized.includes('scope') || normalized.includes('message'))
-          return 'textarea' as const
-        if (
-          normalized.includes('upload') ||
-          normalized.includes('document') ||
-          normalized.includes('image')
-        ) {
-          return 'file' as const
-        }
-        if (normalized.includes('location') || normalized.includes('site'))
-          return 'location' as const
-        if (normalized.includes('consent')) return 'checkbox' as const
-        if (normalized.includes('phone')) return 'phone' as const
-        if (normalized.includes('email')) return 'email' as const
-        return 'text' as const
-      }
-
       await serviceAdministrationBackendApi.updateService(serviceId, {
         name: input.name,
         code: input.code || null,
-        division: input.division,
         description: input.description,
         status: input.status,
         ...(ownerRole ? { owner_role_id: ownerRole.id } : {}),
@@ -472,9 +457,12 @@ export function ServiceAdministrationSectionPage({
         fulfillment_mode:
           fulfillmentModeMap[input.fulfilmentMode.trim().toLowerCase()] ?? input.fulfilmentMode,
         client_visibility: 'visible',
+        ...specializedPayload(
+          input.specializedDomain,
+          readSpecializedRequestContext(input.specializedConfig),
+        ),
       })
 
-      await syncLiveSubservices(serviceId, input.subservices)
 
       await saveLivePricingConfig({
         ...(selectedCalculator ? { id: selectedCalculator.id } : {}),
@@ -543,15 +531,9 @@ export function ServiceAdministrationSectionPage({
               : input.status === 'active'
                 ? 'active'
                 : 'draft',
-          fields: input.requestFields.map((label, index) => ({
-            id: selectedRequestForm?.fields[index]?.id ?? `field-${index + 1}`,
-            label,
-            key: label
-              .toLowerCase()
-              .replace(/[^a-z0-9]+/g, '_')
-              .replace(/^_|_$/g, ''),
-            type: selectedRequestForm?.fields[index]?.type ?? requestFieldType(label),
-            required: selectedRequestForm?.fields[index]?.required ?? true,
+          fields: input.requestFields.map((field, index) => ({
+            ...field,
+            id: selectedRequestForm?.fields[index]?.id ?? field.id ?? `field-${index + 1}`,
           })),
         },
         input.name,
@@ -568,16 +550,10 @@ export function ServiceAdministrationSectionPage({
               : input.status === 'active'
                 ? 'active'
                 : 'draft',
-          stages: input.workflowStages.map((name, index) => ({
-            id: selectedWorkflow?.stages[index]?.id ?? `stage-${index + 1}`,
-            name,
+          stages: input.workflowStages.map((stage, index) => ({
+            ...stage,
+            id: selectedWorkflow?.stages[index]?.id ?? stage.id ?? `stage-${index + 1}`,
             order: index + 1,
-            ownerRole: selectedWorkflow?.stages[index]?.ownerRole ?? input.owner,
-            ownerRoleId: selectedWorkflow?.stages[index]?.ownerRoleId ?? ownerRole?.id ?? null,
-            slaHours: selectedWorkflow?.stages[index]?.slaHours ?? 24,
-            requiresEvidence: selectedWorkflow?.stages[index]?.requiresEvidence ?? index > 0,
-            requiresApproval: selectedWorkflow?.stages[index]?.requiresApproval ?? false,
-            clientVisible: selectedWorkflow?.stages[index]?.clientVisible ?? true,
           })),
         },
         input.name,
@@ -745,8 +721,9 @@ export function ServiceAdministrationSectionPage({
             services={catalogue?.items ?? []}
             totalCount={catalogue?.count ?? 0}
             query={catalogueSearch}
-            division={catalogueDivision}
             status={catalogueStatus}
+            parentId={catalogueParentId}
+            parents={parentQuery.data ?? []}
             page={cataloguePage}
             pageSize={cataloguePageSize}
             onFiltersChange={(filters) => {
@@ -756,15 +733,15 @@ export function ServiceAdministrationSectionPage({
                 search: (previous) => {
                   const next = { ...previous }
                   delete next.search
-                  delete next.division
                   delete next.status
+                  delete next.parentId
                   delete next.page
 
                   return {
                     ...next,
                     ...(filters.query ? { search: filters.query } : {}),
-                    ...(filters.division ? { division: filters.division } : {}),
                     ...(filters.status ? { status: filters.status } : {}),
+                    ...(filters.parentId ? { parentId: filters.parentId } : {}),
                   }
                 },
                 replace: true,
@@ -925,6 +902,7 @@ export function ServiceAdministrationSectionPage({
               readOnly?: boolean
               branches?: Array<{ id: number; name: string; code: string }>
               ownerRoles?: WorkflowOwnerRoleOption[]
+              fieldTypes?: RequestFieldTypeOption[]
               calculator?: PricingCalculator
               requestForm?: ServiceRequestForm
               workflow?: ServiceWorkflow
@@ -954,6 +932,7 @@ export function ServiceAdministrationSectionPage({
 
             configureWorkspaceProps.branches = createWizardBranchesQuery.data ?? []
             configureWorkspaceProps.ownerRoles = rolesQuery.data ?? []
+            configureWorkspaceProps.fieldTypes = fieldTypesQuery.data ?? []
 
             return <ConfigureServiceWorkspace {...configureWorkspaceProps} />
           })()
@@ -982,9 +961,10 @@ export function ServiceAdministrationSectionPage({
       {capabilities.canCreateInitialServiceSetup && newServiceOpen ? (
         <CreateServiceWizard
           open
-          categories={categoryQuery.data ?? []}
+          parents={parentQuery.data ?? []}
           branches={createWizardBranchesQuery.data ?? []}
           ownerRoles={rolesQuery.data ?? []}
+          fieldTypes={fieldTypesQuery.data ?? []}
           stageAccess={createStageAccess}
           progress={serviceSetupProgress}
           setupServiceId={serviceSetupId}
