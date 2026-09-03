@@ -26,11 +26,11 @@ export const serviceAdministrationQueries = {
       staleTime: 30_000,
     }),
 
-  categories: () =>
+  parents: () =>
     queryOptions({
-      queryKey: serviceAdministrationKeys.categories(),
+      queryKey: serviceAdministrationKeys.parents(),
       queryFn: async () => {
-        const response = await serviceAdministrationBackendApi.listCategories()
+        const response = await serviceAdministrationBackendApi.listParents()
         return response.items.map((item) => ({ id: item.id, name: item.name }))
       },
       staleTime: 5 * 60_000,

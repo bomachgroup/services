@@ -30,8 +30,6 @@ export interface ServiceRequestListItem {
   clientName: string
   serviceId: number
   serviceName: string
-  subserviceId: number | null
-  subserviceName: string
   branchId: number | null
   branchName: string
   quoteId: number | null
@@ -132,6 +130,13 @@ export interface ServiceRequestSummary {
   highPriority: number
 }
 
+export interface CreateClientInput {
+  email: string
+  firstName: string
+  lastName: string
+  phoneNumber: string
+}
+
 export interface ClientOption {
   id: number
   name: string
@@ -150,7 +155,7 @@ export interface ServiceOption {
   id: number
   code: string
   name: string
-  division: string
+  parentName: string
   activeBranches: BranchOption[]
 }
 
@@ -213,20 +218,13 @@ export interface IntakeField {
   sortOrder: number
 }
 
-export interface IntakeSubservice {
-  id: number
-  code: string
-  name: string
-  description: string
-  status: string
-}
-
 export interface ServiceIntakeForm {
   service: {
     id: number
     code: string
     name: string
-    division: string
+    parentName: string
+    specializedDomain: string | null
     defaultSlaDays: number
     fulfillmentMode: string
   }
@@ -238,13 +236,11 @@ export interface ServiceIntakeForm {
     active: boolean
     fields: IntakeField[]
   }
-  subservices: IntakeSubservice[]
 }
 
 export interface CreateServiceRequestInput {
   clientId: number
   serviceId: number
-  subserviceId?: number
   branchId?: number
   contactName: string
   contactPhone: string

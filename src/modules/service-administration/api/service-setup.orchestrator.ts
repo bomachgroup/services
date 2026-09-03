@@ -1,5 +1,7 @@
+import { mapRequestFormFieldsToBackend } from '../mappers/request-form.mapper'
+import { mapSaveWorkflowInput } from '../mappers/workflow.mapper'
 import { serviceAdministrationBackendApi } from './service-administration.backend-api'
-import { syncLiveSubservices } from './service-subservices.live'
+import { readSpecializedRequestContext, specializedPayload } from './specialized-service.utils'
 import type {
   CreateServiceStageAccess,
   CreateServiceWizardInput,
@@ -10,7 +12,6 @@ import type {
 
 const labels: Record<ServiceSetupStageId, string> = {
   'service-core': 'Service',
-  subservices: 'Sub-services',
   pricing: 'Pricing',
   'request-form': 'Request Form',
   workflow: 'Workflow',
@@ -40,31 +41,8 @@ function pricingType(value: string): string {
   return map[value.trim().toLowerCase()] ?? 'fixed'
 }
 
-function requestFieldType(label: string): string {
-  const value = label.toLowerCase()
-  if (value.includes('budget')) return 'money'
-  if (value.includes('date')) return 'date'
-  if (value.includes('scope') || value.includes('message')) return 'textarea'
-  if (value.includes('upload') || value.includes('document') || value.includes('image'))
-    return 'file'
-  if (value.includes('location') || value.includes('site')) return 'location'
-  if (value.includes('consent')) return 'checkbox'
-  if (value.includes('phone')) return 'phone'
-  if (value.includes('email')) return 'email'
-  return 'text'
-}
-
-function slug(value: string): string {
-  return value
-    .toLowerCase()
-    .replace(/&/g, ' and ')
-    .replace(/[^a-z0-9]+/g, '_')
-    .replace(/^_|_$/g, '')
-}
-
 function allowed(stage: ServiceSetupStageId, access: CreateServiceStageAccess): boolean {
   if (stage === 'service-core') return true
-  if (stage === 'subservices') return access.subservices
   if (stage === 'pricing') return access.pricing
   if (stage === 'request-form') return access.requestForm
   if (stage === 'workflow') return access.workflow
@@ -111,8 +89,7 @@ export async function runLiveServiceSetup(
       const service = await serviceAdministrationBackendApi.createService({
         name: input.name,
         code: input.code || null,
-        category_id: input.categoryId,
-        division: input.division,
+        parent_id: input.parentId ?? null,
         description: input.description,
         base_price: input.pricing.rate,
         status: 'draft',
@@ -120,6 +97,10 @@ export async function runLiveServiceSetup(
         default_sla_days: input.slaDays,
         fulfillment_mode: fulfillmentMode(input.fulfilmentMode),
         client_visibility: input.clientVisibility ?? 'visible',
+        ...specializedPayload(
+          input.specializedDomain,
+          readSpecializedRequestContext(input.specializedConfig),
+        ),
       })
       serviceId = service.id
       emit('service-core', 'success')
@@ -133,7 +114,6 @@ export async function runLiveServiceSetup(
     options.onlyStages ??
     input.enabledStages ??
     ([
-      'subservices',
       'pricing',
       'request-form',
       'workflow',
@@ -151,9 +131,7 @@ export async function runLiveServiceSetup(
     emit(stage, 'running')
 
     try {
-      if (stage === 'subservices') {
-        await syncLiveSubservices(serviceId, input.subservices)
-      } else if (stage === 'pricing') {
+      if (stage === 'pricing') {
         await serviceAdministrationBackendApi.createPricingConfig(serviceId, {
           name: `${input.name} Pricing`,
           version: 1,
@@ -172,34 +150,21 @@ export async function runLiveServiceSetup(
           version: 1,
           status: nestedStatus,
           is_active: activeNested,
-          fields: input.requestFields.map((label, index) => ({
-            key: slug(label) || `field_${index + 1}`,
-            label,
-            field_type: requestFieldType(label),
-            required: true,
-            options: [],
-            validation: {},
-            help_text: '',
-            placeholder: '',
-            sort_order: index,
-          })),
+          fields: mapRequestFormFieldsToBackend(input.requestFields),
         })
       } else if (stage === 'workflow') {
-        await serviceAdministrationBackendApi.createWorkflow(serviceId, {
-          name: `${input.name} Workflow`,
-          version: 1,
-          status: nestedStatus,
-          is_active: activeNested,
-          stages: input.workflowStages.map((name, index) => ({
-            name,
-            owner_role_id: null,
-            sla_days: input.slaDays,
-            requires_approval: false,
-            requires_evidence: false,
-            client_visible: true,
-            sort_order: index,
-          })),
-        })
+        await serviceAdministrationBackendApi.createWorkflow(
+          serviceId,
+          mapSaveWorkflowInput({
+            name: `${input.name} Workflow`,
+            serviceId: String(serviceId),
+            status: nestedStatus,
+            stages: input.workflowStages.map((workflowStage, index) => ({
+              ...workflowStage,
+              order: index + 1,
+            })),
+          }) as Parameters<typeof serviceAdministrationBackendApi.createWorkflow>[1],
+        )
       } else if (stage === 'branches') {
         const branchIds = input.branchIds ?? []
 

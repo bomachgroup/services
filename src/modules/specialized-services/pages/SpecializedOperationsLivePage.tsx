@@ -15,6 +15,7 @@ import { hasPermission, PERMISSIONS } from '@/app/permissions'
 import { serviceRequestQueries } from '@/modules/commercial/api/service-requests.queries'
 import { serviceOrderQueries } from '@/modules/fulfillment/service-orders/service-order.queries'
 import { serviceAdministrationQueries } from '@/modules/service-administration/api/service-administration.queries'
+import { SPECIALIZED_DOMAIN_OPTIONS } from '@/modules/service-administration/api/specialized-service.utils'
 import type { ServiceCatalogueItem } from '@/modules/service-administration/types/service-administration.types'
 import type { AppSectionSearch } from '@/routes/app/$section'
 import { presentError } from '@/shared/errors'
@@ -59,27 +60,33 @@ export function SpecializedOperationsLivePage({
     ...serviceAdministrationQueries.catalogueList({ status: 'active', limit: 100, offset: 0 }),
     enabled: canServices,
   })
-  const divisions = useMemo(
-    () =>
-      Array.from(
-        new Set((allQ.data?.items ?? []).map((x) => x.division.trim()).filter(Boolean)),
-      ).sort(),
-    [allQ.data?.items],
+  const domainOptions = useMemo(
+    () => SPECIALIZED_DOMAIN_OPTIONS.filter((option) => option.value),
+    [],
   )
-  const division =
-    recordSearch.division && divisions.includes(recordSearch.division)
-      ? recordSearch.division
-      : (divisions[0] ?? '')
-  const divisionQ = useQuery({
+  const availableDomains = useMemo(() => {
+    const configured = new Set(
+      (allQ.data?.items ?? [])
+        .map((item) => item.specializedDomain?.trim())
+        .filter((value): value is string => Boolean(value)),
+    )
+    return domainOptions.filter((option) => configured.has(option.value))
+  }, [allQ.data?.items, domainOptions])
+  const specializedDomain =
+    recordSearch.specializedDomain &&
+    availableDomains.some((option) => option.value === recordSearch.specializedDomain)
+      ? recordSearch.specializedDomain
+      : (availableDomains[0]?.value ?? '')
+  const domainQ = useQuery({
     ...serviceAdministrationQueries.catalogueList({
       status: 'active',
-      ...(division ? { division } : {}),
+      ...(specializedDomain ? { specializedDomain } : {}),
       limit: 100,
       offset: 0,
     }),
-    enabled: canServices && Boolean(division),
+    enabled: canServices && Boolean(specializedDomain),
   })
-  const services = divisionQ.data?.items ?? []
+  const services = domainQ.data?.items ?? []
   const selected = services.find((x) => Number(x.id) === Number(recordSearch.service)) ?? null
   const serviceId = selected ? Number(selected.id) : null
   const detailQ = useQuery({
@@ -111,13 +118,13 @@ export function SpecializedOperationsLivePage({
     ? Math.round(services.reduce((n, x) => n + (x.slaDays ?? 0), 0) / services.length)
     : 0
 
-  const setContext = (nextDivision: string, nextService?: string) =>
+  const setContext = (nextDomain: string, nextService?: string) =>
     void navigate({
       to: '/app/$section',
       params: { section: 'survey-engineering-others' },
       search: (p) => ({
-        ...withoutSearchKeys(p, ['division', 'service', 'page', 'search', 'status']),
-        ...(nextDivision ? { division: nextDivision } : {}),
+        ...withoutSearchKeys(p, ['specializedDomain', 'service', 'page', 'search', 'status']),
+        ...(nextDomain ? { specializedDomain: nextDomain } : {}),
         ...(nextService ? { service: nextService } : {}),
       }),
       replace: true,
@@ -125,7 +132,7 @@ export function SpecializedOperationsLivePage({
   const refresh = () =>
     Promise.all([
       allQ.refetch(),
-      divisionQ.refetch(),
+      domainQ.refetch(),
       ...(serviceId
         ? [
             detailQ.refetch(),
@@ -204,7 +211,7 @@ export function SpecializedOperationsLivePage({
       }
     >
       <main className="specialized-content">
-        {division ? (
+        {specializedDomain ? (
           <section className="specialized-kpi-grid specialized-kpi-grid--top">
             {[
               ['Active Services', activeServices],
@@ -223,16 +230,16 @@ export function SpecializedOperationsLivePage({
         <section className="specialized-card specialized-operations-toolbar">
           <div className="specialized-filter-row specialized-filter-row--compact">
             <label className="specialized-field specialized-specialized-selector">
-              <span>Specialized division</span>
-              <select value={division} onChange={(e) => setContext(e.target.value)}>
-                {divisions.length ? (
-                  divisions.map((x) => (
-                    <option key={x} value={x}>
-                      {x}
+              <span>Specialized domain</span>
+              <select value={specializedDomain} onChange={(e) => setContext(e.target.value)}>
+                {availableDomains.length ? (
+                  availableDomains.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
                     </option>
                   ))
                 ) : (
-                  <option value="">No active divisions</option>
+                  <option value="">No specialized domains</option>
                 )}
               </select>
             </label>
@@ -240,8 +247,8 @@ export function SpecializedOperationsLivePage({
               <span>Service</span>
               <select
                 value={selected?.id ?? ''}
-                disabled={!division}
-                onChange={(e) => setContext(division, e.target.value || undefined)}
+                disabled={!specializedDomain}
+                onChange={(e) => setContext(specializedDomain, e.target.value || undefined)}
               >
                 <option value="">All Services</option>
                 {services.map((x) => (
@@ -262,7 +269,7 @@ export function SpecializedOperationsLivePage({
                   void navigate({
                     to: '/app/$section',
                     params: { section: 'service-catalogue' },
-                    search: selected ? { search: selected.name, division } : { division },
+                    search: selected ? { search: selected.name, specializedDomain } : { specializedDomain },
                   })
                 }
               >
@@ -273,10 +280,10 @@ export function SpecializedOperationsLivePage({
           </div>
         </section>
 
-        {!division ? (
+        {!specializedDomain ? (
           <EmptyState
-            title="No specialized divisions configured"
-            description="Active Services with a division appear here automatically from the Service Catalogue."
+            title="No specialized domains configured"
+            description="Active services with a specialized domain appear here automatically from the Service Catalogue."
           />
         ) : (
           <>
@@ -285,7 +292,7 @@ export function SpecializedOperationsLivePage({
                 <div>
                   <div className="specialized-card-title">Configured Services</div>
                   <div className="specialized-card-subtitle">
-                    Live Service Catalogue configuration for {division}
+                    Live Service Catalogue configuration for {specializedDomain}
                   </div>
                 </div>
                 <span className="commercial-count">{services.length} services</span>
@@ -300,7 +307,7 @@ export function SpecializedOperationsLivePage({
                           ? 'specialized-service-card is-selected'
                           : 'specialized-service-card'
                       }
-                      onClick={() => setContext(division, s.id)}
+                      onClick={() => setContext(specializedDomain, s.id)}
                     >
                       <b>{s.name}</b>
                       <small>{s.code || 'No code'}</small>
@@ -316,8 +323,8 @@ export function SpecializedOperationsLivePage({
                 </div>
               ) : (
                 <EmptyState
-                  title="No Services in this division"
-                  description="No active Service Catalogue records are configured for this division."
+                  title="No services in this domain"
+                  description="No active Service Catalogue records are configured for this specialized domain."
                 />
               )}
             </section>

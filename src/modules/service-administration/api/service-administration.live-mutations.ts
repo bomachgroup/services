@@ -1,3 +1,4 @@
+import { mapRequestFormFieldsToBackend } from '../mappers/request-form.mapper'
 import { mapServiceCatalogueDetail } from '../mappers/service-catalogue.mapper'
 import { mapSaveRequestFormInput } from '../mappers/request-form.mapper'
 import { mapPricingConfigDto, mapSaveCalculatorInput } from '../mappers/pricing-config.mapper'
@@ -14,10 +15,10 @@ import type {
 } from '../types/service-administration.types'
 import { mapRequestFormDto } from '../mappers/request-form.mapper'
 import type { PricingConfigInputDto, WorkflowInputDto } from './service-administration.contracts'
+import { readSpecializedRequestContext, specializedPayload } from './specialized-service.utils'
 import { serviceAdministrationBackendApi } from './service-administration.backend-api'
-import { syncLiveSubservices } from './service-subservices.live'
 
-export type ServiceSetupStage = 'service-core' | 'subservices' | 'request-form'
+export type ServiceSetupStage = 'service-core' | 'request-form'
 
 export class ServiceSetupStageError extends Error {
   constructor(
@@ -49,32 +50,6 @@ function fulfillmentMode(value: string): string {
   return map[normalized] ?? value
 }
 
-function slug(value: string): string {
-  return value
-    .toLowerCase()
-    .replace(/&/g, ' and ')
-    .replace(/[^a-z0-9]+/g, '_')
-    .replace(/^_|_$/g, '')
-}
-
-function requestFieldType(label: string): string {
-  const normalized = label.toLowerCase()
-
-  if (normalized.includes('budget')) return 'money'
-  if (normalized.includes('date')) return 'date'
-  if (normalized.includes('scope') || normalized.includes('message')) return 'textarea'
-  if (
-    normalized.includes('upload') ||
-    normalized.includes('document') ||
-    normalized.includes('image')
-  ) {
-    return 'file'
-  }
-  if (normalized.includes('location') || normalized.includes('site')) return 'location'
-  if (normalized.includes('consent')) return 'checkbox'
-  return 'text'
-}
-
 export async function createServiceThroughRequestForm(
   input: CreateServiceWizardInput,
 ): Promise<ServiceCatalogueItem> {
@@ -84,14 +59,17 @@ export async function createServiceThroughRequestForm(
     const service = await serviceAdministrationBackendApi.createService({
       name: input.name,
       code: input.code || null,
-      category_id: input.categoryId,
-      division: input.division,
+      parent_id: input.parentId ?? null,
       description: input.description,
       base_price: input.pricing.rate,
       status: 'draft',
       default_sla_days: input.slaDays,
       fulfillment_mode: fulfillmentMode(input.fulfilmentMode),
       client_visibility: 'visible',
+      ...specializedPayload(
+        input.specializedDomain,
+        readSpecializedRequestContext(input.specializedConfig),
+      ),
     })
 
     serviceId = service.id
@@ -100,28 +78,12 @@ export async function createServiceThroughRequestForm(
   }
 
   try {
-    await syncLiveSubservices(serviceId, input.subservices)
-  } catch (error) {
-    throw new ServiceSetupStageError('subservices', serviceId, error)
-  }
-
-  try {
     await serviceAdministrationBackendApi.createRequestForm(serviceId, {
       name: `${input.name} Request Form`,
       version: 1,
       status: 'draft',
       is_active: false,
-      fields: input.requestFields.map((label, index) => ({
-        key: slug(label) || `field_${index + 1}`,
-        label,
-        field_type: requestFieldType(label),
-        required: true,
-        options: [],
-        validation: {},
-        help_text: '',
-        placeholder: '',
-        sort_order: index,
-      })),
+      fields: mapRequestFormFieldsToBackend(input.requestFields),
     })
   } catch (error) {
     throw new ServiceSetupStageError('request-form', serviceId, error)

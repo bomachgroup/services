@@ -18,14 +18,11 @@ import type {
   RoleDto,
   ServiceCatalogueCardDto,
   ServiceCatalogueDetailDto,
-  ServiceCategoryDto,
+  ServiceParentDto,
   ServiceCoreDto,
   ServiceCreateDto,
   ServiceListFilters,
   ServicePublishDto,
-  ServiceSubserviceDto,
-  ServiceSubserviceInputDto,
-  ServiceSubserviceUpdateDto,
   ServiceUpdateDto,
   WorkflowDto,
   WorkflowInputDto,
@@ -57,11 +54,11 @@ function withQuery(
 function serviceListPath(path: string, filters: ServiceListFilters = {}) {
   return withQuery(path, {
     status: filters.status,
-    category_id: filters.categoryId,
-    division: filters.division,
+    parent_id: filters.parentId,
     owner_role_id: filters.ownerRoleId,
     client_visibility: filters.clientVisibility,
     branch_id: filters.branchId,
+    specialized_domain: filters.specializedDomain,
     search: filters.search,
     limit: filters.limit,
     offset: filters.offset,
@@ -81,9 +78,9 @@ export const serviceAdministrationBackendApi = {
     )
   },
 
-  listCategories(limit = 100, offset = 0) {
-    return apiClient.get<LimitOffsetPageDto<ServiceCategoryDto>>(
-      withQuery('/categories', { limit, offset }),
+  listParents(limit = 100, offset = 0) {
+    return apiClient.get<LimitOffsetPageDto<ServiceParentDto>>(
+      withQuery('/service-parents', { limit, offset }),
     )
   },
 
@@ -123,31 +120,6 @@ export const serviceAdministrationBackendApi = {
 
   publishService(serviceId: number, input: ServicePublishDto) {
     return apiClient.post<ServiceCatalogueDetailDto>(`${basePath}/${serviceId}/publish`, input)
-  },
-
-  listSubservices(serviceId: number) {
-    return apiClient.get<ServiceSubserviceDto[]>(`${basePath}/${serviceId}/subservices`)
-  },
-
-  replaceSubservices(serviceId: number, subservices: ServiceSubserviceInputDto[]) {
-    return apiClient.put<ServiceSubserviceDto[]>(`${basePath}/${serviceId}/subservices`, {
-      subservices,
-    })
-  },
-
-  createSubservice(serviceId: number, input: ServiceSubserviceInputDto) {
-    return apiClient.post<ServiceSubserviceDto>(`${basePath}/${serviceId}/subservices`, input)
-  },
-
-  updateSubservice(serviceId: number, subserviceId: number, input: ServiceSubserviceUpdateDto) {
-    return apiClient.put<ServiceSubserviceDto>(
-      `${basePath}/${serviceId}/subservices/${subserviceId}`,
-      input,
-    )
-  },
-
-  deleteSubservice(serviceId: number, subserviceId: number) {
-    return apiClient.delete<MessageDto>(`${basePath}/${serviceId}/subservices/${subserviceId}`)
   },
 
   listRequestForms(serviceId: number) {
@@ -302,8 +274,7 @@ export const serviceAdministrationBackendApi = {
   getBranchActivationMatrix(filters: BranchActivationMatrixFilters = {}) {
     return apiClient.get<ServiceCatalogueCardDto[]>(
       withQuery(`${basePath}/branch-activation-matrix`, {
-        division: filters.division,
-        status: filters.status,
+            status: filters.status,
         branch_id: filters.branchId,
         search: filters.search,
       }),

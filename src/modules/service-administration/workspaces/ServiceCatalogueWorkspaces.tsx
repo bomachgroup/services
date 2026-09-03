@@ -1,7 +1,11 @@
-import { IconPlus, IconTrash, IconX } from '@tabler/icons-react'
-import { useRef, useState } from 'react'
+import { IconX } from '@tabler/icons-react'
+import { useRef, useState, type MutableRefObject } from 'react'
 
-import { formatNumberFieldValue, parseNumberFieldValue } from '@/shared/lib/number-input'
+import {
+  formatNumberFieldValue,
+  parseNumberFieldValue,
+  parseOptionalNumberFieldValue,
+} from '@/shared/lib/number-input'
 
 import type {
   ConfigureServiceInput,
@@ -11,62 +15,58 @@ import type {
   CreateServiceStageAccess,
   CreateServiceWizardInput,
   PricingCalculator,
-  ServiceCategoryOption,
+  RequestFieldTypeOption,
+  RequestFormField,
+  ServiceParentOption,
   ServiceCatalogueItem,
   ServiceRequestForm,
-  ServiceStatus,
-  ServiceSubserviceSetup,
   ServiceWorkflow,
+  WorkflowStage,
 } from '../types/service-administration.types'
+import { RequestFormBuilderPanel } from '../components/RequestFormBuilderPanel'
+import { WorkflowDesignerPanel } from '../components/WorkflowDesignerPanel'
+import {
+  buildStagesForService,
+  cloneStages,
+} from '../components/workflow-designer-panel.utils'
+import {
+  SPECIALIZED_DOMAIN_OPTIONS,
+  readSpecializedRequestContext,
+} from '../api/specialized-service.utils'
 
-const divisions = [
-  'Real Estate',
-  'Land Surveying & Geospatial',
-  'Engineering & Construction',
-  'Courier & Logistics',
-  'Information Technology',
-  'Food & Farms',
-  'Hospitality Services',
-]
-
-const requestFieldOptions = [
-  'Client identity',
-  'Phone & email',
-  'Customer type',
-  'Location / site',
-  'Budget',
-  'Preferred date',
-  'Scope / message',
-  'Document uploads',
-  'Images / videos',
-  'Title documents',
-  'Consent',
-  'Lead / campaign source',
-]
-
-const wizardSteps = ['Basic', 'Sub-services', 'Pricing', 'Request Form', 'Workflow', 'Publish']
-
-function splitLines(value: string) {
-  return value
-    .split('\n')
-    .map((item) => item.trim())
-    .filter(Boolean)
+function labelsToRequestFields(labels: string[]): RequestFormField[] {
+  return labels.map((label, index) => ({
+    id: `field-${index}`,
+    label,
+    key: label
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '_')
+      .replace(/^_|_$/g, ''),
+    type: 'text',
+    required: true,
+  }))
 }
 
-type CreateSubserviceDraft = ServiceSubserviceSetup & {
-  localId: string
+function registerFieldRef(
+  fieldRefs: MutableRefObject<Record<string, HTMLElement | null>>,
+  field: string,
+  node: HTMLElement | null,
+) {
+  fieldRefs.current[field] = node
 }
+
+const configureWizardSteps = ['Basic', 'Pricing', 'Request Form', 'Workflow', 'Branches', 'Publish']
 
 type ServiceWizardFieldName =
   | 'name'
   | 'code'
-  | 'categoryId'
-  | 'division'
+  | 'parentId'
   | 'ownerRoleId'
   | 'description'
   | 'slaDays'
   | 'fulfilmentMode'
-  | 'subservices'
+  | 'specializedDomain'
+  | 'specializedRequestContext'
   | 'pricingMethod'
   | 'rate'
   | 'depositPercent'
@@ -79,99 +79,6 @@ type ServiceWizardFieldName =
   | 'clientVisibility'
 
 type ServiceWizardFieldErrors = Partial<Record<ServiceWizardFieldName, string>>
-
-type SubserviceEditorFieldName = 'name' | 'code' | 'status' | 'defaultSlaDays' | 'description'
-
-type SubserviceEditorFieldErrors = Partial<Record<SubserviceEditorFieldName, string>>
-
-let subserviceDraftSequence = 0
-
-function nextSubserviceDraftId() {
-  subserviceDraftSequence += 1
-  return `subservice-draft-${subserviceDraftSequence}`
-}
-
-function slugifySubservice(value: string) {
-  return value
-    .trim()
-    .toLowerCase()
-    .replace(/&/g, ' and ')
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '')
-}
-
-function createSubserviceDraft(
-  defaultSlaDays: number,
-  overrides: Partial<ServiceSubserviceSetup> = {},
-): CreateSubserviceDraft {
-  return {
-    localId: nextSubserviceDraftId(),
-    code: overrides.code ?? '',
-    name: overrides.name ?? '',
-    description: overrides.description ?? '',
-    status: overrides.status ?? 'draft',
-    defaultSlaDays: overrides.defaultSlaDays ?? defaultSlaDays,
-  }
-}
-
-function buildInitialSubserviceDrafts(defaultSlaDays: number) {
-  void defaultSlaDays
-  return [] as CreateSubserviceDraft[]
-}
-
-function subserviceStatusForServiceStatus(status: ServiceStatus): CreateSubserviceDraft['status'] {
-  if (status === 'active') return 'active'
-  if (status === 'inactive') return 'inactive'
-  return 'draft'
-}
-
-function buildSubserviceDraftsFromNames(
-  names: string[],
-  defaultSlaDays: number,
-  status: ServiceStatus,
-) {
-  return names.map((name) =>
-    createSubserviceDraft(defaultSlaDays, {
-      name,
-      status: subserviceStatusForServiceStatus(status),
-    }),
-  )
-}
-
-function validateSubserviceDrafts(subserviceDrafts: CreateSubserviceDraft[]): string | null {
-  if (subserviceDrafts.length === 0) return 'Add at least one sub-service.'
-
-  const effectiveCodes = new Set<string>()
-
-  for (const [index, item] of subserviceDrafts.entries()) {
-    if (!item.name.trim()) return `Sub-service ${index + 1} needs a name.`
-    if (!Number.isFinite(item.defaultSlaDays) || item.defaultSlaDays < 1) {
-      return `Sub-service ${index + 1} must have an SLA of at least 1 day.`
-    }
-
-    const effectiveCode = slugifySubservice(item.code?.trim() || item.name)
-    if (!effectiveCode) return `Sub-service ${index + 1} needs a valid name or code.`
-    if (effectiveCodes.has(effectiveCode)) {
-      return 'Each sub-service must have a unique code or generated slug.'
-    }
-
-    effectiveCodes.add(effectiveCode)
-  }
-
-  return null
-}
-
-function serializeSubserviceDrafts(
-  subserviceDrafts: CreateSubserviceDraft[],
-): ServiceSubserviceSetup[] {
-  return subserviceDrafts.map(({ code: draftCode, description: draftDescription, ...item }) => ({
-    code: draftCode?.trim() ? draftCode.trim() : null,
-    name: item.name.trim(),
-    description: draftDescription.trim(),
-    status: item.status,
-    defaultSlaDays: item.defaultSlaDays,
-  }))
-}
 
 function focusField(
   fieldRefs: React.MutableRefObject<Record<string, HTMLElement | null>>,
@@ -196,22 +103,6 @@ function focusNotice(ref: React.RefObject<HTMLElement | null>) {
     ref.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })
     ref.current?.focus()
   })
-}
-
-function validateSubserviceEditorDraft(draft: CreateSubserviceDraft): SubserviceEditorFieldErrors {
-  const errors: SubserviceEditorFieldErrors = {}
-
-  if (!draft.name.trim()) {
-    errors.name = 'Sub-service name is required.'
-  }
-  if (!Number.isFinite(draft.defaultSlaDays) || draft.defaultSlaDays < 1) {
-    errors.defaultSlaDays = 'Default SLA must be at least 1 day.'
-  }
-  if (!slugifySubservice(draft.code?.trim() || draft.name)) {
-    errors.code = 'Enter a valid code or a name that can generate one.'
-  }
-
-  return errors
 }
 
 function ModalShell({
@@ -289,315 +180,65 @@ function Field({
   )
 }
 
-function SubserviceEditorModal({
-  draft,
-  pending,
-  title,
-  onClose,
-  onSave,
+function SpecializedProfileFields({
+  specializedDomain,
+  specializedRequestContext,
+  fieldErrors,
+  fieldRefs,
+  onDomainChange,
+  onRequestContextChange,
 }: {
-  draft: CreateSubserviceDraft
-  pending: boolean
-  title: string
-  onClose: () => void
-  onSave: (draft: CreateSubserviceDraft) => void
-}) {
-  const [localDraft, setLocalDraft] = useState<CreateSubserviceDraft>(draft)
-  const [error, setError] = useState('')
-  const [fieldErrors, setFieldErrors] = useState<SubserviceEditorFieldErrors>({})
-  const fieldRefs = useRef<Record<string, HTMLElement | null>>({})
-  const errorNoticeRef = useRef<HTMLDivElement | null>(null)
-
-  const save = () => {
-    const nextErrors = validateSubserviceEditorDraft(localDraft)
-    setFieldErrors(nextErrors)
-
-    const firstField = (
-      ['name', 'code', 'status', 'defaultSlaDays', 'description'] as SubserviceEditorFieldName[]
-    ).find((field) => nextErrors[field])
-
-    if (firstField) {
-      setError(nextErrors[firstField] ?? '')
-      focusField(fieldRefs, firstField)
-      return
-    }
-
-    setError('')
-    setFieldErrors({})
-    onSave({
-      ...localDraft,
-      name: localDraft.name.trim(),
-      code: localDraft.code?.trim() ?? '',
-      description: localDraft.description.trim(),
-    })
-  }
-
-  return (
-    <div
-      className="service-admin-modal-backdrop service-admin-modal-backdrop--nested"
-      role="presentation"
-      onMouseDown={onClose}
-    >
-      <section
-        role="dialog"
-        aria-modal="true"
-        aria-label={title}
-        className="service-admin-modal service-admin-modal--nested"
-        onMouseDown={(event) => event.stopPropagation()}
-      >
-        <header className="service-admin-modal-header">
-          <h2 className="service-admin-modal-title">{title}</h2>
-          <button
-            type="button"
-            className="service-admin-modal-close"
-            aria-label="Close"
-            onClick={onClose}
-          >
-            <IconX size={16} />
-          </button>
-        </header>
-        <div className="service-admin-modal-body">
-          {error ? (
-            <div
-              ref={errorNoticeRef}
-              tabIndex={-1}
-              className="service-admin-notice service-admin-notice-red"
-            >
-              {error}
-            </div>
-          ) : null}
-          <div className="service-admin-form-grid">
-            <Field label="Sub-service name" required error={fieldErrors.name}>
-              <input
-                ref={(node) => {
-                  fieldRefs.current.name = node
-                }}
-                aria-invalid={fieldErrors.name ? true : undefined}
-                value={localDraft.name}
-                placeholder="e.g. Priority Site Assessment"
-                onChange={(event) =>
-                  setLocalDraft((current) => ({
-                    ...current,
-                    name: event.target.value,
-                  }))
-                }
-              />
-            </Field>
-            <Field label="Code" error={fieldErrors.code}>
-              <input
-                ref={(node) => {
-                  fieldRefs.current.code = node
-                }}
-                aria-invalid={fieldErrors.code ? true : undefined}
-                value={localDraft.code ?? ''}
-                placeholder="Optional custom code"
-                onChange={(event) =>
-                  setLocalDraft((current) => ({
-                    ...current,
-                    code: event.target.value,
-                  }))
-                }
-              />
-            </Field>
-            <Field label="Status" required error={fieldErrors.status}>
-              <select
-                ref={(node) => {
-                  fieldRefs.current.status = node
-                }}
-                aria-invalid={fieldErrors.status ? true : undefined}
-                value={localDraft.status}
-                onChange={(event) =>
-                  setLocalDraft((current) => ({
-                    ...current,
-                    status: event.target.value as CreateSubserviceDraft['status'],
-                  }))
-                }
-              >
-                <option value="draft">Draft</option>
-                <option value="active">Active</option>
-                <option value="inactive">Inactive</option>
-              </select>
-            </Field>
-            <Field label="Default SLA (days)" required error={fieldErrors.defaultSlaDays}>
-              <input
-                ref={(node) => {
-                  fieldRefs.current.defaultSlaDays = node
-                }}
-                aria-invalid={fieldErrors.defaultSlaDays ? true : undefined}
-                type="number"
-                min={1}
-                value={formatNumberFieldValue(localDraft.defaultSlaDays)}
-                onChange={(event) =>
-                  setLocalDraft((current) => ({
-                    ...current,
-                    defaultSlaDays: parseNumberFieldValue(event.target.value),
-                  }))
-                }
-              />
-            </Field>
-          </div>
-          <Field label="Description" full error={fieldErrors.description}>
-            <textarea
-              ref={(node) => {
-                fieldRefs.current.description = node
-              }}
-              aria-invalid={fieldErrors.description ? true : undefined}
-              className="service-admin-wizard-textarea"
-              rows={4}
-              value={localDraft.description}
-              placeholder="Optional scope, packaging notes, or client-facing explanation."
-              onChange={(event) =>
-                setLocalDraft((current) => ({
-                  ...current,
-                  description: event.target.value,
-                }))
-              }
-            />
-          </Field>
-        </div>
-        <footer className="service-admin-modal-footer">
-          <button
-            type="button"
-            className="service-admin-button"
-            disabled={pending}
-            onClick={onClose}
-          >
-            Cancel
-          </button>
-          <button
-            type="button"
-            className="service-admin-button service-admin-button-primary"
-            disabled={pending}
-            onClick={save}
-          >
-            Save Sub-service
-          </button>
-        </footer>
-      </section>
-    </div>
-  )
-}
-
-function SubserviceStagePanel({
-  drafts,
-  pending,
-  error,
-  addButtonRef,
-  onAdd,
-  onEdit,
-  onRemove,
-}: {
-  drafts: CreateSubserviceDraft[]
-  pending: boolean
-  error?: string | undefined
-  addButtonRef?: React.Ref<HTMLButtonElement>
-  onAdd: () => void
-  onEdit: (localId: string) => void
-  onRemove: (localId: string) => void
+  specializedDomain: string
+  specializedRequestContext: string
+  fieldErrors: ServiceWizardFieldErrors
+  fieldRefs: React.MutableRefObject<Record<string, HTMLElement | null>>
+  onDomainChange: (value: string) => void
+  onRequestContextChange: (value: string) => void
 }) {
   return (
-    <div className="service-admin-subservice-stack">
-      <div className="service-admin-card">
-        <div className="service-admin-card-header">
-          <div>
-            <div className="service-admin-card-title">Sub-services</div>
-            <div className="service-admin-card-subtitle">
-              Define the service variants that should be available for setup, pricing, and request
-              intake.
-            </div>
-          </div>
-          <button
-            type="button"
-            ref={addButtonRef}
-            className="service-admin-button service-admin-button-primary"
-            disabled={pending}
-            onClick={onAdd}
-          >
-            <IconPlus size={14} />
-            Add Sub-service
-          </button>
-        </div>
-
-        {drafts.length === 0 ? (
-          <div className="service-admin-notice service-admin-notice-blue">
-            No sub-services added yet.
-          </div>
-        ) : (
-          <div className="service-admin-subservice-list">
-            {drafts.map((item, index) => {
-              const effectiveCode = item.code?.trim() || slugifySubservice(item.name)
-
-              return (
-                <article key={item.localId} className="service-admin-subservice-card">
-                  <div className="service-admin-subservice-card-meta">
-                    <div className="service-admin-subservice-card-name">
-                      {item.name.trim() || `Sub-service ${index + 1}`}
-                    </div>
-                    <div className="service-admin-subservice-card-subtitle">
-                      {effectiveCode || 'Code will be generated from the name'} ·{' '}
-                      {item.defaultSlaDays} day SLA · {item.status}
-                    </div>
-                    {item.description.trim() ? (
-                      <div className="service-admin-subservice-card-description">
-                        {item.description.trim()}
-                      </div>
-                    ) : null}
-                  </div>
-                  <div className="service-admin-subservice-card-actions">
-                    <button
-                      type="button"
-                      className="service-admin-button"
-                      disabled={pending}
-                      onClick={() => onEdit(item.localId)}
-                    >
-                      Edit
-                    </button>
-                    <button
-                      type="button"
-                      className="service-admin-button"
-                      disabled={pending}
-                      onClick={() => onRemove(item.localId)}
-                    >
-                      <IconTrash size={14} />
-                      Remove
-                    </button>
-                  </div>
-                </article>
-              )
-            })}
-          </div>
-        )}
-        {error ? <small className="service-admin-field-error">{error}</small> : null}
-      </div>
-    </div>
+    <>
+      <Field label="Specialized domain" error={fieldErrors.specializedDomain}>
+        <select
+          ref={(node) => {
+            registerFieldRef(fieldRefs, 'specializedDomain', node)
+          }}
+          value={specializedDomain}
+          onChange={(event) => onDomainChange(event.target.value)}
+        >
+          {SPECIALIZED_DOMAIN_OPTIONS.map((option) => (
+            <option key={option.value || 'none'} value={option.value}>
+              {option.label}
+            </option>
+          ))}
+        </select>
+      </Field>
+      {specializedDomain ? (
+        <Field
+          label="Request context"
+          full
+          error={fieldErrors.specializedRequestContext}
+        >
+          <input
+            ref={(node) => {
+              registerFieldRef(fieldRefs, 'specializedRequestContext', node)
+            }}
+            value={specializedRequestContext}
+            placeholder="e.g. property_sale, estate_management"
+            onChange={(event) => onRequestContextChange(event.target.value)}
+          />
+        </Field>
+      ) : null}
+    </>
   )
-}
-
-/** Backend stores category slugs; show human labels in the wizard. */
-const SERVICE_CATEGORY_LABELS: Record<string, string> = {
-  surveying: 'Surveying',
-  construction: 'Construction',
-  it: 'Information Technology (IT)',
-  civil_engineering: 'Civil Engineering',
-  mechanical_engineering: 'Mechanical Engineering',
-  electrical_engineering: 'Electrical Engineering',
-  environmental_engineering: 'Environmental Engineering',
-  project_management: 'Project Management',
-  property_sale_rent: 'Property Sale/Rent',
-  maintenance: 'Maintenance & Technical Support',
-  others: 'Others',
-}
-
-function categoryLabel(name: string) {
-  return SERVICE_CATEGORY_LABELS[name] ?? name
 }
 
 export function CreateServiceWizard({
   open,
   pending,
-  categories,
+  parents,
   branches: branchOptions = [],
   ownerRoles = [],
+  fieldTypes = [],
   stageAccess,
   progress = [],
   setupServiceId = null,
@@ -607,9 +248,10 @@ export function CreateServiceWizard({
 }: {
   open: boolean
   pending: boolean
-  categories: ServiceCategoryOption[]
+  parents: ServiceParentOption[]
   branches?: Array<{ id: number; name: string; code: string }>
   ownerRoles?: WorkflowOwnerRoleOption[]
+  fieldTypes?: RequestFieldTypeOption[]
   stageAccess?: CreateServiceStageAccess
   progress?: ServiceSetupStageProgress[]
   setupServiceId?: number | null
@@ -618,7 +260,6 @@ export function CreateServiceWizard({
   onRetryFailed?: () => void
 }) {
   const access: CreateServiceStageAccess = stageAccess ?? {
-    subservices: true,
     pricing: true,
     requestForm: true,
     workflow: true,
@@ -631,38 +272,21 @@ export function CreateServiceWizard({
   const [maxReachedStep, setMaxReachedStep] = useState(0)
   const [name, setName] = useState('')
   const [code, setCode] = useState('')
-  const [categoryId, setCategoryId] = useState<number>(0)
-  const [division, setDivision] = useState(divisions[0] ?? '')
+  const [parentId, setParentId] = useState<number>(0)
   const [ownerRoleId, setOwnerRoleId] = useState<number | null>(null)
   const [description, setDescription] = useState('')
   const [slaDays, setSlaDays] = useState(5)
   const [fulfilmentMode, setFulfilmentMode] = useState('Quick service order')
-  const [subserviceDrafts, setSubserviceDrafts] = useState<CreateSubserviceDraft[]>(() =>
-    buildInitialSubserviceDrafts(5),
-  )
-  const [subserviceEditorDraft, setSubserviceEditorDraft] = useState<CreateSubserviceDraft | null>(
-    null,
-  )
-  const [editingSubserviceId, setEditingSubserviceId] = useState<string | null>(null)
-  const [pricingMethod, setPricingMethod] = useState('Fixed')
-  const [rate, setRate] = useState(100000)
-  const [depositPercent, setDepositPercent] = useState(70)
-  const [taxPercent, setTaxPercent] = useState(0)
-  const [discountApprovalPercent, setDiscountApprovalPercent] = useState(5)
-  const [requestFields, setRequestFields] = useState<string[]>([
-    'Client identity',
-    'Phone & email',
-    'Customer type',
-    'Location / site',
-    'Budget',
-    'Preferred date',
-    'Scope / message',
-    'Document uploads',
-  ])
-  const [workflow, setWorkflow] = useState(
-    'Request Review\nTechnical Assessment\nQuotation\nApproval\nInvoice & Payment\nService Order\nExecution\nQuality Review\nClient Acceptance\nCompletion & Feedback',
-  )
-  const [selectedBranchIds, setSelectedBranchIds] = useState<number[] | null>(null)
+  const [specializedDomain, setSpecializedDomain] = useState('')
+  const [specializedRequestContext, setSpecializedRequestContext] = useState('')
+  const [pricingMethod, setPricingMethod] = useState('')
+  const [rate, setRate] = useState<number | null>(null)
+  const [depositPercent, setDepositPercent] = useState<number | null>(null)
+  const [taxPercent, setTaxPercent] = useState<number | null>(null)
+  const [discountApprovalPercent, setDiscountApprovalPercent] = useState<number | null>(null)
+  const [requestFields, setRequestFields] = useState<RequestFormField[]>([])
+  const [workflowStages, setWorkflowStages] = useState<WorkflowStage[]>([])
+  const [selectedBranchIds, setSelectedBranchIds] = useState<number[]>([])
   const [status, setStatus] = useState<'active' | 'draft' | 'inactive'>('draft')
   const [clientVisibility, setClientVisibility] = useState<'visible' | 'internal' | 'hidden'>(
     'visible',
@@ -675,10 +299,9 @@ export function CreateServiceWizard({
   if (!open) return null
 
   type WizardStage =
-    'basic' | 'subservices' | 'pricing' | 'request-form' | 'workflow' | 'branches' | 'review'
+    'basic' | 'pricing' | 'request-form' | 'workflow' | 'branches' | 'review'
   const steps: Array<{ id: WizardStage; label: string }> = [
     { id: 'basic', label: 'Basic' },
-    ...(access.subservices ? [{ id: 'subservices' as const, label: 'Sub-services' }] : []),
     ...(access.pricing ? [{ id: 'pricing' as const, label: 'Pricing' }] : []),
     ...(access.requestForm ? [{ id: 'request-form' as const, label: 'Request Form' }] : []),
     ...(access.workflow ? [{ id: 'workflow' as const, label: 'Workflow' }] : []),
@@ -686,7 +309,7 @@ export function CreateServiceWizard({
     { id: 'review', label: access.publish ? 'Review & Publish' : 'Review' },
   ]
   const currentStage = steps[Math.min(step, steps.length - 1)]?.id ?? 'basic'
-  const effectiveSelectedBranchIds = selectedBranchIds ?? branchOptions.map((branch) => branch.id)
+  const effectiveSelectedBranchIds = selectedBranchIds
   const canPublishActive =
     access.publish &&
     access.pricing &&
@@ -719,8 +342,6 @@ export function CreateServiceWizard({
     if (stage === 'basic') {
       if (!name.trim()) return { message: 'Service name is required.', field: 'name' }
       if (!code.trim()) return { message: 'Service code is required.', field: 'code' }
-      if (!categoryId) return { message: 'Service category is required.', field: 'categoryId' }
-      if (!division.trim()) return { message: 'Division is required.', field: 'division' }
       if (!description.trim()) return { message: 'Description is required.', field: 'description' }
       if (!Number.isFinite(slaDays) || slaDays < 1) {
         return { message: 'SLA must be at least 1 day.', field: 'slaDays' }
@@ -729,24 +350,26 @@ export function CreateServiceWizard({
         return { message: 'Fulfillment mode is required.', field: 'fulfilmentMode' }
       }
     }
-    if (stage === 'subservices') {
-      const subserviceError = validateSubserviceDrafts(subserviceDrafts)
-      return subserviceError ? { message: subserviceError, field: 'subservices' } : null
-    }
     if (stage === 'pricing') {
       if (!pricingMethod.trim()) {
         return { message: 'Pricing method is required.', field: 'pricingMethod' }
       }
-      if (!Number.isFinite(rate) || rate < 0) {
+      if (rate === null || !Number.isFinite(rate) || rate < 0) {
         return { message: 'Base / unit price is required.', field: 'rate' }
       }
-      if (!Number.isFinite(depositPercent) || depositPercent < 0 || depositPercent > 100) {
+      if (
+        depositPercent === null ||
+        !Number.isFinite(depositPercent) ||
+        depositPercent < 0 ||
+        depositPercent > 100
+      ) {
         return { message: 'Deposit (%) must be between 0 and 100.', field: 'depositPercent' }
       }
-      if (!Number.isFinite(taxPercent) || taxPercent < 0 || taxPercent > 100) {
+      if (taxPercent === null || !Number.isFinite(taxPercent) || taxPercent < 0 || taxPercent > 100) {
         return { message: 'Tax (%) must be between 0 and 100.', field: 'taxPercent' }
       }
       if (
+        discountApprovalPercent === null ||
         !Number.isFinite(discountApprovalPercent) ||
         discountApprovalPercent < 0 ||
         discountApprovalPercent > 100
@@ -762,7 +385,7 @@ export function CreateServiceWizard({
         field: 'requestFields',
       }
     }
-    if (stage === 'workflow' && splitLines(workflow).length === 0) {
+    if (stage === 'workflow' && workflowStages.length === 0) {
       return { message: 'Add at least one workflow stage.', field: 'workflow' }
     }
     if (stage === 'branches' && status === 'active' && effectiveSelectedBranchIds.length === 0) {
@@ -786,7 +409,6 @@ export function CreateServiceWizard({
     }
 
     const enabledStages: ServiceSetupStageId[] = [
-      ...(access.subservices ? ['subservices' as const] : []),
       ...(access.pricing ? ['pricing' as const] : []),
       ...(access.requestForm ? ['request-form' as const] : []),
       ...(access.workflow ? ['workflow' as const] : []),
@@ -802,9 +424,8 @@ export function CreateServiceWizard({
     setFieldErrors({})
     onSubmit({
       name: name.trim(),
-      categoryId,
+      parentId: parentId || null,
       code: code.trim(),
-      division,
       description: description.trim(),
       owner: selectedOwner?.name ?? '',
       ownerRoleId,
@@ -814,47 +435,21 @@ export function CreateServiceWizard({
       clientVisibility,
       branchNames: selectedBranches.map((branch) => branch.name),
       branchIds: effectiveSelectedBranchIds,
-      subservices: serializeSubserviceDrafts(subserviceDrafts),
-      pricing: { method: pricingMethod, rate, depositPercent, taxPercent, discountApprovalPercent },
+      specializedDomain: specializedDomain || null,
+      specializedConfig: specializedDomain
+        ? { ...(specializedRequestContext.trim() ? { request_context: specializedRequestContext.trim() } : {}) }
+        : {},
+      pricing: {
+        method: pricingMethod,
+        rate: rate as number,
+        depositPercent: depositPercent as number,
+        taxPercent: taxPercent as number,
+        discountApprovalPercent: discountApprovalPercent as number,
+      },
       requestFields,
-      workflowStages: splitLines(workflow),
+      workflowStages: workflowStages.map((stage, index) => ({ ...stage, order: index + 1 })),
       enabledStages,
     })
-  }
-
-  const addSubservice = () => {
-    setEditingSubserviceId(null)
-    setSubserviceEditorDraft(createSubserviceDraft(slaDays))
-    setError('')
-  }
-
-  const editSubservice = (localId: string) => {
-    const currentDraft = subserviceDrafts.find((item) => item.localId === localId)
-    if (!currentDraft) return
-    setEditingSubserviceId(localId)
-    setSubserviceEditorDraft(currentDraft)
-  }
-
-  const removeSubservice = (localId: string) => {
-    setSubserviceDrafts((current) => current.filter((item) => item.localId !== localId))
-    if (editingSubserviceId === localId) {
-      setEditingSubserviceId(null)
-      setSubserviceEditorDraft(null)
-    }
-    setError('')
-  }
-
-  const saveSubserviceDraft = (draft: CreateSubserviceDraft) => {
-    if (editingSubserviceId) {
-      setSubserviceDrafts((current) =>
-        current.map((item) => (item.localId === editingSubserviceId ? draft : item)),
-      )
-    } else {
-      setSubserviceDrafts((current) => [...current, draft])
-    }
-    setEditingSubserviceId(null)
-    setSubserviceEditorDraft(null)
-    setError('')
   }
 
   const next = () => {
@@ -998,40 +593,23 @@ export function CreateServiceWizard({
                   }}
                 />
               </Field>
-              <Field label="Category" required error={fieldErrors.categoryId}>
+              <Field label="Service parent" error={fieldErrors.parentId}>
                 <select
                   ref={(node) => {
-                    fieldRefs.current.categoryId = node
+                    fieldRefs.current.parentId = node
                   }}
-                  aria-invalid={fieldErrors.categoryId ? true : undefined}
-                  value={categoryId || ''}
+                  aria-invalid={fieldErrors.parentId ? true : undefined}
+                  value={parentId || ''}
                   onChange={(event) => {
-                    clearFieldError('categoryId')
-                    setCategoryId(Number(event.target.value))
+                    clearFieldError('parentId')
+                    setParentId(Number(event.target.value))
                   }}
                 >
-                  <option value="">Select a category</option>
-                  {categories.map((item) => (
+                  <option value="">Select a parent (optional)</option>
+                  {parents.map((item) => (
                     <option key={item.id} value={item.id}>
-                      {categoryLabel(item.name)}
+                      {item.name}
                     </option>
-                  ))}
-                </select>
-              </Field>
-              <Field label="Division" required error={fieldErrors.division}>
-                <select
-                  ref={(node) => {
-                    fieldRefs.current.division = node
-                  }}
-                  aria-invalid={fieldErrors.division ? true : undefined}
-                  value={division}
-                  onChange={(event) => {
-                    clearFieldError('division')
-                    setDivision(event.target.value)
-                  }}
-                >
-                  {divisions.map((item) => (
-                    <option key={item}>{item}</option>
                   ))}
                 </select>
               </Field>
@@ -1105,21 +683,24 @@ export function CreateServiceWizard({
                 </select>
               </Field>
             </div>
+            <div className="service-admin-form-grid">
+              <SpecializedProfileFields
+                specializedDomain={specializedDomain}
+                specializedRequestContext={specializedRequestContext}
+                fieldErrors={fieldErrors}
+                fieldRefs={fieldRefs}
+                onDomainChange={(value) => {
+                  clearFieldError('specializedDomain')
+                  setSpecializedDomain(value)
+                  if (!value) setSpecializedRequestContext('')
+                }}
+                onRequestContextChange={(value) => {
+                  clearFieldError('specializedRequestContext')
+                  setSpecializedRequestContext(value)
+                }}
+              />
+            </div>
           </>
-        ) : null}
-
-        {currentStage === 'subservices' ? (
-          <SubserviceStagePanel
-            drafts={subserviceDrafts}
-            pending={pending}
-            error={fieldErrors.subservices}
-            addButtonRef={(node) => {
-              fieldRefs.current.subservices = node
-            }}
-            onAdd={addSubservice}
-            onEdit={editSubservice}
-            onRemove={removeSubservice}
-          />
         ) : null}
 
         {currentStage === 'pricing' ? (
@@ -1136,6 +717,7 @@ export function CreateServiceWizard({
                   setPricingMethod(event.target.value)
                 }}
               >
+                <option value="">Select pricing method</option>
                 <option>Fixed</option>
                 <option>Unit rate</option>
                 <option>Area rate</option>
@@ -1150,10 +732,11 @@ export function CreateServiceWizard({
                 aria-invalid={fieldErrors.rate ? true : undefined}
                 type="number"
                 min={0}
+                placeholder="e.g. 100000"
                 value={formatNumberFieldValue(rate)}
                 onChange={(event) => {
                   clearFieldError('rate')
-                  setRate(parseNumberFieldValue(event.target.value))
+                  setRate(parseOptionalNumberFieldValue(event.target.value))
                 }}
               />
             </Field>
@@ -1166,10 +749,11 @@ export function CreateServiceWizard({
                 type="number"
                 min={0}
                 max={100}
+                placeholder="e.g. 70"
                 value={formatNumberFieldValue(depositPercent)}
                 onChange={(event) => {
                   clearFieldError('depositPercent')
-                  setDepositPercent(parseNumberFieldValue(event.target.value))
+                  setDepositPercent(parseOptionalNumberFieldValue(event.target.value))
                 }}
               />
             </Field>
@@ -1182,10 +766,11 @@ export function CreateServiceWizard({
                 type="number"
                 min={0}
                 max={100}
+                placeholder="e.g. 7.5"
                 value={formatNumberFieldValue(taxPercent)}
                 onChange={(event) => {
                   clearFieldError('taxPercent')
-                  setTaxPercent(parseNumberFieldValue(event.target.value))
+                  setTaxPercent(parseOptionalNumberFieldValue(event.target.value))
                 }}
               />
             </Field>
@@ -1202,10 +787,11 @@ export function CreateServiceWizard({
                 type="number"
                 min={0}
                 max={100}
+                placeholder="e.g. 5"
                 value={formatNumberFieldValue(discountApprovalPercent)}
                 onChange={(event) => {
                   clearFieldError('discountApprovalPercent')
-                  setDiscountApprovalPercent(parseNumberFieldValue(event.target.value))
+                  setDiscountApprovalPercent(parseOptionalNumberFieldValue(event.target.value))
                 }}
               />
             </Field>
@@ -1213,56 +799,50 @@ export function CreateServiceWizard({
         ) : null}
 
         {currentStage === 'request-form' ? (
-          <>
-            <div
-              ref={(node) => {
-                fieldRefs.current.requestFields = node
+          <div
+            ref={(node) => {
+              fieldRefs.current.requestFields = node
+            }}
+            tabIndex={-1}
+          >
+            <RequestFormBuilderPanel
+              variant="embedded"
+              fieldTypes={fieldTypes}
+              fields={requestFields}
+              onFieldsChange={(fields) => {
+                clearFieldError('requestFields')
+                setRequestFields(fields)
               }}
-              tabIndex={-1}
-              className="service-admin-check-grid"
-            >
-              {requestFieldOptions.map((field) => (
-                <label key={field} className="service-admin-check-option">
-                  <input
-                    type="checkbox"
-                    checked={requestFields.includes(field)}
-                    onChange={(event) => {
-                      clearFieldError('requestFields')
-                      setRequestFields((current) =>
-                        event.target.checked
-                          ? [...current, field]
-                          : current.filter((item) => item !== field),
-                      )
-                    }}
-                  />
-                  {field}
-                </label>
-              ))}
-            </div>
+              showFormStatus={false}
+              canEdit
+            />
             {fieldErrors.requestFields ? (
               <small className="service-admin-field-error">{fieldErrors.requestFields}</small>
             ) : null}
-          </>
+          </div>
         ) : null}
 
         {currentStage === 'workflow' ? (
-          <Field label="Workflow stages — one per line" full required error={fieldErrors.workflow}>
-            <textarea
-              ref={(node) => {
-                fieldRefs.current.workflow = node
-              }}
-              aria-invalid={fieldErrors.workflow ? true : undefined}
-              className="service-admin-wizard-textarea"
-              value={workflow}
-              placeholder={
-                'Request Review\nTechnical Assessment\nQuotation\nApproval\nExecution\nQuality Review\nCompletion'
-              }
-              onChange={(event) => {
+          <div
+            ref={(node) => {
+              fieldRefs.current.workflow = node
+            }}
+            tabIndex={-1}
+          >
+            <WorkflowDesignerPanel
+              variant="embedded"
+              stages={workflowStages}
+              onStagesChange={(stages) => {
                 clearFieldError('workflow')
-                setWorkflow(event.target.value)
+                setWorkflowStages(stages)
               }}
+              ownerRoles={ownerRoles}
+              canEdit
             />
-          </Field>
+            {fieldErrors.workflow ? (
+              <small className="service-admin-field-error">{fieldErrors.workflow}</small>
+            ) : null}
+          </div>
         ) : null}
 
         {currentStage === 'branches' ? (
@@ -1289,10 +869,8 @@ export function CreateServiceWizard({
                         clearFieldError('branches')
                         setSelectedBranchIds((current) =>
                           event.target.checked
-                            ? [...(current ?? effectiveSelectedBranchIds), branch.id]
-                            : (current ?? effectiveSelectedBranchIds).filter(
-                                (item) => item !== branch.id,
-                              ),
+                            ? [...current, branch.id]
+                            : current.filter((item) => item !== branch.id),
                         )
                       }}
                     />
@@ -1402,18 +980,6 @@ export function CreateServiceWizard({
           </>
         ) : null}
       </ModalShell>
-      {subserviceEditorDraft ? (
-        <SubserviceEditorModal
-          draft={subserviceEditorDraft}
-          pending={pending}
-          title={editingSubserviceId ? 'Edit Sub-service' : 'Add Sub-service'}
-          onClose={() => {
-            setEditingSubserviceId(null)
-            setSubserviceEditorDraft(null)
-          }}
-          onSave={saveSubserviceDraft}
-        />
-      ) : null}
     </>
   )
 }
@@ -1425,6 +991,7 @@ export function ConfigureServiceWorkspace({
   workflow,
   branches: branchOptions = [],
   ownerRoles = [],
+  fieldTypes = [],
   pending,
   onClose,
   onSave,
@@ -1436,6 +1003,7 @@ export function ConfigureServiceWorkspace({
   workflow?: ServiceWorkflow
   branches?: Array<{ id: number; name: string; code: string }>
   ownerRoles?: WorkflowOwnerRoleOption[]
+  fieldTypes?: RequestFieldTypeOption[]
   pending: boolean
   onClose: () => void
   onSave?: (input: ConfigureServiceInput) => void
@@ -1444,7 +1012,6 @@ export function ConfigureServiceWorkspace({
   const [step, setStep] = useState(0)
   const [name, setName] = useState(service.name)
   const [code, setCode] = useState(service.code)
-  const [division, setDivision] = useState(service.division)
   const [owner, setOwner] = useState(service.owner)
   const [ownerRoleId, setOwnerRoleId] = useState<number | null>(() => {
     const matchedRole = ownerRoles.find((role) => role.name === service.owner)
@@ -1455,13 +1022,10 @@ export function ConfigureServiceWorkspace({
   const [fulfilmentMode, setFulfilmentMode] = useState(
     service.fulfilmentMode ?? 'Quick service order',
   )
-  const [subserviceDrafts, setSubserviceDrafts] = useState<CreateSubserviceDraft[]>(() =>
-    buildSubserviceDraftsFromNames(service.subservices ?? [], service.slaDays ?? 5, service.status),
+  const [specializedDomain, setSpecializedDomain] = useState(service.specializedDomain ?? '')
+  const [specializedRequestContext, setSpecializedRequestContext] = useState(() =>
+    readSpecializedRequestContext(service.specializedConfig),
   )
-  const [subserviceEditorDraft, setSubserviceEditorDraft] = useState<CreateSubserviceDraft | null>(
-    null,
-  )
-  const [editingSubserviceId, setEditingSubserviceId] = useState<string | null>(null)
   const [pricingMethod, setPricingMethod] = useState(
     calculator?.charges.some((charge) => charge.kind === 'formula') ? 'Custom formula' : 'Fixed',
   )
@@ -1482,36 +1046,21 @@ export function ConfigureServiceWorkspace({
     )?.value
     return typeof value === 'number' ? value : 0
   })
-  const [discountApprovalPercent, setDiscountApprovalPercent] = useState(5)
-  const [requestFields, setRequestFields] = useState<string[]>(
-    requestForm?.fields.map((field) => field.label) ??
-      service.requestFields ?? [
-        'Client identity',
-        'Phone & email',
-        'Customer type',
-        'Location / site',
-        'Budget',
-        'Preferred date',
-        'Scope / message',
-        'Document uploads',
-      ],
+  const [discountApprovalPercent, setDiscountApprovalPercent] = useState(() => {
+    const value = calculator?.charges.find((charge) =>
+      charge.label.toLowerCase().includes('discount'),
+    )?.value
+    return typeof value === 'number' ? value : 5
+  })
+  const [requestFields, setRequestFields] = useState<RequestFormField[]>(() =>
+    requestForm?.fields.length
+      ? requestForm.fields.map((field) => ({ ...field }))
+      : labelsToRequestFields(service.requestFields ?? []),
   )
-  const [workflowText, setWorkflowText] = useState(
-    (
-      workflow?.stages.map((stage) => stage.name) ??
-      service.workflowStages ?? [
-        'Request Review',
-        'Technical Assessment',
-        'Quotation',
-        'Approval',
-        'Invoice & Payment',
-        'Service Order',
-        'Execution',
-        'Quality Review',
-        'Client Acceptance',
-        'Completion & Feedback',
-      ]
-    ).join('\n'),
+  const [workflowStages, setWorkflowStages] = useState<WorkflowStage[]>(() =>
+    workflow?.stages.length
+      ? cloneStages(workflow.stages)
+      : buildStagesForService(service, workflow, ownerRoles),
   )
   const [selectedBranches, setSelectedBranches] = useState<string[]>(
     service.branchNames.length
@@ -1529,7 +1078,6 @@ export function ConfigureServiceWorkspace({
     id: service.id,
     name: name.trim(),
     code: code.trim(),
-    division,
     owner: owner.trim(),
     ownerRoleId,
     description: description.trim(),
@@ -1537,7 +1085,10 @@ export function ConfigureServiceWorkspace({
     fulfilmentMode,
     status,
     branchNames: selectedBranches,
-    subservices: serializeSubserviceDrafts(subserviceDrafts),
+    specializedDomain: specializedDomain || null,
+    specializedConfig: specializedDomain
+      ? { ...(specializedRequestContext.trim() ? { request_context: specializedRequestContext.trim() } : {}) }
+      : {},
     pricing: {
       method: pricingMethod,
       rate,
@@ -1546,7 +1097,7 @@ export function ConfigureServiceWorkspace({
       discountApprovalPercent,
     },
     requestFields,
-    workflowStages: splitLines(workflowText),
+    workflowStages: workflowStages.map((stage, index) => ({ ...stage, order: index + 1 })),
   })
 
   const clearFieldError = (field: ServiceWizardFieldName) => {
@@ -1574,7 +1125,6 @@ export function ConfigureServiceWorkspace({
     if (index === 0) {
       if (!name.trim()) return { message: 'Service name is required.', field: 'name' }
       if (!code.trim()) return { message: 'Service code is required.', field: 'code' }
-      if (!division.trim()) return { message: 'Division is required.', field: 'division' }
       if (!owner.trim()) return { message: 'Owner role is required.', field: 'ownerRoleId' }
       if (!description.trim()) return { message: 'Description is required.', field: 'description' }
       if (!Number.isFinite(slaDays) || slaDays < 1) {
@@ -1586,10 +1136,6 @@ export function ConfigureServiceWorkspace({
       return null
     }
     if (index === 1) {
-      const subserviceError = validateSubserviceDrafts(subserviceDrafts)
-      return subserviceError ? { message: subserviceError, field: 'subservices' } : null
-    }
-    if (index === 2) {
       if (!pricingMethod.trim()) {
         return { message: 'Pricing method is required.', field: 'pricingMethod' }
       }
@@ -1614,20 +1160,20 @@ export function ConfigureServiceWorkspace({
       }
       return null
     }
-    if (index === 3 && requestFields.length === 0) {
+    if (index === 2 && requestFields.length === 0) {
       return { message: 'Select at least one request form field.', field: 'requestFields' }
     }
-    if (index === 4 && splitLines(workflowText).length === 0) {
+    if (index === 3 && workflowStages.length === 0) {
       return { message: 'Add at least one workflow stage.', field: 'workflow' }
     }
-    if (index === 5 && selectedBranches.length === 0) {
+    if (index === 4 && selectedBranches.length === 0) {
       return { message: 'Select at least one active branch.', field: 'branches' }
     }
     return null
   }
 
   const save = () => {
-    for (let index = 0; index < wizardSteps.length; index += 1) {
+    for (let index = 0; index < configureWizardSteps.length; index += 1) {
       const validationError = validateStep(index)
       if (validationError) {
         setStep(index)
@@ -1649,50 +1195,11 @@ export function ConfigureServiceWorkspace({
     }
     setError('')
     setFieldErrors({})
-    if (step === wizardSteps.length - 1) {
+    if (step === configureWizardSteps.length - 1) {
       save()
       return
     }
-    setStep((current) => Math.min(wizardSteps.length - 1, current + 1))
-  }
-
-  const addSubservice = () => {
-    setEditingSubserviceId(null)
-    setSubserviceEditorDraft(
-      createSubserviceDraft(slaDays, {
-        status: subserviceStatusForServiceStatus(status),
-      }),
-    )
-    setError('')
-  }
-
-  const editSubservice = (localId: string) => {
-    const currentDraft = subserviceDrafts.find((item) => item.localId === localId)
-    if (!currentDraft) return
-    setEditingSubserviceId(localId)
-    setSubserviceEditorDraft(currentDraft)
-  }
-
-  const removeSubservice = (localId: string) => {
-    setSubserviceDrafts((current) => current.filter((item) => item.localId !== localId))
-    if (editingSubserviceId === localId) {
-      setEditingSubserviceId(null)
-      setSubserviceEditorDraft(null)
-    }
-    setError('')
-  }
-
-  const saveSubserviceDraft = (draft: CreateSubserviceDraft) => {
-    if (editingSubserviceId) {
-      setSubserviceDrafts((current) =>
-        current.map((item) => (item.localId === editingSubserviceId ? draft : item)),
-      )
-    } else {
-      setSubserviceDrafts((current) => [...current, draft])
-    }
-    setEditingSubserviceId(null)
-    setSubserviceEditorDraft(null)
-    setError('')
+    setStep((current) => Math.min(configureWizardSteps.length - 1, current + 1))
   }
 
   return (
@@ -1726,7 +1233,7 @@ export function ConfigureServiceWorkspace({
             <button
               type="button"
               className="service-admin-button service-admin-wizard-nav-btn"
-              disabled={step === wizardSteps.length - 1 || pending}
+              disabled={step === configureWizardSteps.length - 1 || pending}
               onClick={next}
             >
               Next
@@ -1749,7 +1256,7 @@ export function ConfigureServiceWorkspace({
           role="tablist"
           aria-label="Configure service steps"
         >
-          {wizardSteps.map((item, index) => {
+          {configureWizardSteps.map((item, index) => {
             const isActive = index === step
             return (
               <button
@@ -1826,24 +1333,6 @@ export function ConfigureServiceWorkspace({
                       setCode(event.target.value)
                     }}
                   />
-                </Field>
-                <Field label="Division" required error={fieldErrors.division}>
-                  <select
-                    ref={(node) => {
-                      fieldRefs.current.division = node
-                    }}
-                    aria-invalid={fieldErrors.division ? true : undefined}
-                    value={division}
-                    required
-                    onChange={(event) => {
-                      clearFieldError('division')
-                      setDivision(event.target.value)
-                    }}
-                  >
-                    {divisions.map((item) => (
-                      <option key={item}>{item}</option>
-                    ))}
-                  </select>
                 </Field>
                 <Field label="Owner role" required error={fieldErrors.ownerRoleId}>
                   <select
@@ -1929,24 +1418,27 @@ export function ConfigureServiceWorkspace({
                   </select>
                 </Field>
               </div>
+              <div className="service-admin-form-grid">
+                <SpecializedProfileFields
+                  specializedDomain={specializedDomain}
+                  specializedRequestContext={specializedRequestContext}
+                  fieldErrors={fieldErrors}
+                  fieldRefs={fieldRefs}
+                  onDomainChange={(value) => {
+                    clearFieldError('specializedDomain')
+                    setSpecializedDomain(value)
+                    if (!value) setSpecializedRequestContext('')
+                  }}
+                  onRequestContextChange={(value) => {
+                    clearFieldError('specializedRequestContext')
+                    setSpecializedRequestContext(value)
+                  }}
+                />
+              </div>
             </>
           ) : null}
 
           {step === 1 ? (
-            <SubserviceStagePanel
-              drafts={subserviceDrafts}
-              pending={pending}
-              error={fieldErrors.subservices}
-              addButtonRef={(node) => {
-                fieldRefs.current.subservices = node
-              }}
-              onAdd={addSubservice}
-              onEdit={editSubservice}
-              onRemove={removeSubservice}
-            />
-          ) : null}
-
-          {step === 2 ? (
             <div className="service-admin-form-grid">
               <Field label="Pricing method" required error={fieldErrors.pricingMethod}>
                 <select
@@ -2042,142 +1534,125 @@ export function ConfigureServiceWorkspace({
             </div>
           ) : null}
 
-          {step === 3 ? (
-            <>
-              <div className="service-admin-notice service-admin-notice-blue">
-                Select information required before submission.
-                <em className="service-admin-required">*</em>
-              </div>
-              <div
-                ref={(node) => {
-                  fieldRefs.current.requestFields = node
+          {step === 2 ? (
+            <div
+              ref={(node) => {
+                fieldRefs.current.requestFields = node
+              }}
+              tabIndex={-1}
+            >
+              <RequestFormBuilderPanel
+                variant="embedded"
+                fieldTypes={fieldTypes}
+                fields={requestFields}
+                onFieldsChange={(fields) => {
+                  clearFieldError('requestFields')
+                  setRequestFields(fields)
                 }}
-                tabIndex={-1}
-                className="service-admin-check-grid"
-              >
-                {requestFieldOptions.map((field) => (
-                  <label key={field} className="service-admin-check-option">
-                    <input
-                      type="checkbox"
-                      checked={requestFields.includes(field)}
-                      onChange={(event) => {
-                        clearFieldError('requestFields')
-                        setRequestFields((current) =>
-                          event.target.checked
-                            ? [...current, field]
-                            : current.filter((item) => item !== field),
-                        )
-                      }}
-                    />
-                    {field}
-                  </label>
-                ))}
-              </div>
+                showFormStatus={false}
+                canEdit={!readOnly}
+              />
               {fieldErrors.requestFields ? (
                 <small className="service-admin-field-error">{fieldErrors.requestFields}</small>
               ) : null}
-            </>
+            </div>
+          ) : null}
+
+          {step === 3 ? (
+            <div
+              ref={(node) => {
+                fieldRefs.current.workflow = node
+              }}
+              tabIndex={-1}
+            >
+              <WorkflowDesignerPanel
+                variant="embedded"
+                stages={workflowStages}
+                onStagesChange={(stages) => {
+                  clearFieldError('workflow')
+                  setWorkflowStages(stages)
+                }}
+                ownerRoles={ownerRoles}
+                canEdit={!readOnly}
+              />
+              {fieldErrors.workflow ? (
+                <small className="service-admin-field-error">{fieldErrors.workflow}</small>
+              ) : null}
+            </div>
           ) : null}
 
           {step === 4 ? (
-            <Field
-              label="Workflow stages — one per line"
-              full
-              required
-              error={fieldErrors.workflow}
-            >
-              <textarea
+            <Field label="Active branches" full required error={fieldErrors.branches}>
+              <div
                 ref={(node) => {
-                  fieldRefs.current.workflow = node
+                  fieldRefs.current.branches = node
                 }}
-                aria-invalid={fieldErrors.workflow ? true : undefined}
-                className="service-admin-wizard-textarea"
-                value={workflowText}
-                required
-                placeholder={
-                  'Request Review\nTechnical Assessment\nQuotation\nApproval\nExecution\nQuality Review\nCompletion'
-                }
-                onChange={(event) => {
-                  clearFieldError('workflow')
-                  setWorkflowText(event.target.value)
-                }}
-              />
+                tabIndex={-1}
+                className="service-admin-check-grid service-admin-check-grid--branches"
+              >
+                {branchOptions.map((branch) => (
+                  <label key={branch.id} className="service-admin-check-option">
+                    <input
+                      type="checkbox"
+                      checked={selectedBranches.includes(branch.name)}
+                      onChange={(event) => {
+                        clearFieldError('branches')
+                        setSelectedBranches((current) =>
+                          event.target.checked
+                            ? [...current, branch.name]
+                            : current.filter((item) => item !== branch.name),
+                        )
+                      }}
+                    />
+                    {branch.name}
+                  </label>
+                ))}
+              </div>
             </Field>
           ) : null}
 
           {step === 5 ? (
-            <>
-              <Field label="Active branches" full required error={fieldErrors.branches}>
-                <div
+            <div className="service-admin-form-grid service-admin-publish-grid">
+              <Field label="Status" required error={fieldErrors.status}>
+                <select
                   ref={(node) => {
-                    fieldRefs.current.branches = node
+                    fieldRefs.current.status = node
                   }}
-                  tabIndex={-1}
-                  className="service-admin-check-grid service-admin-check-grid--branches"
+                  aria-invalid={fieldErrors.status ? true : undefined}
+                  value={status}
+                  required
+                  onChange={(event) => {
+                    clearFieldError('status')
+                    setStatus(event.target.value as typeof status)
+                  }}
                 >
-                  {branchOptions.map((branch) => (
-                    <label key={branch.id} className="service-admin-check-option">
-                      <input
-                        type="checkbox"
-                        checked={selectedBranches.includes(branch.name)}
-                        onChange={(event) => {
-                          clearFieldError('branches')
-                          setSelectedBranches((current) =>
-                            event.target.checked
-                              ? [...current, branch.name]
-                              : current.filter((item) => item !== branch.name),
-                          )
-                        }}
-                      />
-                      {branch.name}
-                    </label>
-                  ))}
-                </div>
+                  <option value="draft">Draft</option>
+                  <option value="active">Active</option>
+                  <option value="inactive">Paused</option>
+                </select>
               </Field>
-              <div className="service-admin-form-grid service-admin-publish-grid">
-                <Field label="Status" required>
-                  <select
-                    value={status}
-                    required
-                    onChange={(event) => setStatus(event.target.value as typeof status)}
-                  >
-                    <option value="draft">Draft</option>
-                    <option value="active">Active</option>
-                    <option value="inactive">Paused</option>
-                  </select>
-                </Field>
-                <Field label="Client visibility" required>
-                  <select
-                    value={clientVisibility}
-                    required
-                    onChange={(event) => setClientVisibility(event.target.value)}
-                  >
-                    <option>Visible in catalogue</option>
-                    <option>Internal only</option>
-                    <option>Hidden</option>
-                  </select>
-                </Field>
-              </div>
-              <div className="service-admin-notice service-admin-notice-green">
-                <b>Ready to update.</b> Changes across basic setup, pricing, request form, workflow
-                and branch activation will be saved together.
-              </div>
-            </>
+              <Field label="Client visibility" required error={fieldErrors.clientVisibility}>
+                <select
+                  ref={(node) => {
+                    fieldRefs.current.clientVisibility = node
+                  }}
+                  aria-invalid={fieldErrors.clientVisibility ? true : undefined}
+                  value={clientVisibility}
+                  required
+                  onChange={(event) => {
+                    clearFieldError('clientVisibility')
+                    setClientVisibility(event.target.value)
+                  }}
+                >
+                  <option>Visible in catalogue</option>
+                  <option>Internal only</option>
+                  <option>Hidden</option>
+                </select>
+              </Field>
+            </div>
           ) : null}
         </fieldset>
       </ModalShell>
-      {subserviceEditorDraft ? (
-        <SubserviceEditorModal
-          draft={subserviceEditorDraft}
-          pending={pending}
-          title={editingSubserviceId ? 'Edit Sub-service' : 'Add Sub-service'}
-          onClose={() => {
-            setEditingSubserviceId(null)
-            setSubserviceEditorDraft(null)
-          }}
-          onSave={saveSubserviceDraft}
-        />
-      ) : null}
     </>
   )
 }
