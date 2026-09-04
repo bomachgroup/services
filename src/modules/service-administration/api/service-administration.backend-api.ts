@@ -274,7 +274,7 @@ export const serviceAdministrationBackendApi = {
   getBranchActivationMatrix(filters: BranchActivationMatrixFilters = {}) {
     return apiClient.get<ServiceCatalogueCardDto[]>(
       withQuery(`${basePath}/branch-activation-matrix`, {
-            status: filters.status,
+        status: filters.status,
         branch_id: filters.branchId,
         search: filters.search,
       }),

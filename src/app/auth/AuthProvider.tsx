@@ -81,10 +81,12 @@ export function AuthProvider({ children }: PropsWithChildren) {
         accessToken: queryToken,
         refreshToken: queryRefreshToken || queryToken,
       })
-      setEmbedAuthReady(true)
-      setAuthBootstrapError(null)
-      void queryClient.invalidateQueries({
-        queryKey: currentUserQueryOptions.queryKey,
+      queueMicrotask(() => {
+        setEmbedAuthReady(true)
+        setAuthBootstrapError(null)
+        void queryClient.invalidateQueries({
+          queryKey: currentUserQueryOptions.queryKey,
+        })
       })
     }
 

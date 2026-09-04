@@ -42,7 +42,8 @@ export const serviceAdministrationHandlers = [
           detail: 'Complete the required service fields.',
           errors: {
             name: body.name ? undefined : 'Service name is required.',
-            code: body.code ? undefined : 'Service code is required.',            owner: body.owner ? undefined : 'Service owner is required.',
+            code: body.code ? undefined : 'Service code is required.',
+            owner: body.owner ? undefined : 'Service owner is required.',
           },
         },
         { status: 422 },
@@ -52,7 +53,8 @@ export const serviceAdministrationHandlers = [
     return HttpResponse.json(
       createMockService({
         name: body.name,
-        code: body.code,        description: body.description ?? '',
+        code: body.code,
+        description: body.description ?? '',
         owner: body.owner,
       }),
       { status: 201 },

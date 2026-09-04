@@ -69,9 +69,7 @@ function propertyTypeLabel(property: Property, value: CreatePropertyInput) {
     )
   }
   return (
-    property.buildingTypeCommercialDisplay ||
-    value.buildingTypeCommercial ||
-    'Commercial building'
+    property.buildingTypeCommercialDisplay || value.buildingTypeCommercial || 'Commercial building'
   )
 }
 
@@ -167,10 +165,7 @@ export function EditPropertyLiveWorkspace({
                 options={propertyTypes}
                 value={value.propertyType}
                 onChange={(nextValue) =>
-                  setField(
-                    'propertyType',
-                    nextValue as CreatePropertyInput['propertyType'],
-                  )
+                  setField('propertyType', nextValue as CreatePropertyInput['propertyType'])
                 }
               />
 

@@ -329,9 +329,7 @@ export function BatchCreatePropertiesWorkspace({
                     label="Initial status"
                     options={propertyStatuses}
                     value={status}
-                    onChange={(nextValue) =>
-                      setStatus(nextValue as CreatePropertyInput['status'])
-                    }
+                    onChange={(nextValue) => setStatus(nextValue as CreatePropertyInput['status'])}
                   />
 
                   {propertyType === 'plot' ? (

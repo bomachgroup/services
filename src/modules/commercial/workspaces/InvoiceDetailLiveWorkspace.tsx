@@ -483,17 +483,15 @@ export function InvoiceDetailLiveWorkspace({
                   <h3>Submit payment proof</h3>
                   {pendingSubmissions.length > 0 ? (
                     <p className="commercial-notice commercial-notice-blue">
-                      A payment proof is already waiting for review. Confirm or reject it
-                      before submitting another.
+                      A payment proof is already waiting for review. Confirm or reject it before
+                      submitting another.
                     </p>
                   ) : null}
                 </div>
                 <button
                   type="button"
                   className="commercial-btn commercial-btn-primary"
-                  disabled={
-                    saving || invoice.balance <= 0 || pendingSubmissions.length > 0
-                  }
+                  disabled={saving || invoice.balance <= 0 || pendingSubmissions.length > 0}
                   onClick={() => setProofModalOpen(true)}
                 >
                   Submit Proof
@@ -660,7 +658,11 @@ export function InvoiceDetailLiveWorkspace({
           { label: 'Invoice', value: invoice.invoiceNumber, highlight: true },
           { label: 'Client', value: invoice.clientName || '—' },
           { label: 'Service', value: invoice.serviceName || '—' },
-          { label: 'Total amount', value: formatPreciseCurrency(invoice.totalAmount), highlight: true },
+          {
+            label: 'Total amount',
+            value: formatPreciseCurrency(invoice.totalAmount),
+            highlight: true,
+          },
           { label: 'Outstanding', value: formatPreciseCurrency(invoice.balance) },
           { label: 'Due date', value: invoice.dueDate || '—' },
         ]}
@@ -709,7 +711,11 @@ export function InvoiceDetailLiveWorkspace({
           { label: 'Invoice', value: invoice.invoiceNumber, highlight: true },
           { label: 'Client', value: invoice.clientName || '—' },
           { label: 'Service', value: invoice.serviceName || '—' },
-          { label: 'Amount received', value: formatPreciseCurrency(invoice.amountPaid), highlight: true },
+          {
+            label: 'Amount received',
+            value: formatPreciseCurrency(invoice.amountPaid),
+            highlight: true,
+          },
           { label: 'Request', value: invoice.serviceRequestNumber || '—' },
         ]}
         confirmLabel="Create service order"

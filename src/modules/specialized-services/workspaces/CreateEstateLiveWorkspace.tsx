@@ -1,7 +1,7 @@
 import { getAllStates, getCities, getLocalGovernments } from '@eh1z/nigerian-locations'
 import { useState } from 'react'
 import { IconX } from '@tabler/icons-react'
-import { useForm } from '@tanstack/react-form'
+import { useForm, type ReactFormExtendedApi } from '@tanstack/react-form'
 
 import { DropdownSelect } from '@/shared/ui/dropdown-select'
 
@@ -11,7 +11,6 @@ import {
   estateTypes,
   type CreateEstateInput,
   type Estate,
-  type EstateLegalApprovalInfrastructureField,
 } from '../real-estate/real-estate.types'
 import {
   createDefaultEstateFormValues,
@@ -22,18 +21,31 @@ import {
 import { validateEstate } from '../real-estate/real-estate.validation'
 import { RealEstateFormDropdown } from '../components/RealEstateFormDropdown'
 
-type EstateFormApi = ReturnType<typeof useForm<EstateFormValues>>
+type EstateFormApi = ReactFormExtendedApi<
+  EstateFormValues,
+  undefined,
+  undefined,
+  undefined,
+  undefined,
+  undefined,
+  undefined,
+  undefined,
+  undefined,
+  undefined,
+  undefined,
+  unknown
+>
 
 function EstateLegalApprovalInfrastructureMultiselect({ form }: { form: EstateFormApi }) {
   return (
     <form.Subscribe
-      selector={(state) =>
+      selector={(state: { values: EstateFormValues }) =>
         estateLegalApprovalInfrastructureOptions
+          .filter((option) => Boolean(state.values[option.value]))
           .map((option) => option.value)
-          .filter((key) => Boolean(state.values[key as EstateLegalApprovalInfrastructureField]))
       }
     >
-      {(selected) => (
+      {(selected: string[]) => (
         <DropdownSelect
           mode="multiple"
           placeholder="Select documents, approvals and utilities"
@@ -45,10 +57,7 @@ function EstateLegalApprovalInfrastructureMultiselect({ form }: { form: EstateFo
           onChange={(nextSelected) => {
             const selectedSet = new Set(nextSelected)
             for (const option of estateLegalApprovalInfrastructureOptions) {
-              form.setFieldValue(
-                option.value as EstateLegalApprovalInfrastructureField,
-                selectedSet.has(option.value),
-              )
+              form.setFieldValue(option.value, selectedSet.has(option.value))
             }
           }}
         />
@@ -198,9 +207,7 @@ export function CreateEstateLiveWorkspace({
                     label="Estate type"
                     options={estateTypes}
                     value={field.state.value}
-                    onChange={(value) =>
-                      field.handleChange(value as typeof field.state.value)
-                    }
+                    onChange={(value) => field.handleChange(value as typeof field.state.value)}
                   />
                 )}
               </form.Field>
@@ -210,9 +217,7 @@ export function CreateEstateLiveWorkspace({
                     label="Status"
                     options={estateStatuses}
                     value={field.state.value}
-                    onChange={(value) =>
-                      field.handleChange(value as typeof field.state.value)
-                    }
+                    onChange={(value) => field.handleChange(value as typeof field.state.value)}
                   />
                 )}
               </form.Field>
@@ -427,7 +432,7 @@ export function CreateEstateLiveWorkspace({
               </div>
             </div>
 
-            <EstateLegalApprovalInfrastructureMultiselect form={form} />
+            <EstateLegalApprovalInfrastructureMultiselect form={form as EstateFormApi} />
           </section>
         </div>
 

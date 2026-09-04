@@ -35,10 +35,7 @@ import {
   SERVICE_STATUS_OPTIONS,
   SERVICE_STATUS_OPTIONS_WITH_PUBLISH,
 } from '../components/service-admin-dropdown-options'
-import {
-  buildStagesForService,
-  cloneStages,
-} from '../components/workflow-designer-panel.utils'
+import { buildStagesForService, cloneStages } from '../components/workflow-designer-panel.utils'
 import {
   SPECIALIZED_DOMAIN_OPTIONS,
   readSpecializedRequestContext,
@@ -179,7 +176,7 @@ function Field({
 
   return (
     <div
-      className={`service-admin-config-field${full ? ' service-admin-config-field--full' : ''}`}
+      className={`service-admin-config-field${full ? 'service-admin-config-field--full' : ''}`}
       role="group"
       aria-labelledby={labelId}
     >
@@ -258,8 +255,7 @@ export function CreateServiceWizard({
 
   if (!open) return null
 
-  type WizardStage =
-    'basic' | 'pricing' | 'request-form' | 'workflow' | 'branches' | 'review'
+  type WizardStage = 'basic' | 'pricing' | 'request-form' | 'workflow' | 'branches' | 'review'
   const steps: Array<{ id: WizardStage; label: string }> = [
     { id: 'basic', label: 'Basic' },
     ...(access.pricing ? [{ id: 'pricing' as const, label: 'Pricing' }] : []),
@@ -325,7 +321,12 @@ export function CreateServiceWizard({
       ) {
         return { message: 'Deposit (%) must be between 0 and 100.', field: 'depositPercent' }
       }
-      if (taxPercent === null || !Number.isFinite(taxPercent) || taxPercent < 0 || taxPercent > 100) {
+      if (
+        taxPercent === null ||
+        !Number.isFinite(taxPercent) ||
+        taxPercent < 0 ||
+        taxPercent > 100
+      ) {
         return { message: 'Tax (%) must be between 0 and 100.', field: 'taxPercent' }
       }
       if (
@@ -395,7 +396,11 @@ export function CreateServiceWizard({
       branchIds: effectiveSelectedBranchIds,
       specializedDomain: specializedDomain || null,
       specializedConfig: specializedDomain
-        ? { ...(specializedRequestContext.trim() ? { request_context: specializedRequestContext.trim() } : {}) }
+        ? {
+            ...(specializedRequestContext.trim()
+              ? { request_context: specializedRequestContext.trim() }
+              : {}),
+          }
         : {},
       pricing: {
         method: pricingMethod,
@@ -636,11 +641,7 @@ export function CreateServiceWizard({
               </Field>
             </div>
             {specializedDomain ? (
-              <Field
-                label="Request context"
-                full
-                error={fieldErrors.specializedRequestContext}
-              >
+              <Field label="Request context" full error={fieldErrors.specializedRequestContext}>
                 <input
                   ref={(node) => {
                     registerFieldRef(fieldRefs, 'specializedRequestContext', node)
@@ -1029,7 +1030,11 @@ export function ConfigureServiceWorkspace({
     branchNames: selectedBranches,
     specializedDomain: specializedDomain || null,
     specializedConfig: specializedDomain
-      ? { ...(specializedRequestContext.trim() ? { request_context: specializedRequestContext.trim() } : {}) }
+      ? {
+          ...(specializedRequestContext.trim()
+            ? { request_context: specializedRequestContext.trim() }
+            : {}),
+        }
       : {},
     pricing: {
       method: pricingMethod,
@@ -1341,11 +1346,7 @@ export function ConfigureServiceWorkspace({
                 </Field>
               </div>
               {specializedDomain ? (
-                <Field
-                  label="Request context"
-                  full
-                  error={fieldErrors.specializedRequestContext}
-                >
+                <Field label="Request context" full error={fieldErrors.specializedRequestContext}>
                   <input
                     ref={(node) => {
                       registerFieldRef(fieldRefs, 'specializedRequestContext', node)

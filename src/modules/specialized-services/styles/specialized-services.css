@@ -1285,9 +1285,7 @@
   --hub-row-height: 42px;
   --hub-header-height: 34px;
   --hub-visible-rows: 8;
-  max-height: calc(
-    var(--hub-header-height) + (var(--hub-row-height) * var(--hub-visible-rows))
-  );
+  max-height: calc(var(--hub-header-height) + (var(--hub-row-height) * var(--hub-visible-rows)));
   overflow: auto;
   border: 1px solid #e8edf3;
   border-radius: 12px;

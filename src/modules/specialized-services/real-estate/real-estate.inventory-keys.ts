@@ -5,10 +5,7 @@ export interface ParsedRealEstateInventoryKey {
   id: number
 }
 
-export function buildRealEstateInventoryKey(
-  kind: RealEstateInventoryKeyKind,
-  id: number,
-): string {
+export function buildRealEstateInventoryKey(kind: RealEstateInventoryKeyKind, id: number): string {
   return `${kind}:${id}`
 }
 

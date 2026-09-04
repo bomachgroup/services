@@ -175,10 +175,7 @@ export function CreatePropertyLiveWorkspace({
                 options={propertyTypes}
                 value={value.propertyType}
                 onChange={(nextValue) =>
-                  setField(
-                    'propertyType',
-                    nextValue as CreatePropertyInput['propertyType'],
-                  )
+                  setField('propertyType', nextValue as CreatePropertyInput['propertyType'])
                 }
               />
 

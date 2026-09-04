@@ -22,7 +22,7 @@ import {
 import { serviceRequestKeys } from '../api/service-requests.keys'
 import { serviceRequestQueries } from '../api/service-requests.queries'
 import type { ServiceRequestDetail } from '../api/service-requests.types'
-import { billingApi } from '../billing/billing.api'
+import { billingQueries } from '../billing/billing.queries'
 import { quotationsApi } from '../quotation/quotation.api'
 import { quotationKeys } from '../quotation/quotation.keys'
 import { quotationQueries } from '../quotation/quotation.queries'
@@ -94,8 +94,7 @@ export function QuotationsLivePage({ recordSearch }: { recordSearch: AppSectionS
   })
 
   const linkedInvoiceQuery = useQuery({
-    queryKey: ['commercial', 'billing', 'invoice-for-quote', selectedQuoteId ?? 0],
-    queryFn: () => billingApi.invoiceForQuote(selectedQuoteId ?? 0),
+    ...billingQueries.invoiceForQuote(selectedQuoteId ?? 0),
     enabled:
       Boolean(selectedQuoteId) &&
       detailQuery.data?.status === 'accepted' &&

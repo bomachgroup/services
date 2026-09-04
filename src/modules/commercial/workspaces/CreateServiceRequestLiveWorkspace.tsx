@@ -164,9 +164,10 @@ function splitFullName(fullName: string): { firstName: string; lastName: string 
   if (!trimmed) return { firstName: '', lastName: '' }
 
   const parts = trimmed.split(/\s+/)
-  if (parts.length === 1) return { firstName: parts[0], lastName: '' }
+  const firstName = parts[0] ?? ''
+  if (parts.length === 1) return { firstName, lastName: '' }
 
-  return { firstName: parts[0], lastName: parts.slice(1).join(' ') }
+  return { firstName, lastName: parts.slice(1).join(' ') }
 }
 
 function useDirectoryScrollLoadMore({
@@ -236,7 +237,7 @@ function ClientResultsTable({
     hasMore,
     isLoading: Boolean(loading),
     isLoadingMore: loadingMore,
-    onLoadMore,
+    ...(onLoadMore ? { onLoadMore } : {}),
     itemCount: clientRows.length,
   })
   const wrapClassName = compact
@@ -360,7 +361,7 @@ function LeadResultsTable({
     hasMore,
     isLoading: Boolean(loading),
     isLoadingMore: loadingMore,
-    onLoadMore,
+    ...(onLoadMore ? { onLoadMore } : {}),
     itemCount: leadRows.length,
   })
   const wrapClassName = 'commercial-table-wrap commercial-client-table-wrap'
@@ -503,7 +504,7 @@ export function CreateServiceRequestLiveWorkspace({
   const [newClientPhone, setNewClientPhone] = useState('')
   const [uploadsByField, setUploadsByField] = useState<Record<string, PendingUpload[]>>({})
   const [answerValues, setAnswerValues] = useState<Record<string, unknown>>({})
-  const [specializedContextDraft, setSpecializedContextDraft] = useState<unknown | null>(null)
+  const [specializedContextDraft, setSpecializedContextDraft] = useState<unknown>(null)
   const [specializedContextError, setSpecializedContextError] = useState('')
   const controllersRef = useRef<Record<string, AbortController>>({})
   const uploadIdRef = useRef(0)
@@ -814,21 +815,27 @@ export function CreateServiceRequestLiveWorkspace({
     const service = services.find((item) => item.id === serviceId)
     if (!service) return
     const nextParentKey = serviceParentKey(service)
-    setParentServiceKey((current) => (current === nextParentKey ? current : nextParentKey))
+    queueMicrotask(() => {
+      setParentServiceKey((current) => (current === nextParentKey ? current : nextParentKey))
+    })
   }, [serviceId, services])
 
   useEffect(() => {
     if (!initialServiceId || initialServiceId <= 0 || services.length === 0) return
     const service = services.find((item) => item.id === initialServiceId)
     if (!service || serviceId === service.id) return
-    setParentServiceKey(serviceParentKey(service))
-    setServiceId(service.id)
-    form.setFieldValue('branchId', service.activeBranches[0]?.id ?? 0)
+    queueMicrotask(() => {
+      setParentServiceKey(serviceParentKey(service))
+      setServiceId(service.id)
+      form.setFieldValue('branchId', service.activeBranches[0]?.id ?? 0)
+    })
   }, [form, initialServiceId, serviceId, services])
 
   useEffect(() => {
-    setSpecializedContextDraft(null)
-    setSpecializedContextError('')
+    queueMicrotask(() => {
+      setSpecializedContextDraft(null)
+      setSpecializedContextError('')
+    })
   }, [serviceId, activeSpecializedPlugin?.domain])
 
   const updateUploadsForField = (
@@ -1310,7 +1317,11 @@ export function CreateServiceRequestLiveWorkspace({
                   <div className="commercial-client-toolbar">
                     {clientPickerMode === 'browse' ? (
                       <>
-                        <div className="commercial-client-directory-tabs" role="tablist" aria-label="Client directory">
+                        <div
+                          className="commercial-client-directory-tabs"
+                          role="tablist"
+                          aria-label="Client directory"
+                        >
                           <button
                             type="button"
                             role="tab"
@@ -1503,7 +1514,7 @@ export function CreateServiceRequestLiveWorkspace({
                         ) : null}
                         <div className="commercial-form-grid">
                           <label
-                            className={`commercial-field${newClientFieldErrors.firstName ? ' commercial-field--invalid' : ''}`}
+                            className={`commercial-field${newClientFieldErrors.firstName ? 'commercial-field--invalid' : ''}`}
                           >
                             <span>First name *</span>
                             <input
@@ -1526,7 +1537,7 @@ export function CreateServiceRequestLiveWorkspace({
                             ) : null}
                           </label>
                           <label
-                            className={`commercial-field${newClientFieldErrors.lastName ? ' commercial-field--invalid' : ''}`}
+                            className={`commercial-field${newClientFieldErrors.lastName ? 'commercial-field--invalid' : ''}`}
                           >
                             <span>Last name *</span>
                             <input
@@ -1549,7 +1560,7 @@ export function CreateServiceRequestLiveWorkspace({
                             ) : null}
                           </label>
                           <label
-                            className={`commercial-field${newClientFieldErrors.email ? ' commercial-field--invalid' : ''}`}
+                            className={`commercial-field${newClientFieldErrors.email ? 'commercial-field--invalid' : ''}`}
                           >
                             <span>Email *</span>
                             <input
@@ -1573,7 +1584,7 @@ export function CreateServiceRequestLiveWorkspace({
                             ) : null}
                           </label>
                           <label
-                            className={`commercial-field${newClientFieldErrors.phoneNumber ? ' commercial-field--invalid' : ''}`}
+                            className={`commercial-field${newClientFieldErrors.phoneNumber ? 'commercial-field--invalid' : ''}`}
                           >
                             <span>Phone *</span>
                             <input
@@ -1600,7 +1611,11 @@ export function CreateServiceRequestLiveWorkspace({
                           A welcome email with a password setup link will be sent to the client.
                         </p>
                         <div className="commercial-client-create-actions">
-                          <button type="button" className="commercial-btn" onClick={closeCreateClient}>
+                          <button
+                            type="button"
+                            className="commercial-btn"
+                            onClick={closeCreateClient}
+                          >
                             Cancel
                           </button>
                           <button

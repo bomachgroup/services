@@ -31,7 +31,6 @@ export const serviceAdministrationKeys = {
 
   requestFieldTypes: () => [...serviceAdministrationKeys.all, 'request-field-types'] as const,
 
-
   requestForms: (serviceId: number) =>
     [...serviceAdministrationKeys.all, 'request-forms', serviceId] as const,
 

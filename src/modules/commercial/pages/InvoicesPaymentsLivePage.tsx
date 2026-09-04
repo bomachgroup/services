@@ -125,8 +125,7 @@ export function InvoicesPaymentsLivePage({ recordSearch }: { recordSearch: AppSe
   const financeAccountsQuery = useQuery({
     ...billingQueries.financeAccounts(),
     enabled:
-      (Boolean(selectedInvoiceId) || builderOpen) &&
-      hasPermission(user, PERMISSIONS.paymentsList),
+      (Boolean(selectedInvoiceId) || builderOpen) && hasPermission(user, PERMISSIONS.paymentsList),
   })
 
   const clientNames = useMemo(
@@ -184,7 +183,7 @@ export function InvoicesPaymentsLivePage({ recordSearch }: { recordSearch: AppSe
   const refreshPaymentFlow = async (invoiceId: number) => {
     if (!invoiceId) {
       await queryClient.invalidateQueries({
-        queryKey: [...billingKeys.all, 'payment-submissions'],
+        queryKey: billingQueries.allPaymentSubmissions().queryKey,
       })
       return
     }
@@ -199,7 +198,7 @@ export function InvoicesPaymentsLivePage({ recordSearch }: { recordSearch: AppSe
       queryClient.invalidateQueries({ queryKey: billingKeys.summary() }),
       queryClient.invalidateQueries({ queryKey: billingKeys.allInvoices() }),
       queryClient.invalidateQueries({
-        queryKey: [...billingKeys.all, 'payment-submissions'],
+        queryKey: billingQueries.allPaymentSubmissions().queryKey,
       }),
     ])
   }
@@ -344,9 +343,7 @@ export function InvoicesPaymentsLivePage({ recordSearch }: { recordSearch: AppSe
     onSuccess: async (_submission, { input, invoiceId }) => {
       await refreshPaymentFlow(invoiceId)
       toast.success(
-        input.status === 'confirmed'
-          ? 'Payment confirmed and recorded'
-          : 'Payment proof rejected',
+        input.status === 'confirmed' ? 'Payment confirmed and recorded' : 'Payment proof rejected',
         {
           description:
             input.status === 'confirmed'

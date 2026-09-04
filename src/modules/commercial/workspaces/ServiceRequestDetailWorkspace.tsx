@@ -24,7 +24,11 @@ import {
   FileDocumentRow,
   type PreviewDocument,
 } from '../request-intake/DocumentPreviewModal'
-import { collectFileAnswerUrls, fileNameFromUrl, formatBytes } from '../request-intake/file-presentation.utils'
+import {
+  collectFileAnswerUrls,
+  fileNameFromUrl,
+  formatBytes,
+} from '../request-intake/file-presentation.utils'
 import { IntakeMultiselectAnswer } from '../request-intake/IntakeAnswerDisplay'
 
 function statusClass(status: string) {
@@ -472,9 +476,7 @@ export function ServiceRequestDetailWorkspace({
                           <FileDocumentRow
                             key={attachment.id}
                             fileUrl={attachment.fileUrl}
-                            fileName={
-                              attachment.fileName || attachment.label || attachment.fileUrl
-                            }
+                            fileName={attachment.fileName || attachment.label || attachment.fileUrl}
                             contentType={attachment.contentType}
                             title={title}
                             subtitle={subtitle}

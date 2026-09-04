@@ -10,7 +10,7 @@ import {
 } from '@tabler/icons-react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
-import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from 'react'
+import { lazy, Suspense, useCallback, useMemo, useState } from 'react'
 
 import { useAuth } from '@/app/auth'
 import { SectionLoadingState } from '@/app/loading/SectionLoadingState'
@@ -134,10 +134,6 @@ function SelectedPropertyForm({
     selectedProperty.status,
   )
   const needsClientName = propertyStatusDraft === 'reserved' || propertyStatusDraft === 'sold'
-
-  useEffect(() => {
-    setPropertyStatusDraft(selectedProperty.status)
-  }, [selectedProperty.id, selectedProperty.status])
 
   return (
     <form
@@ -287,8 +283,7 @@ export function RealEstateInventoryLivePage({ recordSearch }: { recordSearch: Ap
   const properties = propertiesQuery.data?.items ?? []
   const selectedProperty = properties.find((property) => property.id === propertyId) ?? null
   const estateBrokerage = useMemo(
-    () =>
-      (brokerageQuery.data?.items ?? []).filter((listing) => listing.estateId === estateId),
+    () => (brokerageQuery.data?.items ?? []).filter((listing) => listing.estateId === estateId),
     [brokerageQuery.data?.items, estateId],
   )
 
@@ -327,10 +322,7 @@ export function RealEstateInventoryLivePage({ recordSearch }: { recordSearch: Ap
       if (!selectedProperty) {
         return Promise.reject(new Error('Property not found'))
       }
-      return realEstateApi.updatePropertyRecord(
-        { id, estateId: selectedProperty.estateId },
-        input,
-      )
+      return realEstateApi.updatePropertyRecord({ id, estateId: selectedProperty.estateId }, input)
     },
     onSuccess: async () => {
       await invalidateEstate(estateId!)
@@ -576,146 +568,143 @@ export function RealEstateInventoryLivePage({ recordSearch }: { recordSearch: Ap
         </section>
 
         <div className="specialized-grid-2-1">
-              <section className="specialized-card">
-                <header className="specialized-card-header">
-                  <div>
-                    <div className="specialized-card-title">Property Inventory</div>
-                    <div className="specialized-card-subtitle">
-                      All Estate Properties in one board. Color shows status; icon shows Property
-                      type.
-                    </div>
-                  </div>
-                  <div className="specialized-inventory-legend">
-                    <div className="specialized-legend">
-                      <span>
-                        <i className="av" />
-                        Available
-                      </span>
-                      <span>
-                        <i className="rs" />
-                        Reserved
-                      </span>
-                      <span>
-                        <i className="sd" />
-                        Sold
-                      </span>
-                      <span>
-                        <i className="hd" />
-                        Hold / NFS
-                      </span>
-                    </div>
-                    <div className="specialized-type-legend">
-                      <span>
-                        <IconMap2 size={13} />
-                        Plot
-                      </span>
-                      <span>
-                        <IconHome size={13} />
-                        Residential
-                      </span>
-                      <span>
-                        <IconBuilding size={13} />
-                        Commercial
-                      </span>
-                    </div>
-                  </div>
-                </header>
-                {propertiesQuery.isError ? (
-                  <ErrorState
-                    title="Property Inventory unavailable"
-                    description={presentError(propertiesQuery.error, 'section-load').message}
-                    onRetry={() => void propertiesQuery.refetch()}
-                  />
-                ) : properties.length ? (
-                  <div className="specialized-property-board-wrap scrollbar-thin">
-                    <div className="specialized-property-board">
-                      {properties.map((property) => (
-                        <button
-                          key={property.id}
-                          type="button"
-                          className={
-                            property.id === propertyId
-                              ? `specialized-property-tile ${statusClass(property.status)} is-selected`
-                              : `specialized-property-tile ${statusClass(property.status)}`
-                          }
-                          onClick={() =>
-                            void navigate({
-                              to: '/app/$section',
-                              params: { section: 'real-estate-inventory' },
-                              search: (previous) => ({
-                                ...previous,
-                                estate: String(selectedEstate!.id),
-                                property: String(property.id),
-                              }),
-                            })
-                          }
-                        >
-                          <span className="specialized-property-tile-icon">
-                            <TypeIcon property={property} />
-                          </span>
-                          <span className="specialized-property-tile-name">
-                            {property.propertyName}
-                          </span>
-                          <span className="specialized-property-tile-type">
-                            {property.propertyTypeDisplay || property.propertyType}
-                          </span>
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                ) : (
-                  <EmptyState
-                    title="No Property inventory"
-                    description="Use Add Estate Properties to add Plots, Residential Buildings or Commercial Buildings."
-                  />
-                )}
-              </section>
-
-              <aside>
-                <section className="specialized-card">
-                  <header className="specialized-card-header">
-                    <div>
-                      <div className="specialized-card-title">Selected Property</div>
-                      <div className="specialized-card-subtitle">
-                        Inventory record and type-specific details
-                      </div>
-                    </div>
-                  </header>
-                  {!selectedProperty ? (
-                    <div className="specialized-empty">Select a Property from the board.</div>
-                  ) : (
-                    <SelectedPropertyForm
-                      key={selectedProperty.id}
-                      selectedEstateName={selectedEstate!.estateName}
-                      selectedProperty={selectedProperty}
-                      canPropertyUpdate={canPropertyUpdate}
-                      canPropertyDelete={canPropertyDelete}
-                      updatePending={updateMutation.isPending}
-                      formError={formError}
-                      setFormError={setFormError}
-                      onSubmit={(input) =>
-                        updateMutation.mutate({ id: selectedProperty.id, input })
+          <section className="specialized-card">
+            <header className="specialized-card-header">
+              <div>
+                <div className="specialized-card-title">Property Inventory</div>
+                <div className="specialized-card-subtitle">
+                  All Estate Properties in one board. Color shows status; icon shows Property type.
+                </div>
+              </div>
+              <div className="specialized-inventory-legend">
+                <div className="specialized-legend">
+                  <span>
+                    <i className="av" />
+                    Available
+                  </span>
+                  <span>
+                    <i className="rs" />
+                    Reserved
+                  </span>
+                  <span>
+                    <i className="sd" />
+                    Sold
+                  </span>
+                  <span>
+                    <i className="hd" />
+                    Hold / NFS
+                  </span>
+                </div>
+                <div className="specialized-type-legend">
+                  <span>
+                    <IconMap2 size={13} />
+                    Plot
+                  </span>
+                  <span>
+                    <IconHome size={13} />
+                    Residential
+                  </span>
+                  <span>
+                    <IconBuilding size={13} />
+                    Commercial
+                  </span>
+                </div>
+              </div>
+            </header>
+            {propertiesQuery.isError ? (
+              <ErrorState
+                title="Property Inventory unavailable"
+                description={presentError(propertiesQuery.error, 'section-load').message}
+                onRetry={() => void propertiesQuery.refetch()}
+              />
+            ) : properties.length ? (
+              <div className="specialized-property-board-wrap scrollbar-thin">
+                <div className="specialized-property-board">
+                  {properties.map((property) => (
+                    <button
+                      key={property.id}
+                      type="button"
+                      className={
+                        property.id === propertyId
+                          ? `specialized-property-tile ${statusClass(property.status)} is-selected`
+                          : `specialized-property-tile ${statusClass(property.status)}`
                       }
-                      onEdit={() => setPropertyEditOpen(true)}
-                      onDelete={() => setDeleteId(selectedProperty.id)}
-                    />
-                  )}
-                </section>
+                      onClick={() =>
+                        void navigate({
+                          to: '/app/$section',
+                          params: { section: 'real-estate-inventory' },
+                          search: (previous) => ({
+                            ...previous,
+                            estate: String(selectedEstate!.id),
+                            property: String(property.id),
+                          }),
+                        })
+                      }
+                    >
+                      <span className="specialized-property-tile-icon">
+                        <TypeIcon property={property} />
+                      </span>
+                      <span className="specialized-property-tile-name">
+                        {property.propertyName}
+                      </span>
+                      <span className="specialized-property-tile-type">
+                        {property.propertyTypeDisplay || property.propertyType}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <EmptyState
+                title="No Property inventory"
+                description="Use Add Estate Properties to add Plots, Residential Buildings or Commercial Buildings."
+              />
+            )}
+          </section>
 
-                <section className="specialized-card">
-                  <header className="specialized-card-header">
-                    <div>
-                      <div className="specialized-card-title">Brokerage Listings</div>
-                      <div className="specialized-card-subtitle">
-                        {estateBrokerage.length} linked to this estate ·{' '}
-                        {brokerageStatsQuery.data?.verified ?? 0} verified overall
-                      </div>
-                    </div>
-                  </header>
-                  {brokerageList}
-                </section>
-              </aside>
-            </div>
+          <aside>
+            <section className="specialized-card">
+              <header className="specialized-card-header">
+                <div>
+                  <div className="specialized-card-title">Selected Property</div>
+                  <div className="specialized-card-subtitle">
+                    Inventory record and type-specific details
+                  </div>
+                </div>
+              </header>
+              {!selectedProperty ? (
+                <div className="specialized-empty">Select a Property from the board.</div>
+              ) : (
+                <SelectedPropertyForm
+                  key={`${selectedProperty.id}-${selectedProperty.status}`}
+                  selectedEstateName={selectedEstate!.estateName}
+                  selectedProperty={selectedProperty}
+                  canPropertyUpdate={canPropertyUpdate}
+                  canPropertyDelete={canPropertyDelete}
+                  updatePending={updateMutation.isPending}
+                  formError={formError}
+                  setFormError={setFormError}
+                  onSubmit={(input) => updateMutation.mutate({ id: selectedProperty.id, input })}
+                  onEdit={() => setPropertyEditOpen(true)}
+                  onDelete={() => setDeleteId(selectedProperty.id)}
+                />
+              )}
+            </section>
+
+            <section className="specialized-card">
+              <header className="specialized-card-header">
+                <div>
+                  <div className="specialized-card-title">Brokerage Listings</div>
+                  <div className="specialized-card-subtitle">
+                    {estateBrokerage.length} linked to this estate ·{' '}
+                    {brokerageStatsQuery.data?.verified ?? 0} verified overall
+                  </div>
+                </div>
+              </header>
+              {brokerageList}
+            </section>
+          </aside>
+        </div>
       </main>
 
       {propertiesOpen && selectedEstate ? (

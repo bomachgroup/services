@@ -13,4 +13,6 @@ export const billingKeys = {
   payments: (invoiceId: number) => [...billingKeys.all, 'payments', invoiceId] as const,
   submissions: (status: PaymentSubmissionStatus | '', invoiceId?: number) =>
     [...billingKeys.all, 'payment-submissions', status, invoiceId ?? 'all'] as const,
+  allPaymentSubmissions: () => [...billingKeys.all, 'payment-submissions'] as const,
+  invoiceForQuote: (quoteId: number) => [...billingKeys.all, 'invoice-for-quote', quoteId] as const,
 }

@@ -1,6 +1,6 @@
 import { IconX } from '@tabler/icons-react'
 import { useForm } from '@tanstack/react-form'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, useCallback } from 'react'
 
 import { formatCurrency } from '@/shared/lib/formatters'
 
@@ -95,24 +95,29 @@ export function InvoiceBuilderLiveWorkspace({
     },
   })
 
-  const applyReceivingAccount = (accountId: number) => {
-    const account = financeAccounts.find((item) => item.id === accountId)
-    if (!account) return
-    form.setFieldValue('financeAccountId', accountId)
-    form.setFieldValue('paymentInstructions', formatFinanceAccountPaymentInstructions(account))
-    setErrors((current) => ({
-      ...current,
-      financeAccountId: '',
-      paymentInstructions: '',
-    }))
-  }
+  const applyReceivingAccount = useCallback(
+    (accountId: number) => {
+      const account = financeAccounts.find((item) => item.id === accountId)
+      if (!account) return
+      form.setFieldValue('financeAccountId', accountId)
+      form.setFieldValue('paymentInstructions', formatFinanceAccountPaymentInstructions(account))
+      setErrors((current) => ({
+        ...current,
+        financeAccountId: '',
+        paymentInstructions: '',
+      }))
+    },
+    [financeAccounts, form],
+  )
 
   useEffect(() => {
     if (!financeAccounts.length) return
     const currentAccountId = form.state.values.financeAccountId
     if (currentAccountId) return
-    applyReceivingAccount(defaultReceivingAccountId(financeAccounts))
-  }, [financeAccounts, form])
+    queueMicrotask(() => {
+      applyReceivingAccount(defaultReceivingAccountId(financeAccounts))
+    })
+  }, [financeAccounts, form, applyReceivingAccount])
 
   return (
     <div className="commercial-modal-backdrop" role="presentation" onMouseDown={onClose}>
@@ -218,7 +223,9 @@ export function InvoiceBuilderLiveWorkspace({
                       onChange={(event) => applyReceivingAccount(Number(event.target.value))}
                     >
                       <option value="">
-                        {financeAccountsLoading ? 'Loading accounts...' : 'Select receiving account'}
+                        {financeAccountsLoading
+                          ? 'Loading accounts...'
+                          : 'Select receiving account'}
                       </option>
                       {financeAccounts.map((account) => (
                         <option key={account.id} value={account.id}>

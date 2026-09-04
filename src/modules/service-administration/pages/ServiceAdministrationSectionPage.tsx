@@ -33,10 +33,7 @@ import {
 } from '../api/service-administration.live-mutations'
 import { serviceAdministrationQueries } from '../api/service-administration.queries'
 import { runLiveServiceSetup } from '../api/service-setup.orchestrator'
-import {
-  readSpecializedRequestContext,
-  specializedPayload,
-} from '../api/specialized-service.utils'
+import { readSpecializedRequestContext, specializedPayload } from '../api/specialized-service.utils'
 import { BranchActivationScreen } from '../screens/BranchActivationScreen'
 import {
   CalculatorLibraryScreen,
@@ -122,8 +119,7 @@ export function ServiceAdministrationSectionPage({
   const capabilities = getServiceAdministrationCapabilities(user)
   const catalogueSearch = section === 'service-catalogue' ? (recordSearch.search ?? '') : ''
   const catalogueStatus = section === 'service-catalogue' ? (recordSearch.status ?? '') : ''
-  const catalogueParentId =
-    section === 'service-catalogue' ? (recordSearch.parentId ?? null) : null
+  const catalogueParentId = section === 'service-catalogue' ? (recordSearch.parentId ?? null) : null
   const cataloguePage = section === 'service-catalogue' ? Math.max(1, recordSearch.page ?? 1) : 1
   const cataloguePageSize = section === 'service-catalogue' ? 100 : 12
   const createStageAccess: CreateServiceStageAccess = {
@@ -462,7 +458,6 @@ export function ServiceAdministrationSectionPage({
           readSpecializedRequestContext(input.specializedConfig),
         ),
       })
-
 
       await saveLivePricingConfig({
         ...(selectedCalculator ? { id: selectedCalculator.id } : {}),

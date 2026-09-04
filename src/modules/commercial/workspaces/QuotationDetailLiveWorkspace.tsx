@@ -43,8 +43,10 @@ export function QuotationDetailLiveWorkspace({
 
   useEffect(() => {
     if (!approveConfirmPending || saving) return
-    setApproveConfirmPending(false)
-    setApproveConfirmOpen(false)
+    queueMicrotask(() => {
+      setApproveConfirmPending(false)
+      setApproveConfirmOpen(false)
+    })
   }, [approveConfirmPending, saving])
 
   const lifecycle = [
@@ -316,9 +318,7 @@ export function QuotationDetailLiveWorkspace({
           { label: 'Client', value: quotation.clientName || '—' },
           { label: 'Service', value: quotation.serviceName || '—' },
           { label: 'Total amount', value: formatCurrency(quotation.amount), highlight: true },
-          ...(quotation.validUntil
-            ? [{ label: 'Valid until', value: quotation.validUntil }]
-            : []),
+          ...(quotation.validUntil ? [{ label: 'Valid until', value: quotation.validUntil }] : []),
         ]}
         confirmLabel="Approve & send"
         cancelLabel="Go back"

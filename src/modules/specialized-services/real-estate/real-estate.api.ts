@@ -172,15 +172,11 @@ export const realEstateApi = {
   deleteProperty: async (estateId: number, id: number) =>
     apiClient.delete<unknown>(`/estates/${estateId}/properties/${id}`),
   listStandaloneProperties: async (f: PropertyFilters = {}) =>
-    mapPropertyList(
-      await apiClient.get<unknown>(`/estates/properties/all?${propertyQuery(f)}`),
-    ),
+    mapPropertyList(await apiClient.get<unknown>(`/estates/properties/all?${propertyQuery(f)}`)),
   createStandaloneProperty: async (i: CreatePropertyInput) =>
     mapProperty(await apiClient.post<unknown>('/estates/properties/all', propertyPayload(i))),
   updateStandaloneProperty: async (id: number, i: CreatePropertyInput) =>
-    mapProperty(
-      await apiClient.put<unknown>(`/estates/properties/all/${id}`, propertyPayload(i)),
-    ),
+    mapProperty(await apiClient.put<unknown>(`/estates/properties/all/${id}`, propertyPayload(i))),
   deleteStandaloneProperty: async (id: number) =>
     apiClient.delete<unknown>(`/estates/properties/all/${id}`),
   updatePropertyRecord: async (

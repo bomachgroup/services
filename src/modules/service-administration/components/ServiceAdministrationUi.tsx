@@ -485,12 +485,7 @@ export function NewServiceDialog({
 }: {
   open: boolean
   onClose: () => void
-  onSubmit: (value: {
-    name: string
-    code: string
-    description: string
-    owner: string
-  }) => void
+  onSubmit: (value: { name: string; code: string; description: string; owner: string }) => void
   pending: boolean
 }) {
   const [value, setValue] = useState({

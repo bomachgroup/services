@@ -2,12 +2,12 @@ import { useQuery } from '@tanstack/react-query'
 
 import { useAuth } from '@/app/auth'
 import { hasPermission, PERMISSIONS } from '@/app/permissions'
-import type { ClientOption, ServiceOption } from '@/modules/commercial/api/service-requests.types'
 import { formatCurrency } from '@/shared/lib/formatters'
 import { DropdownSelect, mapDropdownOptions } from '@/shared/ui/dropdown-select'
 
 import { realEstateQueries } from '../../real-estate/real-estate.queries'
-import type { SpecializedRequestFormValues, SpecializedRequestContextFieldsProps } from '../types'
+import type { SpecializedRequestContextFieldsProps } from '../types'
+import { createInitialRealEstateRequestContext } from './real-estate.request-context'
 
 export type RealEstateRequestSourceMode = 'estate' | 'standalone' | 'brokerage'
 
@@ -69,7 +69,8 @@ export function RealEstateRequestContextFields({
   if (!canListEstates && !canListProperties && !canListBrokerage) {
     return (
       <div className="commercial-form-note commercial-form-note-warning">
-        You do not have permission to browse real estate inventory for this specialized service flow.
+        You do not have permission to browse real estate inventory for this specialized service
+        flow.
       </div>
     )
   }
@@ -78,7 +79,11 @@ export function RealEstateRequestContextFields({
     <>
       <div className="commercial-field commercial-field--full">
         <span>Inventory source</span>
-        <div className="commercial-tabs commercial-tabs--form" role="group" aria-label="Inventory source">
+        <div
+          className="commercial-tabs commercial-tabs--form"
+          role="group"
+          aria-label="Inventory source"
+        >
           {sourceModeOptions.map((option) => {
             const disabled =
               (option.mode === 'estate' && !canListEstates) ||
@@ -223,7 +228,9 @@ export function RealEstateRequestContextFields({
 
       {brokerageQuery.isError || standaloneQuery.isError || estatesQuery.isError ? (
         <div className="commercial-field commercial-field--full">
-          <small className="commercial-field-error">Real estate inventory could not be loaded.</small>
+          <small className="commercial-field-error">
+            Real estate inventory could not be loaded.
+          </small>
         </div>
       ) : null}
 
@@ -245,7 +252,9 @@ export function RealEstateRequestContextFields({
         </div>
       ) : null}
 
-      {context.sourceMode === 'brokerage' && !brokerageQuery.isPending && unlinkedBrokerage.length === 0 ? (
+      {context.sourceMode === 'brokerage' &&
+      !brokerageQuery.isPending &&
+      unlinkedBrokerage.length === 0 ? (
         <div className="commercial-field commercial-field--full">
           <p className="commercial-form-note commercial-form-note-warning">
             No unlinked brokerage listings are available yet. Add one in Real Estate before
@@ -261,88 +270,4 @@ export function RealEstateRequestContextFields({
       ) : null}
     </>
   )
-}
-
-export function createInitialRealEstateRequestContext(): RealEstateRequestContext {
-  return {
-    sourceMode: 'estate',
-    estateId: 0,
-    selectedId: null,
-  }
-}
-
-export function validateRealEstateRequestContext(
-  context: RealEstateRequestContext | null | undefined,
-) {
-  if (!context) return 'Choose an inventory source to continue.'
-
-  if (context.sourceMode === 'estate') {
-    if (!context.estateId) return 'Select an estate to continue.'
-    return null
-  }
-
-  if (context.sourceMode === 'standalone') {
-    if (!context.selectedId) return 'Select a standalone property to continue.'
-    return null
-  }
-
-  if (context.sourceMode === 'brokerage') {
-    if (!context.selectedId) return 'Select an unlinked brokerage listing to continue.'
-    return null
-  }
-
-  return 'Choose an inventory source to continue.'
-}
-
-export function buildRealEstateRequestHandoff({
-  service,
-  context,
-  client,
-  formValues,
-}: {
-  service: ServiceOption
-  context: RealEstateRequestContext
-  client: ClientOption | null
-  formValues: SpecializedRequestFormValues
-}) {
-  const sharedSearch = {
-    service: String(service.id),
-  }
-
-  const navigationSearch =
-    context.sourceMode === 'estate'
-      ? {
-          ...sharedSearch,
-          estate: String(context.estateId),
-          ...(context.selectedId ? { property: String(context.selectedId) } : {}),
-        }
-      : context.sourceMode === 'standalone'
-        ? {
-            ...sharedSearch,
-            standaloneProperty: String(context.selectedId),
-          }
-        : {
-            ...sharedSearch,
-            brokerage: String(context.selectedId),
-          }
-
-  return {
-    domain: 'real_estate',
-    serviceId: service.id,
-    ...(client ? { clientId: client.id } : {}),
-    ...(formValues.contactName ? { contactName: formValues.contactName } : {}),
-    ...(formValues.contactPhone ? { contactPhone: formValues.contactPhone } : {}),
-    ...(formValues.contactEmail ? { contactEmail: formValues.contactEmail } : {}),
-    ...(formValues.branchId ? { branchId: formValues.branchId } : {}),
-    ...(formValues.crmLeadId ? { crmLeadId: formValues.crmLeadId } : {}),
-    context: {
-      sourceMode: context.sourceMode,
-      estateId: context.estateId,
-      selectedId: context.selectedId,
-    },
-    navigation: {
-      section: 'real-estate-inventory',
-      search: navigationSearch,
-    },
-  }
 }

@@ -54,7 +54,7 @@ export function ConfirmedPaymentCard({ payment }: { payment: Payment }) {
     <>
       <article
         className={`commercial-payment-proof-card commercial-payment-proof-card--confirmed commercial-payment-proof-card--foldable${
-          expanded ? ' is-expanded' : ' is-collapsed'
+          expanded ? 'is-expanded' : 'is-collapsed'
         }`}
       >
         <button

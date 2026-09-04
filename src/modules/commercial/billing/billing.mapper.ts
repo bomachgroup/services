@@ -149,8 +149,7 @@ export function mapPaymentSubmission(payload: unknown): PaymentSubmission {
     paymentDate: text(value.payment_date),
     proofOfPayment: text(value.proof_of_payment),
     financeAccountId: nullableNumber(value.finance_account_id),
-    financeAccountName:
-      text(value.finance_account_name) || text(value.receiving_account_text),
+    financeAccountName: text(value.finance_account_name) || text(value.receiving_account_text),
     transactionReference: text(value.transaction_reference),
     submittedByType: text(value.submitted_by_type),
     status: normalizedStatus as PaymentSubmission['status'],

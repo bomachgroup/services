@@ -128,9 +128,7 @@ function EstateCard({
   onEdit: () => void
 }) {
   return (
-    <article
-      className={`specialized-estate-card specialized-estate-card--${estate.estateStatus}`}
-    >
+    <article className={`specialized-estate-card specialized-estate-card--${estate.estateStatus}`}>
       <div className="specialized-estate-card-accent" aria-hidden="true" />
       <div className="specialized-estate-card-main">
         <div className="specialized-estate-card-header-row">
@@ -140,9 +138,7 @@ function EstateCard({
           <div className="specialized-estate-card-heading">
             <div className="specialized-estate-card-top">
               <span className="specialized-estate-card-code">{estate.estateCode}</span>
-              <span
-                className={`specialized-pill specialized-pill--estate-${estate.estateStatus}`}
-              >
+              <span className={`specialized-pill specialized-pill--estate-${estate.estateStatus}`}>
                 {estate.estateStatusDisplay || estate.estateStatus.replaceAll('_', ' ')}
               </span>
             </div>
@@ -236,12 +232,20 @@ function BrokerageTableRow({
       <td className="specialized-hub-cell-actions">
         <div className="specialized-inline-actions">
           {canVerify && listing.verificationStatus !== 'verified' ? (
-            <button type="button" className="specialized-btn specialized-btn-small" onClick={onVerify}>
+            <button
+              type="button"
+              className="specialized-btn specialized-btn-small"
+              onClick={onVerify}
+            >
               Verify
             </button>
           ) : null}
           {canDelete ? (
-            <button type="button" className="specialized-btn specialized-btn-small" onClick={onDelete}>
+            <button
+              type="button"
+              className="specialized-btn specialized-btn-small"
+              onClick={onDelete}
+            >
               Delete
             </button>
           ) : null}
@@ -300,7 +304,10 @@ export function RealEstateHubLivePage({ recordSearch }: { recordSearch: AppSecti
   })
 
   const estates = useMemo(() => estatesQuery.data?.items ?? [], [estatesQuery.data?.items])
-  const standaloneProperties = standaloneQuery.data?.items ?? []
+  const standaloneProperties = useMemo(
+    () => standaloneQuery.data?.items ?? [],
+    [standaloneQuery.data?.items],
+  )
   const unlinkedBrokerage = useMemo(
     () => (brokerageQuery.data?.items ?? []).filter((listing) => listing.estateId == null),
     [brokerageQuery.data?.items],
@@ -350,14 +357,14 @@ export function RealEstateHubLivePage({ recordSearch }: { recordSearch: AppSecti
     return () => clearTimeout(id)
   }, [recordSearch.search, searchDraft, setSearchValue])
 
-  useEffect(() => {
-    if (!recordSearch.standaloneProperty || !standaloneProperties.length) return
+  const deepLinkedStandaloneProperty = useMemo(() => {
+    if (!recordSearch.standaloneProperty || !standaloneProperties.length) return null
     const propertyId = Number(recordSearch.standaloneProperty)
-    if (!Number.isFinite(propertyId)) return
-    const property = standaloneProperties.find((item) => item.id === propertyId)
-    if (property) setEditingProperty(property)
+    if (!Number.isFinite(propertyId)) return null
+    return standaloneProperties.find((item) => item.id === propertyId) ?? null
   }, [recordSearch.standaloneProperty, standaloneProperties])
 
+  const activeEditingProperty = editingProperty ?? deepLinkedStandaloneProperty
   useEffect(() => {
     if (!highlightedBrokerageId || !unlinkedBrokerage.length) return
     document
@@ -441,10 +448,7 @@ export function RealEstateHubLivePage({ recordSearch }: { recordSearch: AppSecti
 
   const updatePropertyMutation = useMutation({
     mutationFn: ({ property, input }: { property: Property; input: CreatePropertyInput }) =>
-      realEstateApi.updatePropertyRecord(
-        { id: property.id, estateId: property.estateId },
-        input,
-      ),
+      realEstateApi.updatePropertyRecord({ id: property.id, estateId: property.estateId }, input),
     onSuccess: async () => {
       await invalidateStandalone()
       setEditingProperty(null)
@@ -539,7 +543,8 @@ export function RealEstateHubLivePage({ recordSearch }: { recordSearch: AppSecti
             <div>
               <div className="specialized-card-title">Real Estate Portfolio</div>
               <div className="specialized-card-subtitle">
-                Browse estates, standalone properties and brokerage listings not linked to an estate.
+                Browse estates, standalone properties and brokerage listings not linked to an
+                estate.
               </div>
             </div>
             <div className="specialized-action-row">
@@ -662,9 +667,7 @@ export function RealEstateHubLivePage({ recordSearch }: { recordSearch: AppSecti
             <header className="specialized-card-header">
               <div>
                 <div className="specialized-card-title">Standalone Properties</div>
-                <div className="specialized-card-subtitle">
-                  Inventory not linked to any estate.
-                </div>
+                <div className="specialized-card-subtitle">Inventory not linked to any estate.</div>
               </div>
             </header>
             {!canPropertyList ? (
@@ -727,7 +730,9 @@ export function RealEstateHubLivePage({ recordSearch }: { recordSearch: AppSecti
                         <td>
                           <PropertyTypeBadge property={property} />
                         </td>
-                        <td className="specialized-hub-cell-nowrap">{formatCurrency(property.price)}</td>
+                        <td className="specialized-hub-cell-nowrap">
+                          {formatCurrency(property.price)}
+                        </td>
                         <td>
                           <span
                             className={`specialized-pill specialized-pill--property-${property.status}`}
@@ -842,9 +847,7 @@ export function RealEstateHubLivePage({ recordSearch }: { recordSearch: AppSecti
             estate={editingEstate}
             saving={updateEstateMutation.isPending}
             onClose={() => setEditingEstate(null)}
-            onSubmit={(input) =>
-              updateEstateMutation.mutate({ id: editingEstate.id, input })
-            }
+            onSubmit={(input) => updateEstateMutation.mutate({ id: editingEstate.id, input })}
           />
         </Suspense>
       ) : null}
@@ -858,14 +861,19 @@ export function RealEstateHubLivePage({ recordSearch }: { recordSearch: AppSecti
           />
         </Suspense>
       ) : null}
-      {editingProperty ? (
+      {activeEditingProperty ? (
         <Suspense fallback={<RealEstateWorkspaceFallback />}>
           <EditPropertyLiveWorkspace
-            property={editingProperty}
+            property={activeEditingProperty}
             saving={updatePropertyMutation.isPending}
-            onClose={() => setEditingProperty(null)}
+            onClose={() => {
+              setEditingProperty(null)
+              if (recordSearch.standaloneProperty) {
+                setSearchValue('standaloneProperty', null)
+              }
+            }}
             onSubmit={(input) =>
-              updatePropertyMutation.mutate({ property: editingProperty, input })
+              updatePropertyMutation.mutate({ property: activeEditingProperty, input })
             }
           />
         </Suspense>

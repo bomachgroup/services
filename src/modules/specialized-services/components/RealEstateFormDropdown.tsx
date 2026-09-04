@@ -1,8 +1,17 @@
-import { DropdownSelect, mapDropdownOptions, type DropdownOption } from '@/shared/ui/dropdown-select'
+import {
+  DropdownSelect,
+  mapDropdownOptions,
+  type DropdownOption,
+} from '@/shared/ui/dropdown-select'
 
-type OptionSource =
-  | DropdownOption[]
-  | Array<{ value: string | number; label: string; description?: string; disabled?: boolean }>
+type OptionItem = {
+  value: string | number
+  label: string
+  description?: string
+  disabled?: boolean
+}
+
+type OptionSource = readonly OptionItem[] | OptionItem[]
 
 type RealEstateFormDropdownProps = {
   label: string
