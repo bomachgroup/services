@@ -262,6 +262,18 @@ function AppShellRoute() {
   const matchingItem = findNavigationItemByPath(operationsNavigation, `/app/${section}`)
   const requiredPermissions = matchingItem?.permissions ?? [PERMISSIONS.dashboardView]
 
+  if (auth.authBootstrapError) {
+    return (
+      <ModuleShellPage
+        eyebrow="Service Operations"
+        title="Services could not open"
+        description={auth.authBootstrapError}
+        backTo="/app/dashboard"
+        backLabel="Back to dashboard"
+      />
+    )
+  }
+
   if (auth.isLoading) {
     return <SectionLoadingState section={section} />
   }
