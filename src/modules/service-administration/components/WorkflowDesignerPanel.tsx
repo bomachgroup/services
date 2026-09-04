@@ -5,10 +5,7 @@ import { formatNumberFieldValue, parseNumberFieldValue } from '@/shared/lib/numb
 
 import { daysToHours, hoursToDays } from './workflow-designer-panel.utils'
 
-import type {
-  WorkflowOwnerRoleOption,
-  WorkflowStage,
-} from '../types/service-administration.types'
+import type { WorkflowOwnerRoleOption, WorkflowStage } from '../types/service-administration.types'
 
 type StageDraft = {
   name: string
@@ -42,8 +39,7 @@ function defaultStageDraft(ownerRoles: WorkflowOwnerRoleOption[]): StageDraft {
 }
 
 type StageEditorState =
-  | { mode: 'create'; draft: StageDraft }
-  | { mode: 'edit'; index: number; draft: StageDraft }
+  { mode: 'create'; draft: StageDraft } | { mode: 'edit'; index: number; draft: StageDraft }
 
 export function WorkflowDesignerPanel({
   variant = 'page',
@@ -237,7 +233,9 @@ export function WorkflowDesignerPanel({
             className="service-admin-field-editor-modal service-admin-stage-editor-modal"
             role="dialog"
             aria-modal="true"
-            aria-label={stageEditor.mode === 'create' ? 'Add workflow stage' : 'Edit workflow stage'}
+            aria-label={
+              stageEditor.mode === 'create' ? 'Add workflow stage' : 'Edit workflow stage'
+            }
             onMouseDown={(event) => event.stopPropagation()}
           >
             <header>

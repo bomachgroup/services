@@ -1,6 +1,6 @@
 import type { CreateEstateInput, Estate } from './real-estate.types'
 
-export type EstateFormValues = CreateEstateInput & {
+export type EstateFormValues = Omit<CreateEstateInput, 'tags'> & {
   tags: string
   minPriceOtherProperties: number
   maxPriceOtherProperties: number

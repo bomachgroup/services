@@ -9,10 +9,8 @@ export function fileNameFromUrl(url: string) {
     const pathname = new URL(url, window.location.origin).pathname
     const segment = decodeURIComponent(pathname.split('/').filter(Boolean).pop() ?? 'Document')
     return (
-      segment.replace(
-        /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}-/i,
-        '',
-      ) || segment
+      segment.replace(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}-/i, '') ||
+      segment
     )
   } catch {
     const segment = url.split('/').filter(Boolean).pop() ?? 'Document'
@@ -56,9 +54,7 @@ export function collectFileAnswerUrls(value: unknown, fieldType?: string) {
   if (fieldType === 'file') {
     if (typeof value === 'string' && value.trim()) return [value.trim()]
     if (Array.isArray(value)) {
-      return value
-        .map((item) => (typeof item === 'string' ? item.trim() : ''))
-        .filter(Boolean)
+      return value.map((item) => (typeof item === 'string' ? item.trim() : '')).filter(Boolean)
     }
     return []
   }

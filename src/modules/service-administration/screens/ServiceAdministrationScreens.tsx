@@ -142,15 +142,15 @@ function ServiceCatalogueCard({
         {service.slaDays != null ? ` · ${service.slaDays}d SLA` : null}
       </div>
       <div className="service-admin-service-footer">
-        <span className={`service-admin-pill ${statusClass(service.status)}`}>{service.status}</span>
+        <span className={`service-admin-pill ${statusClass(service.status)}`}>
+          {service.status}
+        </span>
         <div className="flex gap-1">
           <button
             type="button"
             className="service-admin-button service-admin-button-small"
             disabled={!onConfigure}
-            title={
-              !onConfigure ? 'You do not have permission to view this service' : undefined
-            }
+            title={!onConfigure ? 'You do not have permission to view this service' : undefined}
             onClick={() => onConfigure?.(service)}
           >
             <AccessLockIcon show={!onConfigure} size={11} />
@@ -215,8 +215,7 @@ export function ServiceCatalogueScreen({
   branchAvailabilityDisabled?: boolean
   onDuplicate?: ((service: ServiceCatalogueItem) => void) | undefined
 }) {
-  const hasActiveFilters =
-    query.trim().length > 0 || status.length > 0 || parentId != null
+  const hasActiveFilters = query.trim().length > 0 || status.length > 0 || parentId != null
   const pageCount = Math.max(1, Math.ceil(totalCount / pageSize))
   const [searchDraft, setSearchDraft] = useState(query)
   const [syncedQuery, setSyncedQuery] = useState(query)
@@ -429,10 +428,7 @@ export function ServiceCatalogueScreen({
                     aria-expanded={!collapsed}
                     onClick={() => toggleGroup(group.key)}
                   >
-                    <span
-                      className="service-admin-parent-group-chevron"
-                      aria-hidden="true"
-                    >
+                    <span className="service-admin-parent-group-chevron" aria-hidden="true">
                       {collapsed ? <IconChevronRight size={16} /> : <IconChevronDown size={16} />}
                     </span>
                     <span

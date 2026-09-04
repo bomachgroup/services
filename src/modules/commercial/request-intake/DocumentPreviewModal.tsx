@@ -83,7 +83,12 @@ export function DocumentPreviewModal({
             <h2>{title}</h2>
             <p>{fileName}</p>
           </div>
-          <button type="button" className="commercial-modal-close" onClick={onClose} aria-label="Close">
+          <button
+            type="button"
+            className="commercial-modal-close"
+            onClick={onClose}
+            aria-label="Close"
+          >
             <IconX size={16} />
           </button>
         </header>
@@ -109,12 +114,7 @@ export function DocumentPreviewModal({
         </div>
 
         <footer className="commercial-modal-footer">
-          <a
-            href={document.fileUrl}
-            target="_blank"
-            rel="noreferrer"
-            className="commercial-btn"
-          >
+          <a href={document.fileUrl} target="_blank" rel="noreferrer" className="commercial-btn">
             <IconExternalLink size={14} />
             Open in new tab
           </a>

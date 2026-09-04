@@ -34,7 +34,6 @@ export const PERMISSIONS = {
 
   rolesList: 'roles.list',
 
-
   serviceRequestFormsList: 'service_request_forms.list',
   serviceRequestFormsView: 'service_request_forms.view',
   serviceRequestFormsCreate: 'service_request_forms.create',

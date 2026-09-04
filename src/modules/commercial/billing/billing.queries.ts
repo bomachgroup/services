@@ -54,4 +54,16 @@ export const billingQueries = {
       queryFn: () => billingApi.paymentSubmissions(status, invoiceId),
       staleTime: 15_000,
     }),
+  allPaymentSubmissions: () =>
+    queryOptions({
+      queryKey: billingKeys.allPaymentSubmissions(),
+      queryFn: () => billingApi.paymentSubmissions('', undefined),
+      staleTime: 15_000,
+    }),
+  invoiceForQuote: (quoteId: number) =>
+    queryOptions({
+      queryKey: billingKeys.invoiceForQuote(quoteId),
+      queryFn: () => billingApi.invoiceForQuote(quoteId),
+      staleTime: 15_000,
+    }),
 }

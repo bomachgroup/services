@@ -35,7 +35,6 @@ export const VERIFIED_APP_PERMISSION_VALUES = [
 
   'roles.list',
 
-
   'service_request_forms.list',
   'service_request_forms.view',
   'service_request_forms.create',

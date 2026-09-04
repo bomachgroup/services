@@ -132,11 +132,14 @@ export function DropdownSelect(props: DropdownSelectProps) {
     containerRef?.(node)
   }
 
-  const setMenuOpen = (next: boolean) => {
-    setOpen(next)
-    onOpenChange?.(next)
-    if (!next) setSearchQuery('')
-  }
+  const setMenuOpen = useCallback(
+    (next: boolean) => {
+      setOpen(next)
+      onOpenChange?.(next)
+      if (!next) setSearchQuery('')
+    },
+    [onOpenChange],
+  )
 
   useEffect(() => {
     if (!open) return
@@ -167,7 +170,7 @@ export function DropdownSelect(props: DropdownSelectProps) {
       window.removeEventListener('resize', handleReposition)
       window.removeEventListener('scroll', handleReposition, true)
     }
-  }, [open, updateMenuPosition])
+  }, [open, updateMenuPosition, setMenuOpen])
 
   useEffect(() => {
     if (!open || !searchable) return
@@ -175,10 +178,7 @@ export function DropdownSelect(props: DropdownSelectProps) {
     return () => window.clearTimeout(timeoutId)
   }, [open, searchable])
 
-  const filteredOptions = useMemo(
-    () => filterOptions(options, searchQuery),
-    [options, searchQuery],
-  )
+  const filteredOptions = useMemo(() => filterOptions(options, searchQuery), [options, searchQuery])
 
   const selectedOptions = useMemo(() => {
     if (isMultipleProps(props)) {
@@ -187,9 +187,7 @@ export function DropdownSelect(props: DropdownSelectProps) {
     return options.filter((option) => option.value === props.value)
   }, [options, props])
 
-  const hasSelection = isMultipleProps(props)
-    ? props.value.length > 0
-    : selectedOptions.length > 0
+  const hasSelection = isMultipleProps(props) ? props.value.length > 0 : selectedOptions.length > 0
 
   const toggleOption = (option: DropdownOption) => {
     if (option.disabled) return
@@ -197,7 +195,9 @@ export function DropdownSelect(props: DropdownSelectProps) {
     if (isMultipleProps(props)) {
       const checked = props.value.includes(option.value)
       props.onChange(
-        checked ? props.value.filter((item) => item !== option.value) : [...props.value, option.value],
+        checked
+          ? props.value.filter((item) => item !== option.value)
+          : [...props.value, option.value],
       )
       return
     }
@@ -371,7 +371,9 @@ export function DropdownSelect(props: DropdownSelectProps) {
       </span>
       {control}
       {helpText ? <small>{helpText}</small> : null}
-      {error ? <small className="ui-dropdown-field-error commercial-field-error">{error}</small> : null}
+      {error ? (
+        <small className="ui-dropdown-field-error commercial-field-error">{error}</small>
+      ) : null}
     </label>
   )
 }

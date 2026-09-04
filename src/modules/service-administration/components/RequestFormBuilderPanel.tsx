@@ -55,12 +55,14 @@ function defaultFieldDraft(
 }
 
 function labelToKey(label: string) {
-  return label.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '')
+  return label
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_|_$/g, '')
 }
 
 type FieldEditorState =
-  | { mode: 'create'; draft: FieldDraft }
-  | { mode: 'edit'; index: number; draft: FieldDraft }
+  { mode: 'create'; draft: FieldDraft } | { mode: 'edit'; index: number; draft: FieldDraft }
 
 export function RequestFormBuilderPanel({
   variant = 'page',
@@ -106,11 +108,7 @@ export function RequestFormBuilderPanel({
       index,
       draft: {
         ...fieldToDraft(field),
-        options: supportsOptions
-          ? field.options?.length
-            ? [...field.options]
-            : ['']
-          : [],
+        options: supportsOptions ? (field.options?.length ? [...field.options] : ['']) : [],
       },
     })
   }
@@ -351,9 +349,7 @@ export function RequestFormBuilderPanel({
                     <span>Options</span>
                     <button
                       type="button"
-                      onClick={() =>
-                        updateDraft({ options: [...fieldEditor.draft.options, ''] })
-                      }
+                      onClick={() => updateDraft({ options: [...fieldEditor.draft.options, ''] })}
                     >
                       + Add option
                     </button>

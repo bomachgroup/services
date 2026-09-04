@@ -273,7 +273,9 @@ export function SpecializedOperationsLivePage({
                   void navigate({
                     to: '/app/$section',
                     params: { section: 'service-catalogue' },
-                    search: selected ? { search: selected.name, specializedDomain } : { specializedDomain },
+                    search: selected
+                      ? { search: selected.name, specializedDomain }
+                      : { specializedDomain },
                   })
                 }
               >

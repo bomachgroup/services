@@ -90,9 +90,7 @@ export const serviceRequestsApi = {
     query.set('limit', String(limit))
     query.set('offset', String(offset))
     if (search.trim()) query.set('search', search.trim())
-    return mapClientsPage(
-      await apiClient.get<unknown>(`/clients/clients/?${query.toString()}`),
-    )
+    return mapClientsPage(await apiClient.get<unknown>(`/clients/clients/?${query.toString()}`))
   },
 
   async createClient(input: CreateClientInput): Promise<ClientOption> {

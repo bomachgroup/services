@@ -57,9 +57,7 @@ export function PendingPaymentSubmissionCard({
   const [rejectionReason, setRejectionReason] = useState('')
   const [previewDocument, setPreviewDocument] = useState<PreviewDocument | null>(null)
 
-  const proofFileName = submission.proofOfPayment
-    ? fileNameFromUrl(submission.proofOfPayment)
-    : ''
+  const proofFileName = submission.proofOfPayment ? fileNameFromUrl(submission.proofOfPayment) : ''
   const proofTypeLabel = proofFileName ? fileTypeLabel(proofFileName) : 'Document'
 
   return (

@@ -44,7 +44,7 @@ export const mockAuthUsers = {
       updated_at: '2026-08-01T08:00:00Z',
     } satisfies RoleResponseDto,
   },
-  'admin': {
+  admin: {
     password: 'password',
     user: {
       id: 102,

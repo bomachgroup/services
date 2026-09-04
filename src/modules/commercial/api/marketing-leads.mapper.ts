@@ -15,8 +15,6 @@ function num(value: unknown, fallback = 0) {
 
 const nullableNumber = (value: unknown) => (value == null || value === '' ? null : num(value))
 
-const array = (value: unknown): unknown[] => (Array.isArray(value) ? value : [])
-
 function paginatedRows(payload: unknown) {
   if (Array.isArray(payload)) return { count: payload.length, rows: payload }
   const root = record(payload)

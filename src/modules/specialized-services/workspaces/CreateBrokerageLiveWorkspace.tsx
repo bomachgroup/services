@@ -183,10 +183,7 @@ export function CreateBrokerageLiveWorkspace({
                 options={brokerageVerificationStatuses}
                 value={value.verificationStatus}
                 onChange={(nextValue) =>
-                  setField(
-                    'verificationStatus',
-                    nextValue as typeof value.verificationStatus,
-                  )
+                  setField('verificationStatus', nextValue as typeof value.verificationStatus)
                 }
               />
 
@@ -194,9 +191,7 @@ export function CreateBrokerageLiveWorkspace({
                 label="Market status"
                 options={brokerageStatuses}
                 value={value.status}
-                onChange={(nextValue) =>
-                  setField('status', nextValue as typeof value.status)
-                }
+                onChange={(nextValue) => setField('status', nextValue as typeof value.status)}
               />
 
               <label className="commercial-field commercial-form-span">
@@ -257,9 +252,7 @@ export function CreateBrokerageLiveWorkspace({
                   })),
                 ]}
                 value={value.estateId ? String(value.estateId) : '0'}
-                onChange={(nextValue) =>
-                  setField('estateId', Number(nextValue) || null)
-                }
+                onChange={(nextValue) => setField('estateId', Number(nextValue) || null)}
               />
 
               <label className="commercial-field commercial-form-span">
