@@ -16,7 +16,11 @@ export interface AutoAnswerContext {
   uploads: PendingUpload[]
 }
 
-export function missing(value: unknown) {
+export function missing(value: unknown, field?: IntakeField) {
+  if (field?.fieldType === 'checkbox') {
+    if (field.required) return value !== true
+    return value == null
+  }
   return value == null || value === '' || (Array.isArray(value) && value.length === 0)
 }
 
@@ -116,7 +120,7 @@ export function resolveAutoAnswer(field: IntakeField, context: AutoAnswerContext
 export function shouldHideAutoField(field: IntakeField, context: AutoAnswerContext) {
   if (!isAutoFilledField(field)) return false
   const resolved = resolveAutoAnswer(field, context)
-  if (field.required && missing(resolved)) return false
+  if (field.required && missing(resolved, field)) return false
   return true
 }
 
@@ -264,8 +268,8 @@ export function calculateEstimateTotal(
 export function validateAnswers(fields: IntakeField[], answers: Record<string, unknown>) {
   for (const field of fields) {
     const value = answers[field.key]
-    if (field.required && missing(value)) return `${field.label} is required.`
-    if (missing(value)) continue
+    if (field.required && missing(value, field)) return `${field.label} is required.`
+    if (missing(value, field)) continue
 
     if (
       (field.fieldType === 'number' || field.fieldType === 'money') &&
@@ -283,11 +287,11 @@ export function validateAnswerFields(fields: IntakeField[], answers: Record<stri
   for (const field of fields) {
     const value = answers[field.key]
 
-    if (field.required && missing(value)) {
+    if (field.required && missing(value, field)) {
       errors[field.key] = `${field.label} is required.`
       continue
     }
-    if (missing(value)) continue
+    if (missing(value, field)) continue
 
     if (
       (field.fieldType === 'number' || field.fieldType === 'money') &&
@@ -306,7 +310,7 @@ export function normalizeAnswers(fields: IntakeField[], answers: Record<string, 
       const value = answers[field.key]
 
       if (field.fieldType === 'number' || field.fieldType === 'money') {
-        return [field.key, missing(value) ? null : Number(value)]
+        return [field.key, missing(value, field) ? null : Number(value)]
       }
       if (field.fieldType === 'checkbox') {
         return [field.key, Boolean(value)]
@@ -315,7 +319,7 @@ export function normalizeAnswers(fields: IntakeField[], answers: Record<string, 
         return [field.key, Array.isArray(value) ? value : []]
       }
       if (field.fieldType === 'file') {
-        return [field.key, Array.isArray(value) ? value : missing(value) ? [] : [value]]
+        return [field.key, Array.isArray(value) ? value : missing(value, field) ? [] : [value]]
       }
 
       return [field.key, value]
