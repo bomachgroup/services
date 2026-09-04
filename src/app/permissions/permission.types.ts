@@ -22,6 +22,7 @@ export const VERIFIED_APP_PERMISSION_VALUES = [
   'employees.list',
   'clients.list',
   'clients.create',
+  'leads.list',
   'services.list',
   'services.view',
   'services.create',

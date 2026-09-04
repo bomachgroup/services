@@ -138,7 +138,7 @@ export const operationsNavigation = [
     items: [
       {
         id: 'real-estate-inventory',
-        label: 'Real Estate Inventory',
+        label: 'Real Estate',
         icon: 'services',
         to: appSectionRoute,
         params: { section: 'real-estate-inventory' },

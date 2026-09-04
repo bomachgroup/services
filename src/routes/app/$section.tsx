@@ -57,6 +57,12 @@ const DeliverablesLivePage = lazy(() =>
   })),
 )
 
+const RealEstateHubLivePage = lazy(() =>
+  import('@/modules/specialized-services/pages/RealEstateHubLivePage').then((module) => ({
+    default: module.RealEstateHubLivePage,
+  })),
+)
+
 const RealEstateInventoryLivePage = lazy(() =>
   import('@/modules/specialized-services/pages/RealEstateInventoryLivePage').then((module) => ({
     default: module.RealEstateInventoryLivePage,
@@ -106,6 +112,8 @@ export type AppSectionSearch = AppRecordSearch & {
   ratingMin?: number
   estate?: string
   property?: string
+  standaloneProperty?: string
+  brokerage?: string
   page?: number
   parentId?: number
 }
@@ -138,6 +146,8 @@ export function parseRecordSearch(search: Record<string, unknown>): AppSectionSe
   const deliverable = identifierValue(search.deliverable)
   const estate = identifierValue(search.estate)
   const property = identifierValue(search.property) ?? identifierValue(search.plot)
+  const standaloneProperty = identifierValue(search.standaloneProperty)
+  const brokerage = identifierValue(search.brokerage)
   const feedback = identifierValue(search.feedback)
   const create = stringValue(search.create)
 
@@ -199,6 +209,8 @@ export function parseRecordSearch(search: Record<string, unknown>): AppSectionSe
   if (deliverable) result.deliverable = deliverable
   if (estate) result.estate = estate
   if (property) result.property = property
+  if (standaloneProperty) result.standaloneProperty = standaloneProperty
+  if (brokerage) result.brokerage = brokerage
   if (feedback) result.feedback = feedback
   if (create) result.create = create
 
@@ -284,7 +296,11 @@ function AppShellRouteContent() {
   if (section === 'feedback-quality') return <FeedbackQualityLivePage recordSearch={recordSearch} />
   if (section === 'reports-analytics') return <ReportsAnalyticsLivePage />
   if (section === 'real-estate-inventory')
-    return <RealEstateInventoryLivePage recordSearch={recordSearch} />
+    return recordSearch.estate ? (
+      <RealEstateInventoryLivePage recordSearch={recordSearch} />
+    ) : (
+      <RealEstateHubLivePage recordSearch={recordSearch} />
+    )
   if (section === 'survey-engineering-others')
     return <SpecializedOperationsLivePage recordSearch={recordSearch} />
 

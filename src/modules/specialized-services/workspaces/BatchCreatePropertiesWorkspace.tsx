@@ -3,10 +3,13 @@ import { useMemo, useState } from 'react'
 
 import { presentError } from '@/shared/errors'
 
+import { RealEstateFormDropdown } from '../components/RealEstateFormDropdown'
 import { realEstateApi } from '../real-estate/real-estate.api'
 import { buildPropertyBatch } from '../real-estate/property-batch'
 import {
+  commercialBuildingTypes,
   propertyStatuses,
+  residentialBuildingTypes,
   type CreatePropertyInput,
   type PropertyBatchItem,
   type PropertyType,
@@ -322,21 +325,14 @@ export function BatchCreatePropertiesWorkspace({
                       onChange={(event) => setPrice(parseNonNegativeNumber(event.target.value))}
                     />
                   </label>
-                  <label className="commercial-field">
-                    <span>Initial status</span>
-                    <select
-                      value={status}
-                      onChange={(event) =>
-                        setStatus(event.target.value as CreatePropertyInput['status'])
-                      }
-                    >
-                      {propertyStatuses.map((item) => (
-                        <option key={item.value} value={item.value}>
-                          {item.label}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
+                  <RealEstateFormDropdown
+                    label="Initial status"
+                    options={propertyStatuses}
+                    value={status}
+                    onChange={(nextValue) =>
+                      setStatus(nextValue as CreatePropertyInput['status'])
+                    }
+                  />
 
                   {propertyType === 'plot' ? (
                     <label className="commercial-field">
@@ -359,23 +355,13 @@ export function BatchCreatePropertiesWorkspace({
 
                   {propertyType === 'residential' ? (
                     <>
-                      <label className="commercial-field">
-                        <span>
-                          Residential type <em>*</em>
-                        </span>
-                        <select
-                          value={residentialType}
-                          onChange={(event) => setResidentialType(event.target.value)}
-                        >
-                          <option value="house">House</option>
-                          <option value="villa">Villa</option>
-                          <option value="apartment">Apartment</option>
-                          <option value="townhouse">Townhouse</option>
-                          <option value="duplex">Duplex</option>
-                          <option value="bungalow">Bungalow</option>
-                          <option value="penthouse">Penthouse</option>
-                        </select>
-                      </label>
+                      <RealEstateFormDropdown
+                        label="Residential type"
+                        required
+                        options={residentialBuildingTypes}
+                        value={residentialType}
+                        onChange={setResidentialType}
+                      />
                       <label className="commercial-field">
                         <span>
                           Bedrooms <em>*</em>
@@ -440,22 +426,13 @@ export function BatchCreatePropertiesWorkspace({
 
                   {propertyType === 'commercial' ? (
                     <>
-                      <label className="commercial-field">
-                        <span>
-                          Commercial type <em>*</em>
-                        </span>
-                        <select
-                          value={commercialType}
-                          onChange={(event) => setCommercialType(event.target.value)}
-                        >
-                          <option value="office">Office</option>
-                          <option value="retail">Retail Space</option>
-                          <option value="warehouse">Warehouse</option>
-                          <option value="shopping_mall">Shopping Mall</option>
-                          <option value="hotel">Hotel</option>
-                          <option value="mixed_use">Mixed Use</option>
-                        </select>
-                      </label>
+                      <RealEstateFormDropdown
+                        label="Commercial type"
+                        required
+                        options={commercialBuildingTypes}
+                        value={commercialType}
+                        onChange={setCommercialType}
+                      />
                       <label className="commercial-field">
                         <span>
                           Total area <em>*</em>
