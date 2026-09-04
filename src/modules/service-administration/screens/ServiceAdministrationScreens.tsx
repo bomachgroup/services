@@ -2,10 +2,12 @@ import { IconApps, IconChevronDown, IconChevronRight, IconCopy } from '@tabler/i
 import { useEffect, useMemo, useRef, useState } from 'react'
 
 import { AccessLockIcon } from '@/shared/ui/module-controls'
+import { DropdownSelect } from '@/shared/ui/dropdown-select'
 import {
   RequestFormBuilderPanel,
   RequestFormBuilderSaveButton,
 } from '../components/RequestFormBuilderPanel'
+import { SERVICE_CATALOGUE_STATUS_FILTER_OPTIONS } from '../components/service-admin-dropdown-options'
 import type {
   PricingCalculator,
   PricingType,
@@ -301,32 +303,32 @@ export function ServiceCatalogueScreen({
             }}
             placeholder="Search services..."
           />
-          <select
+          <DropdownSelect
+            compact
+            placeholder="All statuses"
+            options={SERVICE_CATALOGUE_STATUS_FILTER_OPTIONS}
             value={status}
-            onChange={(event) => applyFilters({ status: event.target.value })}
-          >
-            <option value="">All statuses</option>
-            <option value="active">Active</option>
-            <option value="draft">Draft</option>
-            <option value="inactive">Inactive</option>
-          </select>
+            onChange={(value) => applyFilters({ status: value })}
+          />
           {parents.length > 0 ? (
-            <select
-              value={parentId ?? ''}
-              onChange={(event) => {
-                const value = event.target.value
+            <DropdownSelect
+              compact
+              className="ui-dropdown--parent-filter"
+              placeholder="All parent services"
+              options={[
+                { value: '', label: 'All parent services' },
+                ...parents.map((parent) => ({
+                  value: String(parent.id),
+                  label: parent.name,
+                })),
+              ]}
+              value={parentId != null ? String(parentId) : ''}
+              onChange={(value) => {
                 applyFilters({
                   parentId: value ? Number(value) : null,
                 })
               }}
-            >
-              <option value="">All parent services</option>
-              {parents.map((parent) => (
-                <option key={parent.id} value={parent.id}>
-                  {parent.name}
-                </option>
-              ))}
-            </select>
+            />
           ) : null}
           <span className="service-admin-grow" />
           <button
@@ -820,25 +822,19 @@ export function RequestFormBuilderScreen({
             : 'Choose a service to start designing its request form.'
         }
         headerAction={
-          <label className="service-admin-request-service-picker">
-            <span>Service</span>
-            <select
-              aria-label="Select service"
-              value={selectedService?.id ?? ''}
-              disabled={services.length === 0}
-              onChange={(event) => onSelectedServiceChange(event.target.value)}
-            >
-              {services.length === 0 ? (
-                <option value="">Create a service first</option>
-              ) : (
-                services.map((service) => (
-                  <option key={service.id} value={service.id}>
-                    {service.name}
-                  </option>
-                ))
-              )}
-            </select>
-          </label>
+          <DropdownSelect
+            label="Service"
+            compact
+            className="service-admin-request-service-dropdown"
+            placeholder={services.length === 0 ? 'Create a service first' : 'Select a service'}
+            disabled={services.length === 0}
+            options={services.map((service) => ({
+              value: String(service.id),
+              label: service.name,
+            }))}
+            value={selectedService?.id != null ? String(selectedService.id) : ''}
+            onChange={(value) => onSelectedServiceChange(value)}
+          />
         }
         paletteFooter={
           <RequestFormBuilderSaveButton

@@ -14,6 +14,21 @@ type FieldDraft = {
   key: string
   type: RequestFormField['type']
   required: boolean
+  options: string[]
+}
+
+function fieldSupportsOptions(
+  type: RequestFormField['type'],
+  fieldTypes: RequestFieldTypeOption[],
+) {
+  return fieldTypes.find((item) => item.value === type)?.supportsOptions ?? false
+}
+
+function defaultOptionsForType(
+  type: RequestFormField['type'],
+  fieldTypes: RequestFieldTypeOption[],
+) {
+  return fieldSupportsOptions(type, fieldTypes) ? [''] : []
 }
 
 function fieldToDraft(field: RequestFormField): FieldDraft {
@@ -22,15 +37,20 @@ function fieldToDraft(field: RequestFormField): FieldDraft {
     key: field.key,
     type: field.type,
     required: field.required,
+    options: field.options?.length ? [...field.options] : [''],
   }
 }
 
-function defaultFieldDraft(type: RequestFormField['type']): FieldDraft {
+function defaultFieldDraft(
+  type: RequestFormField['type'],
+  fieldTypes: RequestFieldTypeOption[],
+): FieldDraft {
   return {
     label: '',
     key: '',
     type,
     required: false,
+    options: defaultOptionsForType(type, fieldTypes),
   }
 }
 
@@ -74,13 +94,25 @@ export function RequestFormBuilderPanel({
   const paletteDisabled = !canEdit
 
   const openCreate = (type: RequestFormField['type']) => {
-    setFieldEditor({ mode: 'create', draft: defaultFieldDraft(type) })
+    setFieldEditor({ mode: 'create', draft: defaultFieldDraft(type, fieldTypes) })
   }
 
   const openEdit = (index: number) => {
     const field = fields[index]
     if (!field) return
-    setFieldEditor({ mode: 'edit', index, draft: fieldToDraft(field) })
+    const supportsOptions = fieldSupportsOptions(field.type, fieldTypes)
+    setFieldEditor({
+      mode: 'edit',
+      index,
+      draft: {
+        ...fieldToDraft(field),
+        options: supportsOptions
+          ? field.options?.length
+            ? [...field.options]
+            : ['']
+          : [],
+      },
+    })
   }
 
   const closeEditor = () => {
@@ -102,16 +134,30 @@ export function RequestFormBuilderPanel({
     }
 
     const key = fieldEditor.draft.key.trim() || labelToKey(label)
+    const supportsOptions = fieldSupportsOptions(fieldEditor.draft.type, fieldTypes)
+    const options = supportsOptions
+      ? fieldEditor.draft.options.map((option) => option.trim()).filter(Boolean)
+      : []
+
+    if (supportsOptions && options.length === 0) {
+      toast.error('Add at least one option for this field')
+      return
+    }
+
+    const nextField = {
+      label,
+      key,
+      type: fieldEditor.draft.type,
+      required: fieldEditor.draft.required,
+      ...(supportsOptions ? { options } : {}),
+    }
 
     if (fieldEditor.mode === 'create') {
       onFieldsChange([
         ...fields,
         {
           id: `field-${Date.now()}`,
-          label,
-          key,
-          type: fieldEditor.draft.type,
-          required: fieldEditor.draft.required,
+          ...nextField,
         },
       ])
     } else {
@@ -120,10 +166,7 @@ export function RequestFormBuilderPanel({
           index === fieldEditor.index
             ? {
                 ...item,
-                label,
-                key,
-                type: fieldEditor.draft.type,
-                required: fieldEditor.draft.required,
+                ...nextField,
               }
             : item,
         ),
@@ -205,6 +248,7 @@ export function RequestFormBuilderPanel({
                     <b>{field.label}</b>
                     <small>
                       {field.type} · {field.required ? 'Required' : 'Optional'}
+                      {field.options?.length ? ` · ${field.options.length} options` : ''}
                     </small>
                   </div>
                   {canEdit ? (
@@ -269,9 +313,18 @@ export function RequestFormBuilderPanel({
                 <span>Type</span>
                 <select
                   value={fieldEditor.draft.type}
-                  onChange={(event) =>
-                    updateDraft({ type: event.target.value as RequestFormField['type'] })
-                  }
+                  onChange={(event) => {
+                    const nextType = event.target.value as RequestFormField['type']
+                    const supportsOptions = fieldSupportsOptions(nextType, fieldTypes)
+                    updateDraft({
+                      type: nextType,
+                      options: supportsOptions
+                        ? fieldEditor.draft.options.length
+                          ? fieldEditor.draft.options
+                          : ['']
+                        : [],
+                    })
+                  }}
                 >
                   {fieldTypes.length > 0 ? (
                     fieldTypes.map((type) => (
@@ -292,6 +345,52 @@ export function RequestFormBuilderPanel({
                   )}
                 </select>
               </label>
+              {fieldSupportsOptions(fieldEditor.draft.type, fieldTypes) ? (
+                <div className="service-admin-field-options-editor">
+                  <div className="service-admin-field-options-editor-header">
+                    <span>Options</span>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        updateDraft({ options: [...fieldEditor.draft.options, ''] })
+                      }
+                    >
+                      + Add option
+                    </button>
+                  </div>
+                  <div className="service-admin-field-options-list">
+                    {fieldEditor.draft.options.map((option, optionIndex) => (
+                      <div key={optionIndex} className="service-admin-field-option-row">
+                        <input
+                          placeholder={`Option ${optionIndex + 1}`}
+                          value={option}
+                          onChange={(event) =>
+                            updateDraft({
+                              options: fieldEditor.draft.options.map((item, index) =>
+                                index === optionIndex ? event.target.value : item,
+                              ),
+                            })
+                          }
+                        />
+                        <button
+                          type="button"
+                          aria-label={`Remove option ${optionIndex + 1}`}
+                          disabled={fieldEditor.draft.options.length <= 1}
+                          onClick={() =>
+                            updateDraft({
+                              options: fieldEditor.draft.options.filter(
+                                (_, index) => index !== optionIndex,
+                              ),
+                            })
+                          }
+                        >
+                          Remove
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
               <label className="service-admin-field-editor-check">
                 <input
                   type="checkbox"
