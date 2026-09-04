@@ -156,6 +156,8 @@ export interface ServiceOption {
   code: string
   name: string
   parentName: string
+  specializedServiceId?: number | null
+  specializedDomain?: string | null
   activeBranches: BranchOption[]
 }
 
@@ -256,6 +258,7 @@ export interface CreateServiceRequestInput {
   nextAction: string
   scopeSummary: string
   answers: Record<string, unknown>
+  crmLeadId?: number
 }
 
 export interface UpdateServiceRequestInput {

@@ -201,6 +201,11 @@ export function mapClients(payload: unknown): ClientOption[] {
   return rows.map((item) => mapClient(item))
 }
 
+export function mapClientsPage(payload: unknown): PaginatedResult<ClientOption> {
+  const { count, rows } = paginatedRows(payload)
+  return { count, items: rows.map((item) => mapClient(item)) }
+}
+
 export function mapServices(payload: unknown): ServiceOption[] {
   const { rows } = paginatedRows(payload)
   return rows.map((item) => {
@@ -210,6 +215,8 @@ export function mapServices(payload: unknown): ServiceOption[] {
       code: text(row.code),
       name: text(row.name),
       parentName: text(row.parent_name ?? row.parentName),
+      specializedServiceId: nullableNumber(row.specialized_service_id),
+      specializedDomain: nullableText(row.specialized_domain),
       activeBranches: array(row.active_branches).map((item) => {
         const branch = record(item)
         return {

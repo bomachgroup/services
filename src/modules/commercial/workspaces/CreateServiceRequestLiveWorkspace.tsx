@@ -9,7 +9,7 @@ import {
   IconX,
 } from '@tabler/icons-react'
 import { useForm } from '@tanstack/react-form'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import { useAuth } from '@/app/auth'
@@ -20,6 +20,7 @@ import { ApiError } from '@/shared/api/api-error'
 import { formatCurrency } from '@/shared/lib/formatters'
 import { parseNumberFieldValue } from '@/shared/lib/number-input'
 import { Button } from '@/shared/ui/button'
+import { DropdownSelect, mapDropdownOptions } from '@/shared/ui/dropdown-select'
 import { EmptyState } from '@/shared/ui/empty-state'
 import { useToast } from '@/shared/ui/toast/useToast'
 
@@ -34,6 +35,13 @@ import type {
   ServiceOption,
   ServiceRequestChoices,
 } from '../api/service-requests.types'
+import type { MarketingLeadOption } from '../api/marketing-leads.types'
+
+import {
+  resolveSpecializedRequestPlugin,
+  SpecializedRequestContextPanel,
+  type SpecializedRequestHandoff,
+} from '@/modules/specialized-services/request-plugins'
 
 import { RequestIntakeFields } from '../request-intake/RequestIntakeFields'
 import type { PendingUpload } from '../request-intake/request-intake.types'
@@ -52,12 +60,42 @@ import {
   validateAnswers,
 } from '../request-intake/request-intake.utils'
 
-type ServiceOptionGroup = {
-  parentName: string
-  services: ServiceOption[]
+type NewClientField = 'firstName' | 'lastName' | 'email' | 'phoneNumber'
+type ClientDirectoryTab = 'clients' | 'leads'
+
+const OTHERS_PARENT_KEY = '__others__'
+const OTHERS_PARENT_LABEL = 'Others'
+
+function serviceParentKey(service: ServiceOption): string {
+  return service.parentName.trim() ? service.parentName.trim() : OTHERS_PARENT_KEY
 }
 
-type NewClientField = 'firstName' | 'lastName' | 'email' | 'phoneNumber'
+function buildParentServiceOptions(services: ServiceOption[]) {
+  const parentNames = new Set<string>()
+  let hasOthers = false
+
+  for (const service of services) {
+    const parentName = service.parentName.trim()
+    if (parentName) parentNames.add(parentName)
+    else hasOthers = true
+  }
+
+  const options = [...parentNames]
+    .sort((left, right) => left.localeCompare(right))
+    .map((parentName) => ({ key: parentName, label: parentName }))
+
+  if (hasOthers) {
+    options.push({ key: OTHERS_PARENT_KEY, label: OTHERS_PARENT_LABEL })
+  }
+
+  return options
+}
+
+function servicesForParent(services: ServiceOption[], parentKey: string) {
+  return services
+    .filter((service) => serviceParentKey(service) === parentKey)
+    .sort((left, right) => left.name.localeCompare(right.name))
+}
 
 const NEW_CLIENT_FIELD_ORDER: NewClientField[] = ['firstName', 'lastName', 'email', 'phoneNumber']
 
@@ -121,26 +159,60 @@ function firstNewClientFieldWithError(
   return NEW_CLIENT_FIELD_ORDER.find((field) => errors[field]) ?? null
 }
 
-function groupServiceOptions(services: ServiceOption[]): ServiceOptionGroup[] {
-  const grouped = new Map<string, ServiceOption[]>()
+function splitFullName(fullName: string): { firstName: string; lastName: string } {
+  const trimmed = fullName.trim()
+  if (!trimmed) return { firstName: '', lastName: '' }
 
-  for (const service of services) {
-    const parentName = service.parentName.trim() || 'Other services'
-    const current = grouped.get(parentName) ?? []
-    current.push(service)
-    grouped.set(parentName, current)
-  }
+  const parts = trimmed.split(/\s+/)
+  if (parts.length === 1) return { firstName: parts[0], lastName: '' }
 
-  return [...grouped.entries()]
-    .sort(([left], [right]) => left.localeCompare(right))
-    .map(([parentName, groupServices]) => ({
-      parentName,
-      services: groupServices.sort((left, right) => left.name.localeCompare(right.name)),
-    }))
+  return { firstName: parts[0], lastName: parts.slice(1).join(' ') }
+}
+
+function useDirectoryScrollLoadMore({
+  enabled,
+  hasMore,
+  isLoading,
+  isLoadingMore,
+  onLoadMore,
+  itemCount,
+}: {
+  enabled: boolean
+  hasMore: boolean
+  isLoading: boolean
+  isLoadingMore: boolean
+  onLoadMore?: () => void
+  itemCount: number
+}) {
+  const scrollRef = useRef<HTMLDivElement | null>(null)
+  const sentinelRef = useRef<HTMLTableRowElement | null>(null)
+
+  useEffect(() => {
+    if (!enabled || !hasMore || isLoading || isLoadingMore || !onLoadMore) return
+
+    const root = scrollRef.current
+    const target = sentinelRef.current
+    if (!root || !target) return
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0]?.isIntersecting) onLoadMore()
+      },
+      { root, rootMargin: '48px' },
+    )
+
+    observer.observe(target)
+    return () => observer.disconnect()
+  }, [enabled, hasMore, isLoading, isLoadingMore, itemCount, onLoadMore])
+
+  return { scrollRef, sentinelRef }
 }
 
 function ClientResultsTable({
   loading,
+  loadingMore = false,
+  hasMore = false,
+  onLoadMore,
   emptyMessage,
   clients: clientRows,
   selectedClientId = 0,
@@ -149,6 +221,9 @@ function ClientResultsTable({
   compact = false,
 }: {
   loading?: boolean
+  loadingMore?: boolean
+  hasMore?: boolean
+  onLoadMore?: () => void
   emptyMessage?: string
   clients: ClientOption[]
   selectedClientId?: number
@@ -156,14 +231,22 @@ function ClientResultsTable({
   interactive?: boolean
   compact?: boolean
 }) {
+  const { scrollRef, sentinelRef } = useDirectoryScrollLoadMore({
+    enabled: interactive && Boolean(onLoadMore),
+    hasMore,
+    isLoading: Boolean(loading),
+    isLoadingMore: loadingMore,
+    onLoadMore,
+    itemCount: clientRows.length,
+  })
   const wrapClassName = compact
     ? 'commercial-table-wrap commercial-client-table-wrap commercial-client-table-wrap--compact'
     : 'commercial-table-wrap commercial-client-table-wrap'
 
-  if (loading) {
+  if (loading && clientRows.length === 0) {
     return (
       <div className={wrapClassName}>
-        <div className="commercial-client-results-empty">Searching clients...</div>
+        <div className="commercial-client-results-empty">Loading clients...</div>
       </div>
     )
   }
@@ -179,7 +262,7 @@ function ClientResultsTable({
   }
 
   return (
-    <div className={wrapClassName}>
+    <div className={wrapClassName} ref={scrollRef}>
       <table className="commercial-table commercial-table--fit commercial-client-table">
         <thead>
           <tr>
@@ -234,6 +317,131 @@ function ClientResultsTable({
               </tr>
             )
           })}
+          {hasMore ? (
+            <tr ref={sentinelRef} className="commercial-directory-load-row">
+              <td colSpan={4}>
+                {loadingMore ? (
+                  <span className="commercial-directory-load-copy">Loading more clients...</span>
+                ) : (
+                  <span className="commercial-directory-load-copy commercial-directory-load-copy--hint">
+                    Scroll for more
+                  </span>
+                )}
+              </td>
+            </tr>
+          ) : null}
+        </tbody>
+      </table>
+    </div>
+  )
+}
+
+function LeadResultsTable({
+  loading,
+  loadingMore = false,
+  hasMore = false,
+  onLoadMore,
+  emptyMessage,
+  leads: leadRows,
+  selectedLeadId = 0,
+  onSelect,
+}: {
+  loading?: boolean
+  loadingMore?: boolean
+  hasMore?: boolean
+  onLoadMore?: () => void
+  emptyMessage?: string
+  leads: MarketingLeadOption[]
+  selectedLeadId?: number
+  onSelect?: (lead: MarketingLeadOption) => void
+}) {
+  const { scrollRef, sentinelRef } = useDirectoryScrollLoadMore({
+    enabled: Boolean(onSelect),
+    hasMore,
+    isLoading: Boolean(loading),
+    isLoadingMore: loadingMore,
+    onLoadMore,
+    itemCount: leadRows.length,
+  })
+  const wrapClassName = 'commercial-table-wrap commercial-client-table-wrap'
+
+  if (loading && leadRows.length === 0) {
+    return (
+      <div className={wrapClassName}>
+        <div className="commercial-client-results-empty">Loading marketing leads...</div>
+      </div>
+    )
+  }
+
+  if (leadRows.length === 0) {
+    return (
+      <div className={wrapClassName}>
+        <div className="commercial-client-results-empty">
+          {emptyMessage ?? 'No marketing leads to show.'}
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className={wrapClassName} ref={scrollRef}>
+      <table className="commercial-table commercial-table--fit commercial-client-table commercial-lead-table">
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Phone</th>
+            <th>Email</th>
+            <th>Status</th>
+            <th>Client</th>
+          </tr>
+        </thead>
+        <tbody>
+          {leadRows.map((lead) => {
+            const selected = selectedLeadId === lead.id
+            const rowClassName = selected ? 'commercial-table-row--selected' : undefined
+
+            return (
+              <tr
+                key={lead.id}
+                className={rowClassName}
+                tabIndex={0}
+                role="button"
+                aria-selected={selected}
+                onPointerDown={(event) => {
+                  if (event.button !== 0 || !onSelect) return
+                  event.preventDefault()
+                  onSelect(lead)
+                }}
+                onKeyDown={(event) => {
+                  if (!onSelect) return
+                  if (event.key !== 'Enter' && event.key !== ' ') return
+                  event.preventDefault()
+                  onSelect(lead)
+                }}
+              >
+                <td>
+                  <b>{lead.fullName}</b>
+                </td>
+                <td>{lead.phone || '—'}</td>
+                <td>{lead.email || '—'}</td>
+                <td>{lead.statusDisplay || lead.status || '—'}</td>
+                <td>{lead.linkedClientName ?? 'Create client'}</td>
+              </tr>
+            )
+          })}
+          {hasMore ? (
+            <tr ref={sentinelRef} className="commercial-directory-load-row">
+              <td colSpan={5}>
+                {loadingMore ? (
+                  <span className="commercial-directory-load-copy">Loading more leads...</span>
+                ) : (
+                  <span className="commercial-directory-load-copy commercial-directory-load-copy--hint">
+                    Scroll for more
+                  </span>
+                )}
+              </td>
+            </tr>
+          ) : null}
         </tbody>
       </table>
     </div>
@@ -245,26 +453,32 @@ export function CreateServiceRequestLiveWorkspace({
   services,
   choices,
   saving,
+  initialServiceId = 0,
   onClose,
   onSubmit,
+  onContinueSpecialized,
 }: {
   clients: ClientOption[]
   services: ServiceOption[]
   choices: ServiceRequestChoices
   saving: boolean
+  initialServiceId?: number
   onClose: () => void
   onSubmit: (
     input: CreateServiceRequestInput,
     attachments: CreateServiceRequestAttachmentInput[],
   ) => Promise<unknown> | void
+  onContinueSpecialized?: (handoff: SpecializedRequestHandoff) => Promise<unknown> | void
 }) {
   const toast = useToast()
   const queryClient = useQueryClient()
   const { user } = useAuth()
   const canSearchClients = hasPermission(user, PERMISSIONS.clientsList)
   const canCreateClient = hasPermission(user, PERMISSIONS.clientsCreate)
+  const canSearchLeads = hasPermission(user, PERMISSIONS.leadsList)
   const activeClients = clients.filter((item) => item.active)
-  const groupedServices = useMemo(() => groupServiceOptions(services), [services])
+  const parentServiceOptions = useMemo(() => buildParentServiceOptions(services), [services])
+  const [parentServiceKey, setParentServiceKey] = useState('')
   const [serviceId, setServiceId] = useState(0)
   const [error, setError] = useState('')
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
@@ -277,17 +491,26 @@ export function CreateServiceRequestLiveWorkspace({
   const [createClientFormError, setCreateClientFormError] = useState('')
   const [clientSearchDraft, setClientSearchDraft] = useState('')
   const [clientSearch, setClientSearch] = useState('')
+  const [clientDirectoryTab, setClientDirectoryTab] = useState<ClientDirectoryTab>('clients')
+  const [leadSearchDraft, setLeadSearchDraft] = useState('')
+  const [leadSearch, setLeadSearch] = useState('')
+  const [selectedMarketingLead, setSelectedMarketingLead] = useState<MarketingLeadOption | null>(
+    null,
+  )
   const [newClientFirstName, setNewClientFirstName] = useState('')
   const [newClientLastName, setNewClientLastName] = useState('')
   const [newClientEmail, setNewClientEmail] = useState('')
   const [newClientPhone, setNewClientPhone] = useState('')
   const [uploadsByField, setUploadsByField] = useState<Record<string, PendingUpload[]>>({})
   const [answerValues, setAnswerValues] = useState<Record<string, unknown>>({})
+  const [specializedContextDraft, setSpecializedContextDraft] = useState<unknown | null>(null)
+  const [specializedContextError, setSpecializedContextError] = useState('')
   const controllersRef = useRef<Record<string, AbortController>>({})
   const uploadIdRef = useRef(0)
   const fieldRefs = useRef<Record<string, HTMLElement | null>>({})
   const newClientFieldRefs = useRef<Partial<Record<NewClientField, HTMLInputElement | null>>>({})
   const pickedClientRef = useRef<ClientOption | null>(null)
+  const crmLeadIdRef = useRef<number | null>(null)
 
   const focusNewClientField = useCallback((field: NewClientField) => {
     window.requestAnimationFrame(() => {
@@ -306,17 +529,34 @@ export function CreateServiceRequestLiveWorkspace({
     })
   }, [])
 
+  const selectedService = services.find((item) => item.id === serviceId) ?? null
+  const activeSpecializedPlugin = useMemo(
+    () => resolveSpecializedRequestPlugin(selectedService),
+    [selectedService],
+  )
+  const usesSpecializedFlow = Boolean(activeSpecializedPlugin?.skipIntakeForm)
+  const specializedContext = useMemo(() => {
+    if (!activeSpecializedPlugin) return null
+    if (specializedContextDraft !== null) return specializedContextDraft
+    return activeSpecializedPlugin.initialContext()
+  }, [activeSpecializedPlugin, specializedContextDraft])
+
   const intakeQuery = useQuery({
     ...serviceRequestQueries.intake(serviceId),
-    enabled: serviceId > 0,
+    enabled: serviceId > 0 && !usesSpecializedFlow,
   })
   const pricingConfigQuery = useQuery({
     ...serviceRequestQueries.pricingConfig(serviceId),
-    enabled: serviceId > 0,
+    enabled: serviceId > 0 && !usesSpecializedFlow,
   })
-  const clientSearchQuery = useQuery({
-    ...serviceRequestQueries.clientSearch(clientSearch),
-    enabled: canSearchClients && clientSearch.trim().length >= 2,
+  const isBrowsingDirectory = !showCreateClient && !pickedClient
+  const clientDirectoryQuery = useInfiniteQuery({
+    ...serviceRequestQueries.clientDirectory(clientSearch),
+    enabled: canSearchClients && isBrowsingDirectory && clientDirectoryTab === 'clients',
+  })
+  const leadDirectoryQuery = useInfiniteQuery({
+    ...serviceRequestQueries.marketingLeadDirectory(leadSearch),
+    enabled: canSearchLeads && isBrowsingDirectory && clientDirectoryTab === 'leads',
   })
 
   useEffect(() => {
@@ -329,7 +569,20 @@ export function CreateServiceRequestLiveWorkspace({
     return () => window.clearTimeout(timeoutId)
   }, [clientSearchDraft, clientSearch])
 
-  const selectedService = services.find((item) => item.id === serviceId) ?? null
+  useEffect(() => {
+    if (leadSearchDraft === leadSearch) return
+
+    const timeoutId = window.setTimeout(() => {
+      setLeadSearch(leadSearchDraft.trim())
+    }, 350)
+
+    return () => window.clearTimeout(timeoutId)
+  }, [leadSearchDraft, leadSearch])
+
+  const childServices = useMemo(
+    () => (parentServiceKey ? servicesForParent(services, parentServiceKey) : []),
+    [parentServiceKey, services],
+  )
   const branches = selectedService?.activeBranches ?? []
   const fields = intakeQuery.data?.form.fields ?? []
   const hasBudgetField = fields.some(isBudgetField)
@@ -369,6 +622,11 @@ export function CreateServiceRequestLiveWorkspace({
         return
       }
 
+      if (!parentServiceKey) {
+        setError('Select a parent service.')
+        return
+      }
+
       if (!serviceId) {
         setError('Select a service.')
         return
@@ -376,6 +634,46 @@ export function CreateServiceRequestLiveWorkspace({
 
       if (branches.length > 0 && !value.branchId) {
         setError('Select a fulfilling branch.')
+        return
+      }
+
+      if (activeSpecializedPlugin && usesSpecializedFlow) {
+        const contextError = activeSpecializedPlugin.validateContext(specializedContext)
+        if (contextError) {
+          setSpecializedContextError(contextError)
+          setError(contextError)
+          return
+        }
+
+        if (!onContinueSpecialized || !selectedService) {
+          setError('This specialized service flow is not available.')
+          return
+        }
+
+        setError('')
+        setSpecializedContextError('')
+
+        try {
+          const handoff = activeSpecializedPlugin.buildHandoff({
+            service: selectedService,
+            context: specializedContext,
+            client: pickedClientRef.current,
+            formValues: {
+              contactName: value.contactName.trim(),
+              contactPhone: value.contactPhone.trim(),
+              contactEmail: value.contactEmail.trim(),
+              customerType: value.customerType,
+              source: value.source,
+              sourceReference: value.sourceReference.trim(),
+              priority: value.priority,
+              branchId: value.branchId,
+              crmLeadId: crmLeadIdRef.current,
+            },
+          })
+          await onContinueSpecialized(handoff)
+        } catch (continueError) {
+          setError(presentError(continueError, 'form-submit').message)
+        }
         return
       }
 
@@ -501,6 +799,7 @@ export function CreateServiceRequestLiveWorkspace({
             nextAction: value.nextAction.trim(),
             scopeSummary: derivedScopeSummary,
             answers: normalizedAnswers,
+            ...(crmLeadIdRef.current ? { crmLeadId: crmLeadIdRef.current } : {}),
           },
           attachments,
         )
@@ -509,6 +808,28 @@ export function CreateServiceRequestLiveWorkspace({
       }
     },
   })
+
+  useEffect(() => {
+    if (!serviceId) return
+    const service = services.find((item) => item.id === serviceId)
+    if (!service) return
+    const nextParentKey = serviceParentKey(service)
+    setParentServiceKey((current) => (current === nextParentKey ? current : nextParentKey))
+  }, [serviceId, services])
+
+  useEffect(() => {
+    if (!initialServiceId || initialServiceId <= 0 || services.length === 0) return
+    const service = services.find((item) => item.id === initialServiceId)
+    if (!service || serviceId === service.id) return
+    setParentServiceKey(serviceParentKey(service))
+    setServiceId(service.id)
+    form.setFieldValue('branchId', service.activeBranches[0]?.id ?? 0)
+  }, [form, initialServiceId, serviceId, services])
+
+  useEffect(() => {
+    setSpecializedContextDraft(null)
+    setSpecializedContextError('')
+  }, [serviceId, activeSpecializedPlugin?.domain])
 
   const updateUploadsForField = (
     fieldKey: string,
@@ -542,9 +863,62 @@ export function CreateServiceRequestLiveWorkspace({
     [form],
   )
 
+  const openCreateClientFromLead = useCallback(
+    (lead: MarketingLeadOption) => {
+      const { firstName, lastName } = splitFullName(lead.fullName)
+      pickedClientRef.current = null
+      setPickedClient(null)
+      setSelectedMarketingLead(lead)
+      crmLeadIdRef.current = lead.id
+      form.setFieldValue('clientId', 0)
+      form.setFieldValue('contactName', lead.fullName)
+      form.setFieldValue('contactPhone', lead.phone ?? '')
+      form.setFieldValue('contactEmail', lead.email ?? '')
+      form.setFieldValue('sourceReference', `LEAD-${lead.id}`)
+      setNewClientFirstName(firstName)
+      setNewClientLastName(lastName)
+      setNewClientEmail(lead.email)
+      setNewClientPhone(lead.phone)
+      setShowCreateClient(true)
+      setCreateClientFormError('')
+      setNewClientFieldErrors({})
+      setClientSearchDraft('')
+      setClientSearch('')
+      setLeadSearchDraft('')
+      setLeadSearch('')
+      setError('')
+    },
+    [form],
+  )
+
+  const chooseLead = useCallback(
+    (lead: MarketingLeadOption) => {
+      setSelectedMarketingLead(lead)
+      crmLeadIdRef.current = lead.id
+      form.setFieldValue('sourceReference', `LEAD-${lead.id}`)
+
+      if (lead.linkedClientId) {
+        chooseClient({
+          id: lead.linkedClientId,
+          name: lead.linkedClientName || lead.fullName,
+          email: lead.email,
+          phone: lead.phone,
+          companyName: '',
+          active: true,
+        })
+        return
+      }
+
+      openCreateClientFromLead(lead)
+    },
+    [chooseClient, form, openCreateClientFromLead],
+  )
+
   const clearClientSelection = useCallback(() => {
     pickedClientRef.current = null
     setPickedClient(null)
+    setSelectedMarketingLead(null)
+    crmLeadIdRef.current = null
     form.setFieldValue('clientId', 0)
     form.setFieldValue('contactName', '')
     form.setFieldValue('contactPhone', '')
@@ -559,14 +933,9 @@ export function CreateServiceRequestLiveWorkspace({
     setNewClientFieldErrors({})
     setClientSearchDraft('')
     setClientSearch('')
-  }, [
-    clearClientSelection,
-    setClientSearch,
-    setClientSearchDraft,
-    setCreateClientFormError,
-    setNewClientFieldErrors,
-    setShowCreateClient,
-  ])
+    setLeadSearchDraft('')
+    setLeadSearch('')
+  }, [clearClientSelection])
 
   const closeCreateClient = useCallback(() => {
     setShowCreateClient(false)
@@ -654,6 +1023,20 @@ export function CreateServiceRequestLiveWorkspace({
     },
   })
 
+  const chooseParentService = (nextParentKey: string) => {
+    clearUploads()
+    setParentServiceKey(nextParentKey)
+    setServiceId(0)
+    form.setFieldValue('branchId', 0)
+    form.setFieldValue('estimatedValue', 0)
+    form.setFieldValue('answers', {})
+    setAnswerValues({})
+    setFieldErrors({})
+    setSpecializedContextDraft(null)
+    setSpecializedContextError('')
+    setError('')
+  }
+
   const chooseService = (nextServiceId: number) => {
     const service = services.find((item) => item.id === nextServiceId)
     clearUploads()
@@ -663,6 +1046,8 @@ export function CreateServiceRequestLiveWorkspace({
     form.setFieldValue('answers', {})
     setAnswerValues({})
     setFieldErrors({})
+    setSpecializedContextDraft(null)
+    setSpecializedContextError('')
     setError('')
   }
 
@@ -780,16 +1165,30 @@ export function CreateServiceRequestLiveWorkspace({
   }
 
   const ready = services.length > 0
-  const clientSearchResults = (clientSearchQuery.data ?? []).filter((item) => item.active)
-  const suggestedClients = activeClients.slice(0, 8)
   const selectedClient = pickedClient
   const clientPickerMode = showCreateClient ? 'create' : pickedClient ? 'selected' : 'browse'
-  const browseClients =
-    canSearchClients && clientSearch.trim().length >= 2 ? clientSearchResults : suggestedClients
+  const browseClients = useMemo(() => {
+    if (!canSearchClients) return activeClients
+    return (clientDirectoryQuery.data?.pages.flatMap((page) => page.items) ?? []).filter(
+      (item) => item.active,
+    )
+  }, [activeClients, canSearchClients, clientDirectoryQuery.data])
+  const browseLeads = useMemo(
+    () => leadDirectoryQuery.data?.pages.flatMap((page) => page.items) ?? [],
+    [leadDirectoryQuery.data],
+  )
+  const isFilteringClients = clientSearch.trim().length > 0
+  const isFilteringLeads = leadSearch.trim().length > 0
   const browseEmptyMessage =
-    canSearchClients && clientSearch.trim().length >= 2
-      ? 'No clients match that search.'
-      : 'Search for a client or create a new one to continue.'
+    clientDirectoryTab === 'leads'
+      ? isFilteringLeads
+        ? 'No marketing leads match that search.'
+        : 'No marketing leads found.'
+      : canSearchClients
+        ? isFilteringClients
+          ? 'No clients match that search.'
+          : 'No clients found.'
+        : 'Select a client from the directory below.'
   const intakeErrorMessage = intakeQuery.isError
     ? presentError(intakeQuery.error, 'section-load').message
     : ''
@@ -854,8 +1253,16 @@ export function CreateServiceRequestLiveWorkspace({
       >
         <header className="commercial-modal-header">
           <div>
-            <h2>Create Service Request</h2>
-            <p>Create a commercial request using the selected service intake form.</p>
+            <h2>
+              {usesSpecializedFlow && activeSpecializedPlugin
+                ? activeSpecializedPlugin.flowTitle
+                : 'Create Service Request'}
+            </h2>
+            <p>
+              {usesSpecializedFlow && activeSpecializedPlugin
+                ? activeSpecializedPlugin.flowDescription
+                : 'Create a commercial request using the selected service intake form.'}
+            </p>
           </div>
           <button
             type="button"
@@ -885,10 +1292,16 @@ export function CreateServiceRequestLiveWorkspace({
                     <h3>Client</h3>
                     <p>
                       {clientPickerMode === 'create'
-                        ? 'Add a new client record for this request.'
+                        ? selectedMarketingLead
+                          ? `Create a client record from marketing lead ${selectedMarketingLead.fullName}.`
+                          : 'Add a new client record for this request.'
                         : clientPickerMode === 'selected'
-                          ? 'Review the selected client or change your choice.'
-                          : 'Search the client directory or create a new client.'}
+                          ? selectedMarketingLead
+                            ? 'Review the selected client and linked marketing lead, or change your choice.'
+                            : 'Review the selected client or change your choice.'
+                          : clientDirectoryTab === 'leads'
+                            ? 'Search marketing leads and continue with an existing client or create one from the lead.'
+                            : 'Search the client directory or create a new client.'}
                     </p>
                   </div>
                 </div>
@@ -897,38 +1310,101 @@ export function CreateServiceRequestLiveWorkspace({
                   <div className="commercial-client-toolbar">
                     {clientPickerMode === 'browse' ? (
                       <>
-                        {canSearchClients ? (
-                          <label className="commercial-field commercial-client-search-field">
-                            <span>Search client</span>
+                        <div className="commercial-client-directory-tabs" role="tablist" aria-label="Client directory">
+                          <button
+                            type="button"
+                            role="tab"
+                            aria-selected={clientDirectoryTab === 'clients'}
+                            className={
+                              clientDirectoryTab === 'clients'
+                                ? 'commercial-client-directory-tab commercial-client-directory-tab--active'
+                                : 'commercial-client-directory-tab'
+                            }
+                            onClick={() => {
+                              setClientDirectoryTab('clients')
+                              setLeadSearchDraft('')
+                              setLeadSearch('')
+                            }}
+                          >
+                            Clients
+                          </button>
+                          <button
+                            type="button"
+                            role="tab"
+                            aria-selected={clientDirectoryTab === 'leads'}
+                            className={
+                              clientDirectoryTab === 'leads'
+                                ? 'commercial-client-directory-tab commercial-client-directory-tab--active'
+                                : 'commercial-client-directory-tab'
+                            }
+                            disabled={!canSearchLeads}
+                            title={
+                              !canSearchLeads
+                                ? 'You do not have permission to search marketing leads'
+                                : undefined
+                            }
+                            onClick={() => {
+                              setClientDirectoryTab('leads')
+                              setClientSearchDraft('')
+                              setClientSearch('')
+                            }}
+                          >
+                            Leads
+                          </button>
+                        </div>
+                        {clientDirectoryTab === 'clients' ? (
+                          canSearchClients ? (
+                            <div className="commercial-field commercial-client-search-field commercial-client-search-field--bare">
+                              <div className="commercial-client-search">
+                                <IconSearch size={15} aria-hidden="true" />
+                                <input
+                                  value={clientSearchDraft}
+                                  onChange={(event) => setClientSearchDraft(event.target.value)}
+                                  placeholder="Search by name or email..."
+                                  aria-label="Search clients"
+                                />
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="commercial-client-toolbar-copy">
+                              <strong>Browse clients</strong>
+                              <span>Select a client from the directory below.</span>
+                            </div>
+                          )
+                        ) : canSearchLeads ? (
+                          <div className="commercial-field commercial-client-search-field commercial-client-search-field--bare">
                             <div className="commercial-client-search">
                               <IconSearch size={15} aria-hidden="true" />
                               <input
-                                value={clientSearchDraft}
-                                onChange={(event) => setClientSearchDraft(event.target.value)}
-                                placeholder="Search by name or email..."
+                                value={leadSearchDraft}
+                                onChange={(event) => setLeadSearchDraft(event.target.value)}
+                                placeholder="Search by name, phone, or email..."
+                                aria-label="Search marketing leads"
                               />
                             </div>
-                          </label>
+                          </div>
                         ) : (
                           <div className="commercial-client-toolbar-copy">
-                            <strong>Browse clients</strong>
-                            <span>Select a client from the directory below.</span>
+                            <strong>Marketing leads unavailable</strong>
+                            <span>You do not have permission to search marketing leads.</span>
                           </div>
                         )}
-                        <button
-                          type="button"
-                          className="commercial-btn commercial-btn-small commercial-client-add-btn"
-                          disabled={!canCreateClient}
-                          title={
-                            !canCreateClient
-                              ? 'You do not have permission to create clients'
-                              : undefined
-                          }
-                          onClick={openCreateClient}
-                        >
-                          <IconUserPlus size={14} />
-                          New client
-                        </button>
+                        {clientDirectoryTab === 'clients' ? (
+                          <button
+                            type="button"
+                            className="commercial-btn commercial-btn-small commercial-client-add-btn"
+                            disabled={!canCreateClient}
+                            title={
+                              !canCreateClient
+                                ? 'You do not have permission to create clients'
+                                : undefined
+                            }
+                            onClick={openCreateClient}
+                          >
+                            <IconUserPlus size={14} />
+                            New client
+                          </button>
+                        ) : null}
                       </>
                     ) : null}
 
@@ -936,7 +1412,12 @@ export function CreateServiceRequestLiveWorkspace({
                       <>
                         <div className="commercial-client-toolbar-copy">
                           <strong>Client selected</strong>
-                          <span>{selectedClient?.name}</span>
+                          <span>
+                            {selectedClient?.name}
+                            {selectedMarketingLead
+                              ? ` · Marketing lead ${selectedMarketingLead.fullName}`
+                              : ''}
+                          </span>
                         </div>
                         <button
                           type="button"
@@ -952,8 +1433,14 @@ export function CreateServiceRequestLiveWorkspace({
                     {clientPickerMode === 'create' ? (
                       <>
                         <div className="commercial-client-toolbar-copy">
-                          <strong>New client</strong>
-                          <span>Invitation email will be sent after creation.</span>
+                          <strong>
+                            {selectedMarketingLead ? 'New client from lead' : 'New client'}
+                          </strong>
+                          <span>
+                            {selectedMarketingLead
+                              ? `${selectedMarketingLead.fullName} · invitation email will be sent after creation.`
+                              : 'Invitation email will be sent after creation.'}
+                          </span>
                         </div>
                         <button
                           type="button"
@@ -968,13 +1455,33 @@ export function CreateServiceRequestLiveWorkspace({
                   </div>
 
                   <div className="commercial-client-workspace">
-                    {clientPickerMode === 'browse' ? (
+                    {clientPickerMode === 'browse' && clientDirectoryTab === 'clients' ? (
                       <ClientResultsTable
-                        loading={canSearchClients && clientSearch.trim().length >= 2 && clientSearchQuery.isFetching}
+                        loading={canSearchClients && clientDirectoryQuery.isPending}
+                        loadingMore={clientDirectoryQuery.isFetchingNextPage}
+                        hasMore={Boolean(clientDirectoryQuery.hasNextPage)}
+                        onLoadMore={() => {
+                          void clientDirectoryQuery.fetchNextPage()
+                        }}
                         emptyMessage={browseEmptyMessage}
                         clients={browseClients}
                         selectedClientId={0}
                         onSelect={chooseClient}
+                      />
+                    ) : null}
+
+                    {clientPickerMode === 'browse' && clientDirectoryTab === 'leads' ? (
+                      <LeadResultsTable
+                        loading={canSearchLeads && leadDirectoryQuery.isPending}
+                        loadingMore={leadDirectoryQuery.isFetchingNextPage}
+                        hasMore={Boolean(leadDirectoryQuery.hasNextPage)}
+                        onLoadMore={() => {
+                          void leadDirectoryQuery.fetchNextPage()
+                        }}
+                        emptyMessage={browseEmptyMessage}
+                        leads={browseLeads}
+                        selectedLeadId={0}
+                        onSelect={chooseLead}
                       />
                     ) : null}
 
@@ -1114,20 +1621,22 @@ export function CreateServiceRequestLiveWorkspace({
                   <form.Field name="clientId">
                     {(field) =>
                       canSearchClients ? null : (
-                        <label className="commercial-field commercial-field--full">
-                          <span>Client / organization *</span>
-                          <select
-                            value={field.state.value}
-                            onChange={(event) => chooseClientById(Number(event.target.value))}
-                          >
-                            <option value={0}>Select a client</option>
-                            {activeClients.map((client) => (
-                              <option key={client.id} value={client.id}>
-                                {client.name} — {client.email}
-                              </option>
-                            ))}
-                          </select>
-                        </label>
+                        <DropdownSelect
+                          label="Client / organization"
+                          required
+                          fullWidth
+                          searchable
+                          placeholder="Select a client"
+                          options={mapDropdownOptions(
+                            activeClients.map((client) => ({
+                              value: client.id,
+                              label: client.name,
+                              description: client.email,
+                            })),
+                          )}
+                          value={String(field.state.value || 0)}
+                          onChange={(nextValue) => chooseClientById(Number(nextValue))}
+                        />
                       )
                     }
                   </form.Field>
@@ -1142,25 +1651,45 @@ export function CreateServiceRequestLiveWorkspace({
                   </div>
                 </div>
                 <div className="commercial-form-grid">
-                  <label className="commercial-field commercial-field--full">
-                    <span>Service *</span>
-                    <select
-                      value={serviceId}
-                      onChange={(event) => chooseService(Number(event.target.value))}
-                    >
-                      <option value={0}>Select a service</option>
-                      {groupedServices.map((group) => (
-                        <optgroup key={group.parentName} label={group.parentName}>
-                          {group.services.map((service) => (
-                            <option key={service.id} value={service.id}>
-                              {service.name}
-                              {service.code ? ` (${service.code})` : ''}
-                            </option>
-                          ))}
-                        </optgroup>
-                      ))}
-                    </select>
-                  </label>
+                  <DropdownSelect
+                    label="Parent service"
+                    required
+                    placeholder="Select a parent service"
+                    options={mapDropdownOptions(
+                      parentServiceOptions.map((parent) => ({
+                        value: parent.key,
+                        label: parent.label,
+                      })),
+                    )}
+                    value={parentServiceKey}
+                    onChange={chooseParentService}
+                  />
+
+                  <DropdownSelect
+                    label="Service"
+                    required
+                    disabled={!parentServiceKey}
+                    placeholder={
+                      parentServiceKey ? 'Select a service' : 'Choose a parent service first'
+                    }
+                    searchable
+                    options={mapDropdownOptions(
+                      childServices.map((service) => ({
+                        value: service.id,
+                        label: service.code ? `${service.name} (${service.code})` : service.name,
+                        ...(service.specializedDomain
+                          ? {
+                              description:
+                                service.specializedDomain === 'real_estate'
+                                  ? 'Specialized service · Estate sales flow'
+                                  : `Specialized service · ${service.specializedDomain.replace(/_/g, ' ')}`,
+                            }
+                          : {}),
+                      })),
+                    )}
+                    value={String(serviceId || 0)}
+                    onChange={(nextValue) => chooseService(Number(nextValue))}
+                  />
 
                   {selectedService ? (
                     branches.length === 0 ? (
@@ -1182,20 +1711,20 @@ export function CreateServiceRequestLiveWorkspace({
                     ) : (
                       <form.Field name="branchId">
                         {(field) => (
-                          <label className="commercial-field commercial-field--full">
-                            <span>Fulfilling branch *</span>
-                            <select
-                              value={field.state.value}
-                              onChange={(event) => field.handleChange(Number(event.target.value))}
-                            >
-                              {branches.map((branch) => (
-                                <option key={branch.id} value={branch.id}>
-                                  {branch.name}
-                                </option>
-                              ))}
-                            </select>
-                            <small>Which office will handle and deliver this request.</small>
-                          </label>
+                          <DropdownSelect
+                            label="Fulfilling branch"
+                            required
+                            fullWidth
+                            helpText="Which office will handle and deliver this request."
+                            options={mapDropdownOptions(
+                              branches.map((branch) => ({
+                                value: branch.id,
+                                label: branch.name,
+                              })),
+                            )}
+                            value={String(field.state.value || 0)}
+                            onChange={(nextValue) => field.handleChange(Number(nextValue))}
+                          />
                         )}
                       </form.Field>
                     )
@@ -1206,7 +1735,15 @@ export function CreateServiceRequestLiveWorkspace({
               {!selectedService ? (
                 <EmptyState
                   title="Select a service"
-                  description="Choose the service you want to request before the intake form can be loaded."
+                  description="Choose the service you want to request before continuing."
+                />
+              ) : usesSpecializedFlow && activeSpecializedPlugin ? (
+                <SpecializedRequestContextPanel
+                  plugin={activeSpecializedPlugin}
+                  service={selectedService}
+                  value={specializedContext}
+                  error={specializedContextError}
+                  onChange={setSpecializedContextDraft}
                 />
               ) : intakeQuery.isPending ? (
                 <div className="commercial-empty">Loading request form...</div>
@@ -1266,22 +1803,14 @@ export function CreateServiceRequestLiveWorkspace({
                       <div className="commercial-form-grid commercial-form-grid-top">
                         <form.Field name="priority">
                           {(field) => (
-                            <label className="commercial-field">
-                              <span>Priority</span>
-                              <select
-                                value={field.state.value}
-                                onChange={(event) => {
-                                  const nextValue = event.target.value
-                                  if (isPriorityValue(nextValue)) field.handleChange(nextValue)
-                                }}
-                              >
-                                {choices.priorities.map((item) => (
-                                  <option key={item.value} value={item.value}>
-                                    {item.label}
-                                  </option>
-                                ))}
-                              </select>
-                            </label>
+                            <DropdownSelect
+                              label="Priority"
+                              options={mapDropdownOptions(choices.priorities)}
+                              value={field.state.value}
+                              onChange={(nextValue) => {
+                                if (isPriorityValue(nextValue)) field.handleChange(nextValue)
+                              }}
+                            />
                           )}
                         </form.Field>
 
@@ -1449,12 +1978,18 @@ export function CreateServiceRequestLiveWorkspace({
               saving ||
               !ready ||
               !selectedService ||
-              intakeQuery.isPending ||
-              intakeQuery.isError ||
-              hasUploadingFiles
+              (!usesSpecializedFlow && (intakeQuery.isPending || intakeQuery.isError)) ||
+              hasUploadingFiles ||
+              (usesSpecializedFlow && !onContinueSpecialized)
             }
           >
-            {saving ? 'Creating...' : 'Create Request'}
+            {saving
+              ? usesSpecializedFlow
+                ? 'Continuing...'
+                : 'Creating...'
+              : usesSpecializedFlow && activeSpecializedPlugin
+                ? activeSpecializedPlugin.submitLabel
+                : 'Create Request'}
           </button>
         </footer>
       </form>

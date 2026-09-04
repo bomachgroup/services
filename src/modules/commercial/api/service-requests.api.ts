@@ -3,6 +3,7 @@ import { apiClient } from '@/shared/api/api-client'
 import {
   mapClient,
   mapClients,
+  mapClientsPage,
   mapEmployees,
   mapIntakeForm,
   mapServicePricingConfig,
@@ -76,11 +77,22 @@ export const serviceRequestsApi = {
   },
 
   async searchClients(search: string, limit = 20): Promise<ClientOption[]> {
+    const page = await this.listClients(search, limit, 0)
+    return page.items
+  },
+
+  async listClients(
+    search: string,
+    limit = 20,
+    offset = 0,
+  ): Promise<PaginatedResult<ClientOption>> {
     const query = new URLSearchParams()
     query.set('limit', String(limit))
-    query.set('offset', '0')
+    query.set('offset', String(offset))
     if (search.trim()) query.set('search', search.trim())
-    return mapClients(await apiClient.get<unknown>(`/clients/clients/?${query.toString()}`))
+    return mapClientsPage(
+      await apiClient.get<unknown>(`/clients/clients/?${query.toString()}`),
+    )
   },
 
   async createClient(input: CreateClientInput): Promise<ClientOption> {
@@ -184,6 +196,7 @@ export const serviceRequestsApi = {
         next_action: input.nextAction,
         scope_summary: input.scopeSummary,
         answers: input.answers,
+        ...(input.crmLeadId ? { crm_lead_id: input.crmLeadId } : {}),
       }),
     )
   },

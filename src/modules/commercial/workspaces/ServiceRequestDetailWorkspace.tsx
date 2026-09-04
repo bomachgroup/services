@@ -1,4 +1,4 @@
-import { IconExternalLink, IconRefresh, IconTrash, IconUpload, IconX } from '@tabler/icons-react'
+import { IconRefresh, IconTrash, IconUpload, IconX } from '@tabler/icons-react'
 import { useForm } from '@tanstack/react-form'
 import { useRef, useState } from 'react'
 
@@ -8,6 +8,7 @@ import { formatNumberFieldValue, parseNumberFieldValue } from '@/shared/lib/numb
 import { useToast } from '@/shared/ui/toast/useToast'
 
 import { serviceRequestsApi } from '../api/service-requests.api'
+import { getServiceRequestCapabilities } from '../api/service-request-capabilities'
 import type {
   CreateServiceRequestActivityInput,
   CreateServiceRequestAttachmentInput,
@@ -18,7 +19,13 @@ import type {
 } from '../api/service-requests.types'
 
 import { FileTypeIcon } from '../request-intake/file-presentation'
-import { formatBytes } from '../request-intake/file-presentation.utils'
+import {
+  DocumentPreviewModal,
+  FileDocumentRow,
+  type PreviewDocument,
+} from '../request-intake/DocumentPreviewModal'
+import { collectFileAnswerUrls, fileNameFromUrl, formatBytes } from '../request-intake/file-presentation.utils'
+import { IntakeMultiselectAnswer } from '../request-intake/IntakeAnswerDisplay'
 
 function statusClass(status: string) {
   if (status === 'rejected') return 'commercial-pill-gray'
@@ -83,6 +90,7 @@ export function ServiceRequestDetailWorkspace({
   const [attachmentOpen, setAttachmentOpen] = useState(false)
   const [attachmentError, setAttachmentError] = useState('')
   const [pendingAttachment, setPendingAttachment] = useState<PendingAttachmentUpload | null>(null)
+  const [previewDocument, setPreviewDocument] = useState<PreviewDocument | null>(null)
   const uploadControllerRef = useRef<AbortController | null>(null)
 
   const controlForm = useForm({
@@ -227,8 +235,49 @@ export function ServiceRequestDetailWorkspace({
     void uploadAttachmentFile(pendingAttachment.file)
   }
 
-  const canPrepareQuotation =
-    !request.quoteId && request.status !== 'converted' && request.status !== 'rejected'
+  const capabilities = getServiceRequestCapabilities(request)
+  const statusOptions = capabilities.allowedStatuses
+    ? choices.statuses.filter(
+        (item) =>
+          capabilities.allowedStatuses?.includes(item.value as typeof request.status) ||
+          item.value === request.status,
+      )
+    : choices.statuses
+
+  const openDocumentPreview = (document: PreviewDocument) => {
+    setPreviewDocument(document)
+  }
+
+  const renderAnswerContent = (answer: ServiceRequestDetail['answers'][number]) => {
+    const fileUrls = collectFileAnswerUrls(answer.value, answer.fieldType)
+    if (fileUrls.length > 0) {
+      return (
+        <div className="commercial-intake-file-list">
+          {fileUrls.map((fileUrl) => (
+            <FileDocumentRow
+              key={`${answer.id}-${fileUrl}`}
+              fileUrl={fileUrl}
+              title={fileNameFromUrl(fileUrl)}
+              subtitle="Supporting document"
+              onOpen={() =>
+                openDocumentPreview({
+                  fileUrl,
+                  fileName: fileNameFromUrl(fileUrl),
+                  label: answer.label,
+                })
+              }
+            />
+          ))}
+        </div>
+      )
+    }
+
+    if (answer.fieldType === 'multiselect') {
+      return <IntakeMultiselectAnswer value={answer.value} />
+    }
+
+    return <b>{renderAnswerValue(answer.value)}</b>
+  }
 
   return (
     <>
@@ -257,7 +306,7 @@ export function ServiceRequestDetailWorkspace({
           <div className="commercial-modal-body">
             <div className="commercial-g21">
               <div className="commercial-g21-main">
-                <section className="commercial-card commercial-request360-card commercial-request360-journal">
+                <section className="commercial-card commercial-request360-card">
                   <div className="commercial-card-header">
                     <div>
                       <h2>{request.clientName}</h2>
@@ -335,17 +384,25 @@ export function ServiceRequestDetailWorkspace({
                     ) : (
                       [...request.answers]
                         .sort((a, b) => a.sortOrder - b.sortOrder)
-                        .map((answer) => (
-                          <div key={answer.id}>
-                            <div className="commercial-kl">{answer.label}</div>
-                            <b>{renderAnswerValue(answer.value)}</b>
-                          </div>
-                        ))
+                        .map((answer) => {
+                          const fileUrls = collectFileAnswerUrls(answer.value, answer.fieldType)
+                          const isFileAnswer = fileUrls.length > 0
+
+                          return (
+                            <div
+                              key={answer.id}
+                              className={isFileAnswer ? 'commercial-info-full' : undefined}
+                            >
+                              <div className="commercial-kl">{answer.label}</div>
+                              {renderAnswerContent(answer)}
+                            </div>
+                          )
+                        })
                     )}
                   </div>
                 </section>
 
-                <section className="commercial-card commercial-request360-card">
+                <section className="commercial-card commercial-request360-card commercial-request360-journal">
                   <div className="commercial-card-header">
                     <div>
                       <h2>Activity & Communication Journal</h2>
@@ -359,7 +416,7 @@ export function ServiceRequestDetailWorkspace({
                       Add Activity
                     </button>
                   </div>
-                  <div className="commercial-timeline-list">
+                  <div className="commercial-timeline-list commercial-timeline-list--peek-4">
                     {request.activities.length === 0 ? (
                       <div className="commercial-empty">No activity recorded.</div>
                     ) : (
@@ -408,33 +465,28 @@ export function ServiceRequestDetailWorkspace({
                         const subtitle =
                           normalizeAttachmentText(attachment.fileName) ===
                           normalizeAttachmentText(attachment.label)
-                            ? attachment.contentType || 'Open attachment'
-                            : attachment.fileName || attachment.contentType || 'Open attachment'
+                            ? attachment.contentType || 'View document'
+                            : attachment.fileName || attachment.contentType || 'View document'
 
                         return (
-                          <a
+                          <FileDocumentRow
                             key={attachment.id}
-                            href={attachment.fileUrl}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="commercial-attachment-row"
-                          >
-                            <div className="commercial-upload-item-icon">
-                              <FileTypeIcon
-                                fileName={
-                                  attachment.fileName || attachment.label || attachment.fileUrl
-                                }
-                                contentType={attachment.contentType}
-                              />
-                            </div>
-                            <div className="commercial-attachment-meta">
-                              <div className="commercial-attachment-name">{title}</div>
-                              <div className="commercial-attachment-sub">{subtitle}</div>
-                            </div>
-                            <span className="commercial-attachment-action">
-                              <IconExternalLink size={16} />
-                            </span>
-                          </a>
+                            fileUrl={attachment.fileUrl}
+                            fileName={
+                              attachment.fileName || attachment.label || attachment.fileUrl
+                            }
+                            contentType={attachment.contentType}
+                            title={title}
+                            subtitle={subtitle}
+                            onOpen={() =>
+                              openDocumentPreview({
+                                fileUrl: attachment.fileUrl,
+                                fileName: attachment.fileName || attachment.label,
+                                contentType: attachment.contentType,
+                                label: title,
+                              })
+                            }
+                          />
                         )
                       })}
                     </div>
@@ -454,17 +506,24 @@ export function ServiceRequestDetailWorkspace({
                     <div className="commercial-card-title-only">Control Panel</div>
                   </div>
 
+                  {capabilities.controlPanelNotice ? (
+                    <div className="commercial-notice commercial-notice-blue">
+                      {capabilities.controlPanelNotice}
+                    </div>
+                  ) : null}
+
                   <controlForm.Field name="status">
                     {(field) => (
                       <label className="commercial-field">
                         <span>Status</span>
                         <select
                           value={field.state.value}
+                          disabled={!capabilities.canEditControlPanel}
                           onChange={(event) =>
                             field.handleChange(event.target.value as typeof field.state.value)
                           }
                         >
-                          {choices.statuses.map((item) => (
+                          {statusOptions.map((item) => (
                             <option key={item.value} value={item.value}>
                               {item.label}
                             </option>
@@ -604,7 +663,7 @@ export function ServiceRequestDetailWorkspace({
                   <button
                     type="button"
                     className="commercial-btn commercial-btn-block"
-                    disabled={!canPrepareQuotation}
+                    disabled={!capabilities.canPrepareQuotation}
                     onClick={onPrepareQuotation}
                   >
                     Prepare Quotation
@@ -612,9 +671,7 @@ export function ServiceRequestDetailWorkspace({
                   <button
                     type="button"
                     className="commercial-btn commercial-btn-block"
-                    disabled={
-                      saving || request.status === 'converted' || request.status === 'rejected'
-                    }
+                    disabled={!capabilities.canScheduleAssessment || saving}
                     onClick={() =>
                       onUpdate({
                         status: 'site_assessment',
@@ -904,6 +961,10 @@ export function ServiceRequestDetailWorkspace({
             </footer>
           </form>
         </div>
+      ) : null}
+
+      {previewDocument ? (
+        <DocumentPreviewModal document={previewDocument} onClose={() => setPreviewDocument(null)} />
       ) : null}
     </>
   )

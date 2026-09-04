@@ -1,12 +1,16 @@
 import { IconX } from '@tabler/icons-react'
+import { useEffect, useState } from 'react'
 
 import { formatCurrency } from '@/shared/lib/formatters'
+import { ConfirmDialog } from '@/shared/ui/confirm-dialog'
 
 import { getQuotationCapabilities } from '../quotation/quotation-capabilities'
+import type { Invoice } from '../billing/billing.types'
 import type { Quotation } from '../quotation/quotation.types'
 
 export function QuotationDetailLiveWorkspace({
   quotation,
+  linkedInvoice,
   saving,
   canApprove,
   canEdit,
@@ -16,8 +20,10 @@ export function QuotationDetailLiveWorkspace({
   onApprove,
   onRevise,
   onCreateInvoice,
+  onViewInvoice,
 }: {
   quotation: Quotation
+  linkedInvoice?: Invoice | null
   saving: boolean
   canApprove: boolean
   canEdit: boolean
@@ -27,8 +33,20 @@ export function QuotationDetailLiveWorkspace({
   onApprove: () => void
   onRevise: () => void
   onCreateInvoice: () => void
+  onViewInvoice: () => void
 }) {
-  const capabilities = getQuotationCapabilities(quotation.status)
+  const [approveConfirmOpen, setApproveConfirmOpen] = useState(false)
+  const [approveConfirmPending, setApproveConfirmPending] = useState(false)
+  const capabilities = getQuotationCapabilities(quotation.status, {
+    hasActiveInvoice: Boolean(linkedInvoice),
+  })
+
+  useEffect(() => {
+    if (!approveConfirmPending || saving) return
+    setApproveConfirmPending(false)
+    setApproveConfirmOpen(false)
+  }, [approveConfirmPending, saving])
+
   const lifecycle = [
     quotation.createdAt
       ? { label: 'Created', at: quotation.createdAt, actor: quotation.createdByName }
@@ -37,13 +55,22 @@ export function QuotationDetailLiveWorkspace({
       ? { label: 'Approved', at: quotation.approvedAt, actor: quotation.approvedByName }
       : null,
     quotation.sentAt ? { label: 'Sent to client', at: quotation.sentAt, actor: '' } : null,
-    quotation.clientRespondedAt
-      ? { label: 'Client responded', at: quotation.clientRespondedAt, actor: '' }
+    quotation.clientRespondedAt && quotation.status === 'accepted'
+      ? { label: 'Client accepted', at: quotation.clientRespondedAt, actor: quotation.clientName }
+      : null,
+    quotation.clientRespondedAt && quotation.status === 'rejected'
+      ? { label: 'Client rejected', at: quotation.clientRespondedAt, actor: quotation.clientName }
       : null,
   ].filter(Boolean) as Array<{ label: string; at: string; actor: string }>
 
   return (
-    <div className="commercial-modal-backdrop" role="presentation" onMouseDown={onClose}>
+    <div
+      className="commercial-modal-backdrop"
+      role="presentation"
+      onMouseDown={(event) => {
+        if (event.target === event.currentTarget) onClose()
+      }}
+    >
       <section
         className="commercial-modal commercial-modal--xl"
         role="dialog"
@@ -238,7 +265,7 @@ export function QuotationDetailLiveWorkspace({
                 type="button"
                 className="commercial-btn commercial-btn-primary"
                 disabled={saving}
-                onClick={onApprove}
+                onClick={() => setApproveConfirmOpen(true)}
               >
                 {saving ? 'Approving...' : 'Approve Quote'}
               </button>
@@ -263,9 +290,45 @@ export function QuotationDetailLiveWorkspace({
                 Create Invoice
               </button>
             ) : null}
+            {capabilities.viewInvoice && linkedInvoice ? (
+              <button
+                type="button"
+                className="commercial-btn commercial-btn-primary"
+                disabled={saving}
+                onClick={onViewInvoice}
+              >
+                View Invoice
+              </button>
+            ) : null}
           </div>
         </footer>
       </section>
+
+      <ConfirmDialog
+        open={approveConfirmOpen}
+        tone="warning"
+        title="Approve and send quotation?"
+        description="The quotation will be approved internally and delivered to the client for review and acceptance."
+        impact="An email will be sent with the quoted amount, service scope, and commercial terms."
+        detailsTitle="Quotation summary"
+        detailRows={[
+          { label: 'Reference', value: quotation.quoteNumber, highlight: true },
+          { label: 'Client', value: quotation.clientName || '—' },
+          { label: 'Service', value: quotation.serviceName || '—' },
+          { label: 'Total amount', value: formatCurrency(quotation.amount), highlight: true },
+          ...(quotation.validUntil
+            ? [{ label: 'Valid until', value: quotation.validUntil }]
+            : []),
+        ]}
+        confirmLabel="Approve & send"
+        cancelLabel="Go back"
+        isConfirming={saving}
+        onCancel={() => setApproveConfirmOpen(false)}
+        onConfirm={() => {
+          setApproveConfirmPending(true)
+          onApprove()
+        }}
+      />
     </div>
   )
 }
