@@ -22,6 +22,7 @@ import { presentError } from '@/shared/errors'
 import { formatCurrency } from '@/shared/lib/formatters'
 import { withoutSearchKeys } from '@/shared/navigation/search-state'
 import { ErrorState } from '@/shared/ui'
+import { DropdownSelect } from '@/shared/ui/dropdown-select'
 import { EmptyState } from '@/shared/ui/empty-state'
 import {
   CompactActionButton,
@@ -229,35 +230,38 @@ export function SpecializedOperationsLivePage({
 
         <section className="specialized-card specialized-operations-toolbar">
           <div className="specialized-filter-row specialized-filter-row--compact">
-            <label className="specialized-field specialized-specialized-selector">
-              <span>Specialized domain</span>
-              <select value={specializedDomain} onChange={(e) => setContext(e.target.value)}>
-                {availableDomains.length ? (
-                  availableDomains.map((option) => (
-                    <option key={option.value} value={option.value}>
-                      {option.label}
-                    </option>
-                  ))
-                ) : (
-                  <option value="">No specialized domains</option>
-                )}
-              </select>
-            </label>
-            <label className="specialized-field specialized-specialized-selector">
-              <span>Service</span>
-              <select
-                value={selected?.id ?? ''}
-                disabled={!specializedDomain}
-                onChange={(e) => setContext(specializedDomain, e.target.value || undefined)}
-              >
-                <option value="">All Services</option>
-                {services.map((x) => (
-                  <option key={x.id} value={x.id}>
-                    {x.name}
-                  </option>
-                ))}
-              </select>
-            </label>
+            <DropdownSelect
+              compact
+              label="Specialized domain"
+              fieldClassName="specialized-field specialized-specialized-selector"
+              options={
+                availableDomains.length
+                  ? availableDomains.map((option) => ({
+                      value: option.value,
+                      label: option.label,
+                    }))
+                  : [{ value: '', label: 'No specialized domains' }]
+              }
+              value={specializedDomain}
+              onChange={(value) => setContext(value)}
+            />
+            <DropdownSelect
+              compact
+              label="Service"
+              fieldClassName="specialized-field specialized-specialized-selector"
+              placeholder="All services"
+              disabled={!specializedDomain}
+              searchable
+              options={[
+                { value: '', label: 'All services' },
+                ...services.map((service) => ({
+                  value: String(service.id),
+                  label: service.name,
+                })),
+              ]}
+              value={selected?.id != null ? String(selected.id) : ''}
+              onChange={(value) => setContext(specializedDomain, value || undefined)}
+            />
             <span className="specialized-grow" />
             <div className="specialized-action-row">
               <CompactActionButton onClick={() => void refresh()}>

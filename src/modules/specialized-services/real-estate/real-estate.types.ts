@@ -354,3 +354,47 @@ export const brokerageStatuses: Array<Choice<BrokerageStatus>> = [
   { value: 'sold', label: 'Sold' },
   { value: 'off_market', label: 'Off Market' },
 ]
+
+export const brokeragePropertyTypes: Array<Choice<BrokeragePropertyType>> = [
+  { value: 'land', label: 'Land' },
+  { value: 'residential', label: 'Residential' },
+  { value: 'commercial', label: 'Commercial' },
+]
+
+export const residentialBuildingTypes = [
+  { value: 'house', label: 'House' },
+  { value: 'villa', label: 'Villa' },
+  { value: 'apartment', label: 'Apartment' },
+  { value: 'townhouse', label: 'Townhouse' },
+  { value: 'duplex', label: 'Duplex' },
+  { value: 'bungalow', label: 'Bungalow' },
+  { value: 'penthouse', label: 'Penthouse' },
+] as const
+
+export const commercialBuildingTypes = [
+  { value: 'office', label: 'Office' },
+  { value: 'retail', label: 'Retail Space' },
+  { value: 'warehouse', label: 'Warehouse' },
+  { value: 'shopping_mall', label: 'Shopping Mall' },
+  { value: 'hotel', label: 'Hotel' },
+  { value: 'mixed_use', label: 'Mixed Use' },
+] as const
+
+export const estateLegalApprovalInfrastructureOptions = [
+  { value: 'hasCOfO', label: 'C of O' },
+  { value: 'hasDeedOfAssignment', label: 'Deed of Assignment' },
+  { value: 'hasSurveyPlan', label: 'Survey Plan' },
+  { value: 'hasPlanningPermit', label: 'Planning Permit' },
+  { value: 'hasBuildingApproval', label: 'Building Approval' },
+  { value: 'hasEnvironmentalClearance', label: 'Environmental Clearance' },
+  { value: 'hasRoads', label: 'Roads' },
+  { value: 'hasElectricity', label: 'Electricity' },
+  { value: 'hasWater', label: 'Water' },
+  { value: 'hasFencing', label: 'Fencing' },
+  { value: 'hasSecurity', label: 'Security' },
+  { value: 'hasDrainage', label: 'Drainage' },
+  { value: 'hasRecreation', label: 'Recreation' },
+] as const
+
+export type EstateLegalApprovalInfrastructureField =
+  (typeof estateLegalApprovalInfrastructureOptions)[number]['value']

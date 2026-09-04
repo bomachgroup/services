@@ -1,4 +1,6 @@
 import { useForm } from '@tanstack/react-form'
+
+import { RealEstateFormDropdown } from '../components/RealEstateFormDropdown'
 import type { CreateBrokeragePropertyInput } from '../types/specialized-services.types'
 export function CreateBrokerageWorkspace({
   saving,
@@ -74,17 +76,17 @@ export function CreateBrokerageWorkspace({
           </form.Field>
           <form.Field name="status">
             {(f) => (
-              <label className="specialized-field">
-                <span>Verification status</span>
-                <select
-                  value={f.state.value}
-                  onChange={(e) => f.handleChange(e.target.value as typeof f.state.value)}
-                >
-                  <option>Pending Verification</option>
-                  <option>Verified</option>
-                  <option>Inspection Due</option>
-                </select>
-              </label>
+              <RealEstateFormDropdown
+                label="Verification status"
+                fieldClassName="specialized-field"
+                options={[
+                  { value: 'Pending Verification', label: 'Pending Verification' },
+                  { value: 'Verified', label: 'Verified' },
+                  { value: 'Inspection Due', label: 'Inspection Due' },
+                ]}
+                value={f.state.value}
+                onChange={(value) => f.handleChange(value as typeof f.state.value)}
+              />
             )}
           </form.Field>
           <form.Field name="commissionRate">

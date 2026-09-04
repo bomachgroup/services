@@ -9,7 +9,7 @@ import {
   propertyTypes,
   residentialBuildingTypes,
   type CreatePropertyInput,
-  type Property,
+  type Estate,
 } from '../real-estate/real-estate.types'
 import { validateProperty } from '../real-estate/real-estate.validation'
 
@@ -35,62 +35,35 @@ function numberInputValue(value: number | null | undefined) {
   return value == null || value === 0 ? '' : String(value)
 }
 
-function mapPropertyToInput(property: Property): CreatePropertyInput {
+function defaultPropertyInput(): CreatePropertyInput {
   return {
-    isOurProperty: property.isOurProperty,
-    propertyType: property.propertyType,
-    propertyName: property.propertyName,
-    price: property.price,
-    description: property.description,
-    status: property.status,
-    plotNumber: property.plotNumber,
-    clientName: property.clientName,
-    plotSize: property.plotSize,
-    plotSizeUnit: property.plotSizeUnit || 'sqm',
-    buildingTypeResidential: property.buildingTypeResidential,
-    bedrooms: property.bedrooms,
-    bathrooms: property.bathrooms,
-    floorsResidential: property.floorsResidential,
-    totalAreaResidential: property.totalAreaResidential,
-    buildingTypeCommercial: property.buildingTypeCommercial,
-    totalAreaCommercial: property.totalAreaCommercial,
-    numberOfFloors: property.numberOfFloors,
-    unitsOffices: property.unitsOffices,
+    isOurProperty: true,
+    propertyType: 'plot',
+    propertyName: '',
+    price: 0,
+    description: '',
+    status: 'available',
+    plotSizeUnit: 'sqm',
+    buildingTypeResidential: '',
+    buildingTypeCommercial: '',
   }
 }
 
-function propertyTypeLabel(property: Property, value: CreatePropertyInput) {
-  if (value.propertyType === 'plot') return 'Plot of land'
-  if (value.propertyType === 'residential') {
-    return (
-      property.buildingTypeResidentialDisplay ||
-      value.buildingTypeResidential ||
-      'Residential building'
-    )
-  }
-  return (
-    property.buildingTypeCommercialDisplay ||
-    value.buildingTypeCommercial ||
-    'Commercial building'
-  )
-}
-
-function statusLabel(property: Property, value: CreatePropertyInput) {
-  return property.statusDisplay || value.status.replaceAll('_', ' ')
-}
-
-export function EditPropertyLiveWorkspace({
-  property,
+export function CreatePropertyLiveWorkspace({
+  estates,
+  initialEstateId = null,
   saving,
   onClose,
   onSubmit,
 }: {
-  property: Property
+  estates: Estate[]
+  initialEstateId?: number | null
   saving: boolean
   onClose: () => void
-  onSubmit: (input: CreatePropertyInput) => void
+  onSubmit: (input: { estateId: number | null; property: CreatePropertyInput }) => void
 }) {
-  const [value, setValue] = useState<CreatePropertyInput>(() => mapPropertyToInput(property))
+  const [estateId, setEstateId] = useState<number | null>(initialEstateId)
+  const [value, setValue] = useState<CreatePropertyInput>(defaultPropertyInput)
   const [error, setError] = useState('')
 
   const setField = <K extends keyof CreatePropertyInput>(
@@ -106,19 +79,22 @@ export function EditPropertyLiveWorkspace({
         className="commercial-modal commercial-modal--xl specialized-real-estate-modal"
         role="dialog"
         aria-modal="true"
-        aria-label="Edit Property"
+        aria-label="Add Property"
         onMouseDown={(event) => event.stopPropagation()}
         onSubmit={(event) => {
           event.preventDefault()
           const validationError = validateProperty(value)
           setError(validationError)
-          if (!validationError) onSubmit(value)
+          if (!validationError) onSubmit({ estateId, property: value })
         }}
       >
         <header className="commercial-modal-header">
           <div>
-            <h2>Edit Property</h2>
-            <p>Update full property details, including plot size and other type-specific fields.</p>
+            <h2>Add Property</h2>
+            <p>
+              Create a property inventory record. Link it to an estate or keep it standalone for
+              direct sale inventory.
+            </p>
           </div>
           <button
             type="button"
@@ -134,13 +110,45 @@ export function EditPropertyLiveWorkspace({
           {error ? <div className="commercial-notice commercial-notice-red">{error}</div> : null}
 
           <PropertyWorkspaceBanner
-            eyebrow="Editing property"
-            propertyName={value.propertyName || property.propertyName}
+            eyebrow="New property record"
+            propertyName={value.propertyName || 'Untitled property'}
             propertyType={value.propertyType}
-            typeLabel={propertyTypeLabel(property, value)}
-            statusLabel={statusLabel(property, value)}
+            typeLabel={
+              value.propertyType === 'plot'
+                ? 'Plot of land'
+                : value.propertyType === 'residential'
+                  ? 'Residential building'
+                  : 'Commercial building'
+            }
+            statusLabel={value.status.replaceAll('_', ' ')}
             price={value.price}
           />
+
+          <section className="commercial-form-section">
+            <div className="commercial-form-section-heading">
+              <div>
+                <h3>Inventory placement</h3>
+                <p>Choose whether this property belongs to an estate or stands alone.</p>
+              </div>
+            </div>
+            <div className="commercial-form-grid commercial-form-grid--property">
+              <RealEstateFormDropdown
+                label="Linked estate"
+                fieldClassName="commercial-field commercial-field--full"
+                searchable
+                placeholder="No estate link (standalone)"
+                options={[
+                  { value: '0', label: 'No estate link (standalone)' },
+                  ...estates.map((estate) => ({
+                    value: String(estate.id),
+                    label: `${estate.estateCode} · ${estate.estateName}`,
+                  })),
+                ]}
+                value={estateId ? String(estateId) : '0'}
+                onChange={(nextValue) => setEstateId(Number(nextValue) || null)}
+              />
+            </div>
+          </section>
 
           <section className="commercial-form-section">
             <div className="commercial-form-section-heading">
@@ -437,7 +445,7 @@ export function EditPropertyLiveWorkspace({
             Cancel
           </button>
           <button type="submit" className="commercial-btn commercial-btn-primary" disabled={saving}>
-            {saving ? 'Saving...' : 'Save Property'}
+            {saving ? 'Creating...' : 'Create Property'}
           </button>
         </footer>
       </form>

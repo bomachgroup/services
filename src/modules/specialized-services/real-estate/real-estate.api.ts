@@ -171,6 +171,34 @@ export const realEstateApi = {
     ),
   deleteProperty: async (estateId: number, id: number) =>
     apiClient.delete<unknown>(`/estates/${estateId}/properties/${id}`),
+  listStandaloneProperties: async (f: PropertyFilters = {}) =>
+    mapPropertyList(
+      await apiClient.get<unknown>(`/estates/properties/all?${propertyQuery(f)}`),
+    ),
+  createStandaloneProperty: async (i: CreatePropertyInput) =>
+    mapProperty(await apiClient.post<unknown>('/estates/properties/all', propertyPayload(i))),
+  updateStandaloneProperty: async (id: number, i: CreatePropertyInput) =>
+    mapProperty(
+      await apiClient.put<unknown>(`/estates/properties/all/${id}`, propertyPayload(i)),
+    ),
+  deleteStandaloneProperty: async (id: number) =>
+    apiClient.delete<unknown>(`/estates/properties/all/${id}`),
+  updatePropertyRecord: async (
+    property: { id: number; estateId: number | null },
+    i: CreatePropertyInput,
+  ) => {
+    if (property.estateId) {
+      return mapProperty(
+        await apiClient.put<unknown>(
+          `/estates/${property.estateId}/properties/${property.id}`,
+          propertyPayload(i),
+        ),
+      )
+    }
+    return mapProperty(
+      await apiClient.put<unknown>(`/estates/properties/all/${property.id}`, propertyPayload(i)),
+    )
+  },
   quickUpdatePropertyInventory: async (estateId: number, id: number, i: QuickUpdatePlotInput) =>
     mapPlotLayoutItem(
       await apiClient.patch<unknown>(`/estates/${estateId}/plots/${id}/quick-update`, {

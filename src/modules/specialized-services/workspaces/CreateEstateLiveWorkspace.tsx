@@ -3,12 +3,59 @@ import { useState } from 'react'
 import { IconX } from '@tabler/icons-react'
 import { useForm } from '@tanstack/react-form'
 
+import { DropdownSelect } from '@/shared/ui/dropdown-select'
+
 import {
+  estateLegalApprovalInfrastructureOptions,
   estateStatuses,
   estateTypes,
   type CreateEstateInput,
+  type Estate,
+  type EstateLegalApprovalInfrastructureField,
 } from '../real-estate/real-estate.types'
+import {
+  createDefaultEstateFormValues,
+  mapEstateToFormValues,
+  parseEstateLocation,
+  type EstateFormValues,
+} from '../real-estate/real-estate.form-utils'
 import { validateEstate } from '../real-estate/real-estate.validation'
+import { RealEstateFormDropdown } from '../components/RealEstateFormDropdown'
+
+type EstateFormApi = ReturnType<typeof useForm<EstateFormValues>>
+
+function EstateLegalApprovalInfrastructureMultiselect({ form }: { form: EstateFormApi }) {
+  return (
+    <form.Subscribe
+      selector={(state) =>
+        estateLegalApprovalInfrastructureOptions
+          .map((option) => option.value)
+          .filter((key) => Boolean(state.values[key as EstateLegalApprovalInfrastructureField]))
+      }
+    >
+      {(selected) => (
+        <DropdownSelect
+          mode="multiple"
+          placeholder="Select documents, approvals and utilities"
+          options={[...estateLegalApprovalInfrastructureOptions]}
+          value={selected}
+          searchable
+          fullWidth
+          fieldClassName="commercial-field commercial-field--full specialized-estate-features-dropdown"
+          onChange={(nextSelected) => {
+            const selectedSet = new Set(nextSelected)
+            for (const option of estateLegalApprovalInfrastructureOptions) {
+              form.setFieldValue(
+                option.value as EstateLegalApprovalInfrastructureField,
+                selectedSet.has(option.value),
+              )
+            }
+          }}
+        />
+      )}
+    </form.Subscribe>
+  )
+}
 
 function parseNonNegativeNumber(value: string) {
   if (value.trim() === '') return 0
@@ -22,57 +69,24 @@ function numberInputValue(value: number | null | undefined) {
 }
 
 export function CreateEstateLiveWorkspace({
+  estate = null,
   saving,
   onClose,
   onSubmit,
 }: {
+  estate?: Estate | null
   saving: boolean
   onClose: () => void
   onSubmit: (i: CreateEstateInput) => void
 }) {
+  const isEdit = Boolean(estate)
+  const initialLocation = estate ? parseEstateLocation(estate.cityTown) : { city: '', lga: '' }
   const [error, setError] = useState('')
-  const [selectedLga, setSelectedLga] = useState('')
-  const [fallbackCityTown, setFallbackCityTown] = useState('')
+  const [selectedLga, setSelectedLga] = useState(initialLocation.lga)
+  const [fallbackCityTown, setFallbackCityTown] = useState(initialLocation.city)
   const stateOptions = getAllStates()
   const form = useForm({
-    defaultValues: {
-      isOurEstate: true,
-      estateName: '',
-      estateCode: '',
-      estateType: 'residential' as const,
-      developerCompanyName: 'Bomach',
-      estateDescription: '',
-      country: 'Nigeria',
-      countryCode: 'NGA',
-      state: '',
-      cityTown: '',
-      preciseAddress: '',
-      hasCOfO: false,
-      hasDeedOfAssignment: false,
-      hasSurveyPlan: false,
-      zoningInformation: '',
-      hasPlanningPermit: false,
-      hasBuildingApproval: false,
-      hasEnvironmentalClearance: false,
-      pricePerSqm: 0,
-      availablePlotSizes: '',
-      minPriceOtherProperties: 0,
-      maxPriceOtherProperties: 0,
-      estateStatus: 'available' as const,
-      totalArea: 0,
-      areaUnit: 'sqm',
-      hasRoads: false,
-      hasElectricity: false,
-      hasWater: false,
-      hasFencing: false,
-      hasSecurity: false,
-      hasDrainage: false,
-      hasRecreation: false,
-      legalFee: 0,
-      developmentFee: 0,
-      receiptFee: 0,
-      tags: '',
-    },
+    defaultValues: estate ? mapEstateToFormValues(estate) : createDefaultEstateFormValues(),
     onSubmit: ({ value }) => {
       const cityTownValue = value.cityTown.trim() || fallbackCityTown.trim()
       const input: CreateEstateInput = {
@@ -111,7 +125,7 @@ export function CreateEstateLiveWorkspace({
         className="commercial-modal commercial-modal--xl specialized-real-estate-modal"
         role="dialog"
         aria-modal="true"
-        aria-label="Add Estate"
+        aria-label={isEdit ? 'Edit Estate' : 'Add Estate'}
         onMouseDown={(event) => event.stopPropagation()}
         onSubmit={(event) => {
           event.preventDefault()
@@ -120,8 +134,12 @@ export function CreateEstateLiveWorkspace({
       >
         <header className="commercial-modal-header">
           <div>
-            <h2>Add Estate</h2>
-            <p>Create the estate record first, then add its property inventory in a second step.</p>
+            <h2>{isEdit ? 'Edit Estate' : 'Add Estate'}</h2>
+            <p>
+              {isEdit
+                ? 'Update estate details, pricing, location and infrastructure markers.'
+                : 'Create the estate record first, then add its property inventory in a second step.'}
+            </p>
           </div>
           <button
             type="button"
@@ -169,46 +187,33 @@ export function CreateEstateLiveWorkspace({
                       value={field.state.value}
                       onChange={(event) => field.handleChange(event.target.value)}
                       placeholder="EST-001"
+                      disabled={isEdit}
                     />
                   </label>
                 )}
               </form.Field>
               <form.Field name="estateType">
                 {(field) => (
-                  <label className="commercial-field">
-                    <span>Estate type</span>
-                    <select
-                      value={field.state.value}
-                      onChange={(event) =>
-                        field.handleChange(event.target.value as typeof field.state.value)
-                      }
-                    >
-                      {estateTypes.map((item) => (
-                        <option key={item.value} value={item.value}>
-                          {item.label}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
+                  <RealEstateFormDropdown
+                    label="Estate type"
+                    options={estateTypes}
+                    value={field.state.value}
+                    onChange={(value) =>
+                      field.handleChange(value as typeof field.state.value)
+                    }
+                  />
                 )}
               </form.Field>
               <form.Field name="estateStatus">
                 {(field) => (
-                  <label className="commercial-field">
-                    <span>Status</span>
-                    <select
-                      value={field.state.value}
-                      onChange={(event) =>
-                        field.handleChange(event.target.value as typeof field.state.value)
-                      }
-                    >
-                      {estateStatuses.map((item) => (
-                        <option key={item.value} value={item.value}>
-                          {item.label}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
+                  <RealEstateFormDropdown
+                    label="Status"
+                    options={estateStatuses}
+                    value={field.state.value}
+                    onChange={(value) =>
+                      field.handleChange(value as typeof field.state.value)
+                    }
+                  />
                 )}
               </form.Field>
               <form.Field name="developerCompanyName">
@@ -281,58 +286,49 @@ export function CreateEstateLiveWorkspace({
 
                   return (
                     <>
-                      <label className="commercial-field">
-                        <span>
-                          State <em>*</em>
-                        </span>
-                        <select
-                          value={field.state.value}
-                          onChange={(event) => {
-                            const nextState = event.target.value
-                            field.handleChange(nextState)
-                            setSelectedLga('')
-                            setFallbackCityTown('')
-                            form.setFieldValue('cityTown', '')
-                          }}
-                        >
-                          <option value="">Select state</option>
-                          {stateOptions.map((state) => (
-                            <option key={state} value={state}>
-                              {state}
-                            </option>
-                          ))}
-                        </select>
-                      </label>
+                      <RealEstateFormDropdown
+                        label="State"
+                        required
+                        searchable
+                        placeholder="Select state"
+                        options={[
+                          { value: '', label: 'Select state' },
+                          ...stateOptions.map((state) => ({ value: state, label: state })),
+                        ]}
+                        value={field.state.value}
+                        onChange={(value) => {
+                          field.handleChange(value)
+                          setSelectedLga('')
+                          setFallbackCityTown('')
+                          form.setFieldValue('cityTown', '')
+                        }}
+                      />
 
-                      <label className="commercial-field">
-                        <span>
-                          LGA <em>*</em>
-                        </span>
-                        <select
-                          value={selectedLga}
-                          disabled={!field.state.value}
-                          onChange={(event) => {
-                            setSelectedLga(event.target.value)
-                            setFallbackCityTown('')
-                            form.setFieldValue('cityTown', '')
-                          }}
-                        >
-                          <option value="">Select LGA</option>
-                          {lgaOptions.map((lga) => (
-                            <option key={lga} value={lga}>
-                              {lga}
-                            </option>
-                          ))}
-                        </select>
-                      </label>
+                      <RealEstateFormDropdown
+                        label="LGA"
+                        required
+                        searchable
+                        placeholder="Select LGA"
+                        disabled={!field.state.value}
+                        options={[
+                          { value: '', label: 'Select LGA' },
+                          ...lgaOptions.map((lga) => ({ value: lga, label: lga })),
+                        ]}
+                        value={selectedLga}
+                        onChange={(value) => {
+                          setSelectedLga(value)
+                          setFallbackCityTown('')
+                          form.setFieldValue('cityTown', '')
+                        }}
+                      />
 
                       <form.Field name="cityTown">
-                        {(cityField) => (
-                          <label className="commercial-field">
-                            <span>
-                              City / town <em>*</em>
-                            </span>
-                            {useCityFallback ? (
+                        {(cityField) =>
+                          useCityFallback ? (
+                            <label className="commercial-field">
+                              <span>
+                                City / town <em>*</em>
+                              </span>
                               <input
                                 value={fallbackCityTown}
                                 disabled={citySelectionDisabled}
@@ -343,22 +339,23 @@ export function CreateEstateLiveWorkspace({
                                 }}
                                 placeholder="Enter city or town"
                               />
-                            ) : (
-                              <select
-                                value={cityField.state.value}
-                                disabled={citySelectionDisabled}
-                                onChange={(event) => cityField.handleChange(event.target.value)}
-                              >
-                                <option value="">Select city / town</option>
-                                {cityOptions.map((city) => (
-                                  <option key={city} value={city}>
-                                    {city}
-                                  </option>
-                                ))}
-                              </select>
-                            )}
-                          </label>
-                        )}
+                            </label>
+                          ) : (
+                            <RealEstateFormDropdown
+                              label="City / town"
+                              required
+                              searchable
+                              placeholder="Select city / town"
+                              disabled={citySelectionDisabled}
+                              options={[
+                                { value: '', label: 'Select city / town' },
+                                ...cityOptions.map((city) => ({ value: city, label: city })),
+                              ]}
+                              value={cityField.state.value}
+                              onChange={(value) => cityField.handleChange(value)}
+                            />
+                          )
+                        }
                       </form.Field>
                     </>
                   )
@@ -430,38 +427,7 @@ export function CreateEstateLiveWorkspace({
               </div>
             </div>
 
-            <div className="specialized-check-grid">
-              {(
-                [
-                  ['hasCOfO', 'C of O'],
-                  ['hasDeedOfAssignment', 'Deed of Assignment'],
-                  ['hasSurveyPlan', 'Survey Plan'],
-                  ['hasPlanningPermit', 'Planning Permit'],
-                  ['hasBuildingApproval', 'Building Approval'],
-                  ['hasEnvironmentalClearance', 'Environmental Clearance'],
-                  ['hasRoads', 'Roads'],
-                  ['hasElectricity', 'Electricity'],
-                  ['hasWater', 'Water'],
-                  ['hasFencing', 'Fencing'],
-                  ['hasSecurity', 'Security'],
-                  ['hasDrainage', 'Drainage'],
-                  ['hasRecreation', 'Recreation'],
-                ] as const
-              ).map(([name, label]) => (
-                <form.Field key={name} name={name}>
-                  {(field) => (
-                    <label className="commercial-check">
-                      <input
-                        type="checkbox"
-                        checked={field.state.value}
-                        onChange={(event) => field.handleChange(event.target.checked)}
-                      />
-                      <span>{label}</span>
-                    </label>
-                  )}
-                </form.Field>
-              ))}
-            </div>
+            <EstateLegalApprovalInfrastructureMultiselect form={form} />
           </section>
         </div>
 
@@ -470,7 +436,7 @@ export function CreateEstateLiveWorkspace({
             Cancel
           </button>
           <button type="submit" className="commercial-btn commercial-btn-primary" disabled={saving}>
-            {saving ? 'Creating...' : 'Create Estate'}
+            {saving ? 'Saving...' : isEdit ? 'Save Estate' : 'Create Estate'}
           </button>
         </footer>
       </form>
