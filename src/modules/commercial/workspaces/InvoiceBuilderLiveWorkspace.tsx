@@ -1,9 +1,14 @@
 import { IconX } from '@tabler/icons-react'
 import { useForm } from '@tanstack/react-form'
-import { useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 
 import { formatCurrency } from '@/shared/lib/formatters'
 
+import type { FinanceAccount } from '../billing/billing.types'
+import {
+  formatFinanceAccountOptionLabel,
+  formatFinanceAccountPaymentInstructions,
+} from '../billing/finance-account.utils'
 import type { Quotation } from '../quotation/quotation.types'
 import type { CreateInvoiceFromQuoteInput } from '../billing/billing.types'
 import { validateInvoiceDates } from '../billing/payment.validation'
@@ -14,11 +19,18 @@ function defaultDueDate() {
   return date.toISOString().slice(0, 10)
 }
 
+function defaultReceivingAccountId(accounts: FinanceAccount[]) {
+  const bankAccount = accounts.find((account) => account.accountType === 'bank')
+  return bankAccount?.id ?? accounts[0]?.id ?? 0
+}
+
 export function InvoiceBuilderLiveWorkspace({
   quotation,
   eligibleQuotations,
   quotationSelectionLocked,
   quotationSelectionLoading,
+  financeAccounts,
+  financeAccountsLoading,
   saving,
   onSelectQuotation,
   onClose,
@@ -28,6 +40,8 @@ export function InvoiceBuilderLiveWorkspace({
   eligibleQuotations: Quotation[]
   quotationSelectionLocked: boolean
   quotationSelectionLoading: boolean
+  financeAccounts: FinanceAccount[]
+  financeAccountsLoading: boolean
   saving: boolean
   onSelectQuotation: (quotationId: number) => void
   onClose: () => void
@@ -35,12 +49,24 @@ export function InvoiceBuilderLiveWorkspace({
 }) {
   const [errors, setErrors] = useState<Record<string, string>>({})
 
+  const initialReceivingAccountId = useMemo(
+    () => defaultReceivingAccountId(financeAccounts),
+    [financeAccounts],
+  )
+
+  const initialPaymentInstructions = useMemo(() => {
+    const account = financeAccounts.find((item) => item.id === initialReceivingAccountId)
+    return account
+      ? formatFinanceAccountPaymentInstructions(account)
+      : 'Select a receiving account to generate payment instructions.'
+  }, [financeAccounts, initialReceivingAccountId])
+
   const form = useForm({
     defaultValues: {
       dueDate: defaultDueDate(),
       paymentSchedule: 'Deposit / mobilisation',
-      paymentInstructions:
-        'Pay through client wallet, payment gateway, bank transfer or approved POS.',
+      financeAccountId: initialReceivingAccountId,
+      paymentInstructions: initialPaymentInstructions,
       notes: quotation.terms || '',
     },
     onSubmit: ({ value }) => {
@@ -49,6 +75,12 @@ export function InvoiceBuilderLiveWorkspace({
       if (dueDateError) nextErrors.dueDate = dueDateError
       if (!value.paymentSchedule.trim()) {
         nextErrors.paymentSchedule = 'Payment schedule is required.'
+      }
+      if (!value.financeAccountId) {
+        nextErrors.financeAccountId = 'Select the receiving account for client payments.'
+      }
+      if (!value.paymentInstructions.trim()) {
+        nextErrors.paymentInstructions = 'Payment instructions are required.'
       }
       setErrors(nextErrors)
       if (Object.keys(nextErrors).length > 0) return
@@ -62,6 +94,25 @@ export function InvoiceBuilderLiveWorkspace({
       })
     },
   })
+
+  const applyReceivingAccount = (accountId: number) => {
+    const account = financeAccounts.find((item) => item.id === accountId)
+    if (!account) return
+    form.setFieldValue('financeAccountId', accountId)
+    form.setFieldValue('paymentInstructions', formatFinanceAccountPaymentInstructions(account))
+    setErrors((current) => ({
+      ...current,
+      financeAccountId: '',
+      paymentInstructions: '',
+    }))
+  }
+
+  useEffect(() => {
+    if (!financeAccounts.length) return
+    const currentAccountId = form.state.values.financeAccountId
+    if (currentAccountId) return
+    applyReceivingAccount(defaultReceivingAccountId(financeAccounts))
+  }, [financeAccounts, form])
 
   return (
     <div className="commercial-modal-backdrop" role="presentation" onMouseDown={onClose}>
@@ -78,7 +129,10 @@ export function InvoiceBuilderLiveWorkspace({
         <header className="commercial-modal-header">
           <div>
             <h2>Create Invoice / Payment Schedule</h2>
-            <p>Generate a draft invoice from an accepted quotation</p>
+            <p>
+              Draft invoice for {quotation.quoteNumber}. Email is sent only after you issue the
+              invoice from invoice detail.
+            </p>
           </div>
           <button
             type="button"
@@ -92,55 +146,24 @@ export function InvoiceBuilderLiveWorkspace({
 
         <div className="commercial-modal-body">
           <section className="commercial-form-section">
-            <h3>Source quotation</h3>
             <div className="commercial-form-grid">
-              <label className="commercial-field commercial-field--full">
-                <span>Accepted quotation *</span>
-                <select
-                  value={quotation.id}
-                  disabled={quotationSelectionLocked || quotationSelectionLoading}
-                  onChange={(event) => onSelectQuotation(Number(event.target.value))}
-                >
-                  {eligibleQuotations.map((item) => (
-                    <option key={item.id} value={item.id}>
-                      {item.quoteNumber} — {item.clientName || `Client #${item.clientId}`} —{' '}
-                      {formatCurrency(item.amount)}
-                    </option>
-                  ))}
-                </select>
-                {quotationSelectionLocked ? (
-                  <small>This quotation was selected from the accepted Quote workflow.</small>
-                ) : null}
-              </label>
-            </div>
+              {!quotationSelectionLocked ? (
+                <label className="commercial-field commercial-field--full">
+                  <span>Accepted quotation *</span>
+                  <select
+                    value={quotation.id}
+                    disabled={quotationSelectionLoading || saving}
+                    onChange={(event) => onSelectQuotation(Number(event.target.value))}
+                  >
+                    {eligibleQuotations.map((item) => (
+                      <option key={item.id} value={item.id}>
+                        {item.quoteNumber} · {item.clientName} · {formatCurrency(item.amount)}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              ) : null}
 
-            <div className="commercial-info-grid">
-              <div>
-                <div className="commercial-kl">Quote</div>
-                <b>{quotation.quoteNumber}</b>
-              </div>
-              <div>
-                <div className="commercial-kl">Client</div>
-                <b>{quotation.clientName || `Client #${quotation.clientId}`}</b>
-              </div>
-              <div>
-                <div className="commercial-kl">Service</div>
-                <b>{quotation.serviceName}</b>
-              </div>
-              <div>
-                <div className="commercial-kl">Accepted value</div>
-                <b>{formatCurrency(quotation.amount)}</b>
-              </div>
-              <div>
-                <div className="commercial-kl">Required deposit</div>
-                <b>{formatCurrency(quotation.depositAmount)}</b>
-              </div>
-            </div>
-          </section>
-
-          <section className="commercial-form-section">
-            <h3>Invoice details</h3>
-            <div className="commercial-form-grid">
               <form.Field name="dueDate">
                 {(field) => (
                   <label className="commercial-field">
@@ -150,10 +173,7 @@ export function InvoiceBuilderLiveWorkspace({
                       value={field.state.value}
                       onChange={(event) => {
                         if (errors.dueDate) {
-                          setErrors((current) => ({
-                            ...current,
-                            dueDate: '',
-                          }))
+                          setErrors((current) => ({ ...current, dueDate: '' }))
                         }
                         field.handleChange(event.target.value)
                       }}
@@ -188,15 +208,48 @@ export function InvoiceBuilderLiveWorkspace({
                 )}
               </form.Field>
 
+              <form.Field name="financeAccountId">
+                {(field) => (
+                  <label className="commercial-field commercial-field--full">
+                    <span>Receiving account *</span>
+                    <select
+                      value={field.state.value || ''}
+                      disabled={financeAccountsLoading || saving}
+                      onChange={(event) => applyReceivingAccount(Number(event.target.value))}
+                    >
+                      <option value="">
+                        {financeAccountsLoading ? 'Loading accounts...' : 'Select receiving account'}
+                      </option>
+                      {financeAccounts.map((account) => (
+                        <option key={account.id} value={account.id}>
+                          {formatFinanceAccountOptionLabel(account)}
+                        </option>
+                      ))}
+                    </select>
+                    {errors.financeAccountId ? (
+                      <small className="commercial-field-error">{errors.financeAccountId}</small>
+                    ) : (
+                      <small className="commercial-form-note">
+                        This account is shown to the client in payment instructions and used when
+                        staff record payment proof.
+                      </small>
+                    )}
+                  </label>
+                )}
+              </form.Field>
+
               <form.Field name="paymentInstructions">
                 {(field) => (
                   <label className="commercial-field commercial-field--full">
-                    <span>Payment instructions</span>
+                    <span>Payment instructions *</span>
                     <textarea
                       rows={3}
                       value={field.state.value}
                       onChange={(event) => field.handleChange(event.target.value)}
                     />
+                    {errors.paymentInstructions ? (
+                      <small className="commercial-field-error">{errors.paymentInstructions}</small>
+                    ) : null}
                   </label>
                 )}
               </form.Field>
@@ -219,11 +272,10 @@ export function InvoiceBuilderLiveWorkspace({
           <section className="commercial-form-section commercial-quote-preview-section">
             <div className="commercial-form-section-heading">
               <div>
-                <h3>Commercial amount</h3>
-                <p>This invoice amount follows the approved quotation and is read-only here.</p>
+                <h3>Invoice total</h3>
               </div>
               <div className="commercial-quote-total-chip commercial-quote-total-chip--lg">
-                <span>Accepted quote</span>
+                <span>Quotation total</span>
                 <b>{formatCurrency(quotation.amount)}</b>
               </div>
             </div>
@@ -237,7 +289,7 @@ export function InvoiceBuilderLiveWorkspace({
           <button
             type="submit"
             className="commercial-btn commercial-btn-primary"
-            disabled={saving || quotationSelectionLoading}
+            disabled={saving || quotationSelectionLoading || financeAccountsLoading}
           >
             {saving ? 'Creating...' : 'Create Draft Invoice'}
           </button>

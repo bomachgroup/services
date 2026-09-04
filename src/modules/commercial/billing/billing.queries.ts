@@ -36,16 +36,22 @@ export const billingQueries = {
       queryFn: () => billingApi.eligibleAcceptedQuotes(),
       staleTime: 20_000,
     }),
+  financeAccounts: () =>
+    queryOptions({
+      queryKey: billingKeys.financeAccounts(),
+      queryFn: () => billingApi.financeAccounts(),
+      staleTime: 60_000,
+    }),
   payments: (invoiceId: number) =>
     queryOptions({
       queryKey: billingKeys.payments(invoiceId),
       queryFn: () => billingApi.payments(invoiceId),
       staleTime: 15_000,
     }),
-  submissions: (status: PaymentSubmissionStatus | '') =>
+  submissions: (status: PaymentSubmissionStatus | '', invoiceId?: number) =>
     queryOptions({
-      queryKey: billingKeys.submissions(status),
-      queryFn: () => billingApi.paymentSubmissions(status),
+      queryKey: billingKeys.submissions(status, invoiceId),
+      queryFn: () => billingApi.paymentSubmissions(status, invoiceId),
       staleTime: 15_000,
     }),
 }

@@ -1,6 +1,7 @@
 import { useState } from 'react'
 
 import { formatCurrency } from '@/shared/lib/formatters'
+import { ConfirmDialog } from '@/shared/ui/confirm-dialog'
 import { EmptyState } from '@/shared/ui/empty-state'
 
 import {
@@ -36,6 +37,7 @@ export function PaymentSubmissionsPanel({
   onReview: (submission: PaymentSubmission, input: ReviewPaymentSubmissionInput) => void
 }) {
   const [rejectingId, setRejectingId] = useState<number | null>(null)
+  const [confirmingId, setConfirmingId] = useState<number | null>(null)
   const [reason, setReason] = useState('')
 
   if (loading) {
@@ -138,7 +140,7 @@ export function PaymentSubmissionsPanel({
                           type="button"
                           className="commercial-btn commercial-btn-small commercial-btn-green"
                           disabled={saving}
-                          onClick={() => onReview(submission, { status: 'confirmed' })}
+                          onClick={() => setConfirmingId(submission.id)}
                         >
                           Confirm
                         </button>
@@ -210,6 +212,51 @@ export function PaymentSubmissionsPanel({
             </footer>
           </section>
         </div>
+      ) : null}
+
+      {confirmingId ? (
+        <ConfirmDialog
+          open
+          tone="success"
+          title="Record this payment?"
+          description="This confirms the submitted proof, posts the receipt against the invoice, and updates the outstanding balance."
+          impact="This action cannot be reversed from this screen once recorded."
+          detailsTitle="Payment summary"
+          detailRows={(() => {
+            const submission = submissions.find((item) => item.id === confirmingId)
+            if (!submission) return []
+            return [
+              { label: 'Submission', value: submission.reference, highlight: true },
+              { label: 'Invoice', value: submission.invoiceNumber || '—' },
+              { label: 'Client', value: submission.clientName || '—' },
+              {
+                label: 'Amount',
+                value: formatCurrency(submission.amount),
+                highlight: true,
+              },
+              { label: 'Method', value: paymentMethodLabel(submission.paymentMethod) },
+              { label: 'Payment date', value: submission.paymentDate || '—' },
+              ...(submission.financeAccountName
+                ? [{ label: 'Receiving account', value: submission.financeAccountName }]
+                : []),
+            ]
+          })()}
+          confirmLabel="Record payment"
+          cancelLabel="Review again"
+          isConfirming={saving}
+          onCancel={() => setConfirmingId(null)}
+          onConfirm={() => {
+            const submission = submissions.find((item) => item.id === confirmingId)
+            if (!submission) return
+            onReview(submission, {
+              status: 'confirmed',
+              ...(submission.financeAccountId
+                ? { financeAccountId: submission.financeAccountId }
+                : {}),
+            })
+            setConfirmingId(null)
+          }}
+        />
       ) : null}
     </>
   )

@@ -3,6 +3,7 @@ import { apiClient } from '@/shared/api/api-client'
 import { quotationsApi } from '../quotation/quotation.api'
 import type { Quotation } from '../quotation/quotation.types'
 import {
+  mapFinanceAccountList,
   mapInvoice,
   mapInvoiceList,
   mapPayment,
@@ -12,12 +13,15 @@ import {
 } from './billing.mapper'
 import type {
   CreateInvoiceFromQuoteInput,
+  CreatePaymentSubmissionInput,
+  FinanceAccount,
   Invoice,
   InvoiceFilters,
   InvoiceSummary,
   PaginatedInvoices,
   PaginatedPayments,
   PaginatedPaymentSubmissions,
+  PaymentSubmission,
   PaymentSubmissionStatus,
   RecordPaymentInput,
   ReviewPaymentSubmissionInput,
@@ -115,6 +119,14 @@ export const billingApi = {
     return quotes.filter((quote) => !activeInvoiceQuoteIds.has(quote.id))
   },
 
+  async invoiceForQuote(quoteId: number): Promise<Invoice | null> {
+    const result = await billingApi.list({ quoteId, page: 1, limit: 1 })
+    const invoice = result.items.find(
+      (item) => item.quoteId === quoteId && item.status !== 'cancelled',
+    )
+    return invoice ?? null
+  },
+
   async createFromQuote(input: CreateInvoiceFromQuoteInput): Promise<Invoice> {
     return mapInvoice(
       await apiClient.post<unknown>(`/quotes/${input.quoteId}/invoice`, {
@@ -175,13 +187,36 @@ export const billingApi = {
     )
   },
 
+  async financeAccounts(): Promise<FinanceAccount[]> {
+    return mapFinanceAccountList(
+      await apiClient.get<unknown>('/finance/accounts?is_active=true&limit=100&offset=0'),
+    )
+  },
+
+  async createPaymentSubmission(input: CreatePaymentSubmissionInput): Promise<PaymentSubmission> {
+    return mapPaymentSubmission(
+      await apiClient.post<unknown>('/finance/payments/submissions', {
+        invoice_id: input.invoiceId,
+        finance_account_id: input.financeAccountId,
+        amount: input.amount,
+        payment_method: input.paymentMethod,
+        payment_date: input.paymentDate,
+        transaction_reference: input.transactionReference,
+        proof_of_payment: input.proofOfPayment,
+        notes: input.notes,
+      }),
+    )
+  },
+
   async paymentSubmissions(
     status: PaymentSubmissionStatus | '' = 'pending',
+    invoiceId?: number,
   ): Promise<PaginatedPaymentSubmissions> {
     const query = new URLSearchParams()
     query.set('limit', '100')
     query.set('offset', '0')
     if (status) query.set('status', status)
+    if (invoiceId) query.set('invoice_id', String(invoiceId))
     return mapPaymentSubmissionList(
       await apiClient.get<unknown>(`/invoices/payment-submissions?${query.toString()}`),
     )
@@ -191,6 +226,7 @@ export const billingApi = {
     return mapPaymentSubmission(
       await apiClient.post<unknown>(`/invoices/payment-submissions/${submissionId}/review`, {
         status: input.status,
+        ...(input.financeAccountId ? { finance_account_id: input.financeAccountId } : {}),
         rejection_reason: input.rejectionReason ?? '',
       }),
     )
