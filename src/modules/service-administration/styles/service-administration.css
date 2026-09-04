@@ -232,13 +232,16 @@
   margin-bottom: 10px;
 }
 
-.service-admin-filter-group input,
-.service-admin-filter-group select {
+.service-admin-filter-group input {
   border: 1px solid var(--service-admin-border);
   border-radius: 7px;
   background: #fff;
   padding: 7px 9px;
   font-size: 10px;
+}
+
+.service-admin-request-service-dropdown {
+  min-width: 220px;
 }
 
 .service-admin-grow {
@@ -792,6 +795,12 @@ button.service-admin-wizard-step.service-admin-wizard-step--reachable:not(:disab
 
 .service-admin-form-grid .service-admin-config-field {
   margin-bottom: 12px;
+  position: relative;
+  z-index: 0;
+}
+
+.service-admin-form-grid .service-admin-config-field:has(.ui-dropdown--open) {
+  z-index: 2;
 }
 
 .service-admin-form-grid .service-admin-config-field--full {
@@ -2072,6 +2081,48 @@ button.service-admin-wizard-step.service-admin-wizard-step--reachable:not(:disab
   align-items: center;
   gap: 7px;
   font-size: 10px;
+}
+.service-admin-field-options-editor {
+  display: grid;
+  gap: 8px;
+}
+.service-admin-field-options-editor-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.service-admin-field-options-editor-header span {
+  color: #566075;
+  font-size: 10px;
+  font-weight: 700;
+}
+.service-admin-field-options-editor-header button {
+  border: 1px solid #d8e0ea;
+  border-radius: 7px;
+  background: #fff;
+  padding: 4px 8px;
+  font-size: 10px;
+}
+.service-admin-field-options-list {
+  display: grid;
+  gap: 6px;
+}
+.service-admin-field-option-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 6px;
+}
+.service-admin-field-option-row button {
+  border: 1px solid #d8e0ea;
+  border-radius: 7px;
+  background: #fff;
+  padding: 0 8px;
+  font-size: 10px;
+}
+.service-admin-field-option-row button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
 }
 
 @media (max-width: 850px) {

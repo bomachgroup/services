@@ -1,11 +1,12 @@
 import { IconX } from '@tabler/icons-react'
-import { useRef, useState, type MutableRefObject } from 'react'
+import { useRef, useState, useId, type MutableRefObject } from 'react'
 
 import {
   formatNumberFieldValue,
   parseNumberFieldValue,
   parseOptionalNumberFieldValue,
 } from '@/shared/lib/number-input'
+import { DropdownSelect } from '@/shared/ui/dropdown-select'
 
 import type {
   ConfigureServiceInput,
@@ -25,6 +26,15 @@ import type {
 } from '../types/service-administration.types'
 import { RequestFormBuilderPanel } from '../components/RequestFormBuilderPanel'
 import { WorkflowDesignerPanel } from '../components/WorkflowDesignerPanel'
+import {
+  CLIENT_VISIBILITY_OPTIONS_LABEL,
+  CLIENT_VISIBILITY_OPTIONS_VALUE,
+  FULFILLMENT_MODE_OPTIONS,
+  PRICING_METHOD_OPTIONS_CONFIGURE,
+  PRICING_METHOD_OPTIONS_CREATE,
+  SERVICE_STATUS_OPTIONS,
+  SERVICE_STATUS_OPTIONS_WITH_PUBLISH,
+} from '../components/service-admin-dropdown-options'
 import {
   buildStagesForService,
   cloneStages,
@@ -61,7 +71,6 @@ type ServiceWizardFieldName =
   | 'name'
   | 'code'
   | 'parentId'
-  | 'ownerRoleId'
   | 'description'
   | 'slaDays'
   | 'fulfilmentMode'
@@ -166,69 +175,21 @@ function Field({
   required?: boolean
   error?: string | undefined
 }) {
+  const labelId = useId()
+
   return (
-    <label
-      className={`service-admin-config-field${full ? 'service-admin-config-field--full' : ''}`}
+    <div
+      className={`service-admin-config-field${full ? ' service-admin-config-field--full' : ''}`}
+      role="group"
+      aria-labelledby={labelId}
     >
-      <span>
+      <span id={labelId}>
         {label}
         {required ? <em className="service-admin-required">*</em> : null}
       </span>
       {children}
       {error ? <small className="service-admin-field-error">{error}</small> : null}
-    </label>
-  )
-}
-
-function SpecializedProfileFields({
-  specializedDomain,
-  specializedRequestContext,
-  fieldErrors,
-  fieldRefs,
-  onDomainChange,
-  onRequestContextChange,
-}: {
-  specializedDomain: string
-  specializedRequestContext: string
-  fieldErrors: ServiceWizardFieldErrors
-  fieldRefs: React.MutableRefObject<Record<string, HTMLElement | null>>
-  onDomainChange: (value: string) => void
-  onRequestContextChange: (value: string) => void
-}) {
-  return (
-    <>
-      <Field label="Specialized domain" error={fieldErrors.specializedDomain}>
-        <select
-          ref={(node) => {
-            registerFieldRef(fieldRefs, 'specializedDomain', node)
-          }}
-          value={specializedDomain}
-          onChange={(event) => onDomainChange(event.target.value)}
-        >
-          {SPECIALIZED_DOMAIN_OPTIONS.map((option) => (
-            <option key={option.value || 'none'} value={option.value}>
-              {option.label}
-            </option>
-          ))}
-        </select>
-      </Field>
-      {specializedDomain ? (
-        <Field
-          label="Request context"
-          full
-          error={fieldErrors.specializedRequestContext}
-        >
-          <input
-            ref={(node) => {
-              registerFieldRef(fieldRefs, 'specializedRequestContext', node)
-            }}
-            value={specializedRequestContext}
-            placeholder="e.g. property_sale, estate_management"
-            onChange={(event) => onRequestContextChange(event.target.value)}
-          />
-        </Field>
-      ) : null}
-    </>
+    </div>
   )
 }
 
@@ -273,7 +234,6 @@ export function CreateServiceWizard({
   const [name, setName] = useState('')
   const [code, setCode] = useState('')
   const [parentId, setParentId] = useState<number>(0)
-  const [ownerRoleId, setOwnerRoleId] = useState<number | null>(null)
   const [description, setDescription] = useState('')
   const [slaDays, setSlaDays] = useState(5)
   const [fulfilmentMode, setFulfilmentMode] = useState('Quick service order')
@@ -415,7 +375,6 @@ export function CreateServiceWizard({
       ...(access.branches && effectiveSelectedBranchIds.length > 0 ? ['branches' as const] : []),
       ...(status !== 'draft' && access.publish ? ['publish' as const] : []),
     ]
-    const selectedOwner = ownerRoles.find((role) => role.id === ownerRoleId)
     const selectedBranches = branchOptions.filter((branch) =>
       effectiveSelectedBranchIds.includes(branch.id),
     )
@@ -427,8 +386,7 @@ export function CreateServiceWizard({
       parentId: parentId || null,
       code: code.trim(),
       description: description.trim(),
-      owner: selectedOwner?.name ?? '',
-      ownerRoleId,
+      owner: '',
       slaDays,
       fulfilmentMode,
       status,
@@ -594,42 +552,41 @@ export function CreateServiceWizard({
                 />
               </Field>
               <Field label="Service parent" error={fieldErrors.parentId}>
-                <select
-                  ref={(node) => {
+                <DropdownSelect
+                  placeholder="Select a parent (optional)"
+                  options={[
+                    { value: '', label: 'Select a parent (optional)' },
+                    ...parents.map((item) => ({
+                      value: String(item.id),
+                      label: item.name,
+                    })),
+                  ]}
+                  value={parentId ? String(parentId) : ''}
+                  invalid={Boolean(fieldErrors.parentId)}
+                  containerRef={(node) => {
                     fieldRefs.current.parentId = node
                   }}
-                  aria-invalid={fieldErrors.parentId ? true : undefined}
-                  value={parentId || ''}
-                  onChange={(event) => {
+                  onChange={(value) => {
                     clearFieldError('parentId')
-                    setParentId(Number(event.target.value))
+                    setParentId(value ? Number(value) : 0)
                   }}
-                >
-                  <option value="">Select a parent (optional)</option>
-                  {parents.map((item) => (
-                    <option key={item.id} value={item.id}>
-                      {item.name}
-                    </option>
-                  ))}
-                </select>
+                />
               </Field>
-              {access.ownerRoles ? (
-                <Field label="Owner role">
-                  <select
-                    value={ownerRoleId ?? ''}
-                    onChange={(event) =>
-                      setOwnerRoleId(event.target.value ? Number(event.target.value) : null)
-                    }
-                  >
-                    <option value="">Unassigned</option>
-                    {ownerRoles.map((role) => (
-                      <option key={role.id} value={role.id}>
-                        {role.name}
-                      </option>
-                    ))}
-                  </select>
-                </Field>
-              ) : null}
+              <Field label="SLA (days)" required error={fieldErrors.slaDays}>
+                <input
+                  ref={(node) => {
+                    fieldRefs.current.slaDays = node
+                  }}
+                  aria-invalid={fieldErrors.slaDays ? true : undefined}
+                  type="number"
+                  min={1}
+                  value={formatNumberFieldValue(slaDays)}
+                  onChange={(event) => {
+                    clearFieldError('slaDays')
+                    setSlaDays(parseNumberFieldValue(event.target.value))
+                  }}
+                />
+              </Field>
             </div>
             <Field label="Description" required error={fieldErrors.description}>
               <textarea
@@ -648,81 +605,74 @@ export function CreateServiceWizard({
               />
             </Field>
             <div className="service-admin-form-grid">
-              <Field label="SLA (days)" required error={fieldErrors.slaDays}>
-                <input
-                  ref={(node) => {
-                    fieldRefs.current.slaDays = node
+              <Field label="Fulfillment mode" required error={fieldErrors.fulfilmentMode}>
+                <DropdownSelect
+                  options={FULFILLMENT_MODE_OPTIONS}
+                  value={fulfilmentMode}
+                  invalid={Boolean(fieldErrors.fulfilmentMode)}
+                  containerRef={(node) => {
+                    fieldRefs.current.fulfilmentMode = node
                   }}
-                  aria-invalid={fieldErrors.slaDays ? true : undefined}
-                  type="number"
-                  min={1}
-                  value={formatNumberFieldValue(slaDays)}
-                  onChange={(event) => {
-                    clearFieldError('slaDays')
-                    setSlaDays(parseNumberFieldValue(event.target.value))
+                  onChange={(value) => {
+                    clearFieldError('fulfilmentMode')
+                    setFulfilmentMode(value)
                   }}
                 />
               </Field>
-              <Field label="Fulfillment mode" required error={fieldErrors.fulfilmentMode}>
-                <select
-                  ref={(node) => {
-                    fieldRefs.current.fulfilmentMode = node
+              <Field label="Specialized domain" error={fieldErrors.specializedDomain}>
+                <DropdownSelect
+                  options={[...SPECIALIZED_DOMAIN_OPTIONS]}
+                  value={specializedDomain}
+                  invalid={Boolean(fieldErrors.specializedDomain)}
+                  containerRef={(node) => {
+                    registerFieldRef(fieldRefs, 'specializedDomain', node)
                   }}
-                  aria-invalid={fieldErrors.fulfilmentMode ? true : undefined}
-                  value={fulfilmentMode}
-                  onChange={(event) => {
-                    clearFieldError('fulfilmentMode')
-                    setFulfilmentMode(event.target.value)
+                  onChange={(value) => {
+                    clearFieldError('specializedDomain')
+                    setSpecializedDomain(value)
+                    if (!value) setSpecializedRequestContext('')
                   }}
-                >
-                  <option>Quick service order</option>
-                  <option>Managed service case</option>
-                  <option>Project & worksite</option>
-                  <option>Transaction & allocation</option>
-                  <option>Supply order</option>
-                </select>
+                />
               </Field>
             </div>
-            <div className="service-admin-form-grid">
-              <SpecializedProfileFields
-                specializedDomain={specializedDomain}
-                specializedRequestContext={specializedRequestContext}
-                fieldErrors={fieldErrors}
-                fieldRefs={fieldRefs}
-                onDomainChange={(value) => {
-                  clearFieldError('specializedDomain')
-                  setSpecializedDomain(value)
-                  if (!value) setSpecializedRequestContext('')
-                }}
-                onRequestContextChange={(value) => {
-                  clearFieldError('specializedRequestContext')
-                  setSpecializedRequestContext(value)
-                }}
-              />
-            </div>
+            {specializedDomain ? (
+              <Field
+                label="Request context"
+                full
+                error={fieldErrors.specializedRequestContext}
+              >
+                <input
+                  ref={(node) => {
+                    registerFieldRef(fieldRefs, 'specializedRequestContext', node)
+                  }}
+                  value={specializedRequestContext}
+                  placeholder="e.g. property_sale, estate_management"
+                  onChange={(event) => {
+                    clearFieldError('specializedRequestContext')
+                    setSpecializedRequestContext(event.target.value)
+                  }}
+                />
+              </Field>
+            ) : null}
           </>
         ) : null}
 
         {currentStage === 'pricing' ? (
           <div className="service-admin-form-grid">
             <Field label="Pricing method" required error={fieldErrors.pricingMethod}>
-              <select
-                ref={(node) => {
+              <DropdownSelect
+                placeholder="Select pricing method"
+                options={PRICING_METHOD_OPTIONS_CREATE}
+                value={pricingMethod}
+                invalid={Boolean(fieldErrors.pricingMethod)}
+                containerRef={(node) => {
                   fieldRefs.current.pricingMethod = node
                 }}
-                aria-invalid={fieldErrors.pricingMethod ? true : undefined}
-                value={pricingMethod}
-                onChange={(event) => {
+                onChange={(value) => {
                   clearFieldError('pricingMethod')
-                  setPricingMethod(event.target.value)
+                  setPricingMethod(value)
                 }}
-              >
-                <option value="">Select pricing method</option>
-                <option>Fixed</option>
-                <option>Unit rate</option>
-                <option>Area rate</option>
-                <option>Percentage</option>
-              </select>
+              />
             </Field>
             <Field label="Base / unit price" required error={fieldErrors.rate}>
               <input
@@ -899,39 +849,37 @@ export function CreateServiceWizard({
             <div className="service-admin-form-grid service-admin-publish-grid">
               {access.publish ? (
                 <Field label="Status" required error={fieldErrors.status}>
-                  <select
-                    ref={(node) => {
+                  <DropdownSelect
+                    options={
+                      canPublishActive
+                        ? SERVICE_STATUS_OPTIONS_WITH_PUBLISH
+                        : SERVICE_STATUS_OPTIONS.filter((option) => option.value !== 'active')
+                    }
+                    value={status}
+                    invalid={Boolean(fieldErrors.status)}
+                    containerRef={(node) => {
                       fieldRefs.current.status = node
                     }}
-                    aria-invalid={fieldErrors.status ? true : undefined}
-                    value={status}
-                    onChange={(event) => {
+                    onChange={(value) => {
                       clearFieldError('status')
-                      setStatus(event.target.value as typeof status)
+                      setStatus(value as typeof status)
                     }}
-                  >
-                    <option value="draft">Draft</option>
-                    {canPublishActive ? <option value="active">Active / Publish</option> : null}
-                    <option value="inactive">Paused</option>
-                  </select>
+                  />
                 </Field>
               ) : null}
               <Field label="Client visibility" required error={fieldErrors.clientVisibility}>
-                <select
-                  ref={(node) => {
+                <DropdownSelect
+                  options={CLIENT_VISIBILITY_OPTIONS_VALUE}
+                  value={clientVisibility}
+                  invalid={Boolean(fieldErrors.clientVisibility)}
+                  containerRef={(node) => {
                     fieldRefs.current.clientVisibility = node
                   }}
-                  aria-invalid={fieldErrors.clientVisibility ? true : undefined}
-                  value={clientVisibility}
-                  onChange={(event) => {
+                  onChange={(value) => {
                     clearFieldError('clientVisibility')
-                    setClientVisibility(event.target.value as typeof clientVisibility)
+                    setClientVisibility(value as typeof clientVisibility)
                   }}
-                >
-                  <option value="visible">Visible in catalogue</option>
-                  <option value="internal">Internal only</option>
-                  <option value="hidden">Hidden</option>
-                </select>
+                />
               </Field>
             </div>
             <div className="service-admin-notice service-admin-notice-green">
@@ -1012,11 +960,6 @@ export function ConfigureServiceWorkspace({
   const [step, setStep] = useState(0)
   const [name, setName] = useState(service.name)
   const [code, setCode] = useState(service.code)
-  const [owner, setOwner] = useState(service.owner)
-  const [ownerRoleId, setOwnerRoleId] = useState<number | null>(() => {
-    const matchedRole = ownerRoles.find((role) => role.name === service.owner)
-    return matchedRole?.id ?? null
-  })
   const [description, setDescription] = useState(service.description)
   const [slaDays, setSlaDays] = useState(service.slaDays ?? 5)
   const [fulfilmentMode, setFulfilmentMode] = useState(
@@ -1078,8 +1021,7 @@ export function ConfigureServiceWorkspace({
     id: service.id,
     name: name.trim(),
     code: code.trim(),
-    owner: owner.trim(),
-    ownerRoleId,
+    owner: service.owner,
     description: description.trim(),
     slaDays,
     fulfilmentMode,
@@ -1125,7 +1067,6 @@ export function ConfigureServiceWorkspace({
     if (index === 0) {
       if (!name.trim()) return { message: 'Service name is required.', field: 'name' }
       if (!code.trim()) return { message: 'Service code is required.', field: 'code' }
-      if (!owner.trim()) return { message: 'Owner role is required.', field: 'ownerRoleId' }
       if (!description.trim()) return { message: 'Description is required.', field: 'description' }
       if (!Number.isFinite(slaDays) || slaDays < 1) {
         return { message: 'SLA must be at least 1 day.', field: 'slaDays' }
@@ -1334,33 +1275,21 @@ export function ConfigureServiceWorkspace({
                     }}
                   />
                 </Field>
-                <Field label="Owner role" required error={fieldErrors.ownerRoleId}>
-                  <select
+                <Field label="SLA (days)" required error={fieldErrors.slaDays}>
+                  <input
                     ref={(node) => {
-                      fieldRefs.current.ownerRoleId = node
+                      fieldRefs.current.slaDays = node
                     }}
-                    aria-invalid={fieldErrors.ownerRoleId ? true : undefined}
-                    value={ownerRoleId ?? ''}
+                    aria-invalid={fieldErrors.slaDays ? true : undefined}
+                    type="number"
+                    min={1}
                     required
+                    value={formatNumberFieldValue(slaDays)}
                     onChange={(event) => {
-                      clearFieldError('ownerRoleId')
-                      const nextOwnerRoleId = event.target.value ? Number(event.target.value) : null
-                      const selectedOwnerRole = ownerRoles.find(
-                        (role) => role.id === nextOwnerRoleId,
-                      )
-                      setOwnerRoleId(nextOwnerRoleId)
-                      setOwner(selectedOwnerRole?.name ?? '')
+                      clearFieldError('slaDays')
+                      setSlaDays(parseNumberFieldValue(event.target.value))
                     }}
-                  >
-                    <option value="" disabled>
-                      Select an owner role
-                    </option>
-                    {ownerRoles.map((role) => (
-                      <option key={role.id} value={role.id}>
-                        {role.name}
-                      </option>
-                    ))}
-                  </select>
+                  />
                 </Field>
               </div>
               <Field label="Description" required error={fieldErrors.description}>
@@ -1381,84 +1310,73 @@ export function ConfigureServiceWorkspace({
                 />
               </Field>
               <div className="service-admin-form-grid">
-                <Field label="SLA (days)" required error={fieldErrors.slaDays}>
-                  <input
-                    ref={(node) => {
-                      fieldRefs.current.slaDays = node
+                <Field label="Fulfillment mode" required error={fieldErrors.fulfilmentMode}>
+                  <DropdownSelect
+                    options={FULFILLMENT_MODE_OPTIONS}
+                    value={fulfilmentMode}
+                    invalid={Boolean(fieldErrors.fulfilmentMode)}
+                    containerRef={(node) => {
+                      fieldRefs.current.fulfilmentMode = node
                     }}
-                    aria-invalid={fieldErrors.slaDays ? true : undefined}
-                    type="number"
-                    min={1}
-                    required
-                    value={formatNumberFieldValue(slaDays)}
-                    onChange={(event) => {
-                      clearFieldError('slaDays')
-                      setSlaDays(parseNumberFieldValue(event.target.value))
+                    onChange={(value) => {
+                      clearFieldError('fulfilmentMode')
+                      setFulfilmentMode(value)
                     }}
                   />
                 </Field>
-                <Field label="Fulfillment mode" required error={fieldErrors.fulfilmentMode}>
-                  <select
-                    ref={(node) => {
-                      fieldRefs.current.fulfilmentMode = node
+                <Field label="Specialized domain" error={fieldErrors.specializedDomain}>
+                  <DropdownSelect
+                    options={[...SPECIALIZED_DOMAIN_OPTIONS]}
+                    value={specializedDomain}
+                    invalid={Boolean(fieldErrors.specializedDomain)}
+                    containerRef={(node) => {
+                      registerFieldRef(fieldRefs, 'specializedDomain', node)
                     }}
-                    aria-invalid={fieldErrors.fulfilmentMode ? true : undefined}
-                    value={fulfilmentMode}
-                    required
-                    onChange={(event) => {
-                      clearFieldError('fulfilmentMode')
-                      setFulfilmentMode(event.target.value)
+                    onChange={(value) => {
+                      clearFieldError('specializedDomain')
+                      setSpecializedDomain(value)
+                      if (!value) setSpecializedRequestContext('')
                     }}
-                  >
-                    <option>Quick service order</option>
-                    <option>Managed service case</option>
-                    <option>Project & worksite</option>
-                    <option>Transaction & allocation</option>
-                    <option>Supply order</option>
-                  </select>
+                  />
                 </Field>
               </div>
-              <div className="service-admin-form-grid">
-                <SpecializedProfileFields
-                  specializedDomain={specializedDomain}
-                  specializedRequestContext={specializedRequestContext}
-                  fieldErrors={fieldErrors}
-                  fieldRefs={fieldRefs}
-                  onDomainChange={(value) => {
-                    clearFieldError('specializedDomain')
-                    setSpecializedDomain(value)
-                    if (!value) setSpecializedRequestContext('')
-                  }}
-                  onRequestContextChange={(value) => {
-                    clearFieldError('specializedRequestContext')
-                    setSpecializedRequestContext(value)
-                  }}
-                />
-              </div>
+              {specializedDomain ? (
+                <Field
+                  label="Request context"
+                  full
+                  error={fieldErrors.specializedRequestContext}
+                >
+                  <input
+                    ref={(node) => {
+                      registerFieldRef(fieldRefs, 'specializedRequestContext', node)
+                    }}
+                    value={specializedRequestContext}
+                    placeholder="e.g. property_sale, estate_management"
+                    onChange={(event) => {
+                      clearFieldError('specializedRequestContext')
+                      setSpecializedRequestContext(event.target.value)
+                    }}
+                  />
+                </Field>
+              ) : null}
             </>
           ) : null}
 
           {step === 1 ? (
             <div className="service-admin-form-grid">
               <Field label="Pricing method" required error={fieldErrors.pricingMethod}>
-                <select
-                  ref={(node) => {
+                <DropdownSelect
+                  options={PRICING_METHOD_OPTIONS_CONFIGURE}
+                  value={pricingMethod}
+                  invalid={Boolean(fieldErrors.pricingMethod)}
+                  containerRef={(node) => {
                     fieldRefs.current.pricingMethod = node
                   }}
-                  aria-invalid={fieldErrors.pricingMethod ? true : undefined}
-                  value={pricingMethod}
-                  required
-                  onChange={(event) => {
+                  onChange={(value) => {
                     clearFieldError('pricingMethod')
-                    setPricingMethod(event.target.value)
+                    setPricingMethod(value)
                   }}
-                >
-                  <option>Fixed</option>
-                  <option>Unit rate</option>
-                  <option>Area rate</option>
-                  <option>Percentage</option>
-                  <option>Custom formula</option>
-                </select>
+                />
               </Field>
               <Field label="Base / unit price" required error={fieldErrors.rate}>
                 <input
@@ -1614,40 +1532,32 @@ export function ConfigureServiceWorkspace({
           {step === 5 ? (
             <div className="service-admin-form-grid service-admin-publish-grid">
               <Field label="Status" required error={fieldErrors.status}>
-                <select
-                  ref={(node) => {
+                <DropdownSelect
+                  options={SERVICE_STATUS_OPTIONS}
+                  value={status}
+                  invalid={Boolean(fieldErrors.status)}
+                  containerRef={(node) => {
                     fieldRefs.current.status = node
                   }}
-                  aria-invalid={fieldErrors.status ? true : undefined}
-                  value={status}
-                  required
-                  onChange={(event) => {
+                  onChange={(value) => {
                     clearFieldError('status')
-                    setStatus(event.target.value as typeof status)
+                    setStatus(value as typeof status)
                   }}
-                >
-                  <option value="draft">Draft</option>
-                  <option value="active">Active</option>
-                  <option value="inactive">Paused</option>
-                </select>
+                />
               </Field>
               <Field label="Client visibility" required error={fieldErrors.clientVisibility}>
-                <select
-                  ref={(node) => {
+                <DropdownSelect
+                  options={CLIENT_VISIBILITY_OPTIONS_LABEL}
+                  value={clientVisibility}
+                  invalid={Boolean(fieldErrors.clientVisibility)}
+                  containerRef={(node) => {
                     fieldRefs.current.clientVisibility = node
                   }}
-                  aria-invalid={fieldErrors.clientVisibility ? true : undefined}
-                  value={clientVisibility}
-                  required
-                  onChange={(event) => {
+                  onChange={(value) => {
                     clearFieldError('clientVisibility')
-                    setClientVisibility(event.target.value)
+                    setClientVisibility(value)
                   }}
-                >
-                  <option>Visible in catalogue</option>
-                  <option>Internal only</option>
-                  <option>Hidden</option>
-                </select>
+                />
               </Field>
             </div>
           ) : null}
