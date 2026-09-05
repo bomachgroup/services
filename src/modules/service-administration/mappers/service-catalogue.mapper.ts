@@ -35,12 +35,15 @@ export function mapServiceCatalogueCard(dto: ServiceCatalogueCardDto): ServiceCa
     id: String(dto.id),
     code: dto.code ?? '',
     name: dto.name,
-    division: dto.division,
+    parentId: dto.parent_id ?? null,
+    parentName: dto.parent_name,
     description: dto.description,
     owner: dto.owner_role_name,
     status: normalizeStatus(dto.status),
     branchNames: dto.active_branches.map((branch) => branch.branch_name),
-    subserviceCount: dto.subservice_count,
+    specializedServiceId: dto.specialized_service_id,
+    specializedDomain: dto.specialized_domain,
+    specializedConfig: dto.specialized_config,
     ...(dto.active_pricing_config?.name ? { calculatorName: dto.active_pricing_config.name } : {}),
     ...(dto.active_request_form?.name ? { requestFormName: dto.active_request_form.name } : {}),
     ...(dto.active_workflow?.name ? { workflowName: dto.active_workflow.name } : {}),
@@ -68,10 +71,6 @@ export function mapServiceCatalogueDetail(dto: ServiceCatalogueDetailDto): Servi
 
   return {
     ...mapServiceCatalogueCard(dto),
-    subservices: dto.subservices
-      .slice()
-      .sort((a, b) => a.sort_order - b.sort_order)
-      .map((item) => item.name),
     requestFields: (activeRequestForm?.fields ?? [])
       .slice()
       .sort((a, b) => a.sort_order - b.sort_order)

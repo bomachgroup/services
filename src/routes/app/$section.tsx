@@ -57,6 +57,12 @@ const DeliverablesLivePage = lazy(() =>
   })),
 )
 
+const RealEstateHubLivePage = lazy(() =>
+  import('@/modules/specialized-services/pages/RealEstateHubLivePage').then((module) => ({
+    default: module.RealEstateHubLivePage,
+  })),
+)
+
 const RealEstateInventoryLivePage = lazy(() =>
   import('@/modules/specialized-services/pages/RealEstateInventoryLivePage').then((module) => ({
     default: module.RealEstateInventoryLivePage,
@@ -96,7 +102,7 @@ export type AppSectionSearch = AppRecordSearch & {
   paymentStatus?: string
   source?: string
   highValue?: boolean
-  division?: string
+  specializedDomain?: string
   priority?: string
   branch?: string
   service?: string
@@ -106,7 +112,10 @@ export type AppSectionSearch = AppRecordSearch & {
   ratingMin?: number
   estate?: string
   property?: string
+  standaloneProperty?: string
+  brokerage?: string
   page?: number
+  parentId?: number
 }
 
 export function parseRecordSearch(search: Record<string, unknown>): AppSectionSearch {
@@ -137,6 +146,8 @@ export function parseRecordSearch(search: Record<string, unknown>): AppSectionSe
   const deliverable = identifierValue(search.deliverable)
   const estate = identifierValue(search.estate)
   const property = identifierValue(search.property) ?? identifierValue(search.plot)
+  const standaloneProperty = identifierValue(search.standaloneProperty)
+  const brokerage = identifierValue(search.brokerage)
   const feedback = identifierValue(search.feedback)
   const create = stringValue(search.create)
 
@@ -147,7 +158,6 @@ export function parseRecordSearch(search: Record<string, unknown>): AppSectionSe
   const approvalHighValue =
     search.highValue === true ||
     (typeof search.highValue === 'string' && search.highValue.toLowerCase() === 'true')
-  const catalogueDivision = stringValue(search.division)
   const requestPriority = stringValue(search.priority)
   const requestBranch = stringValue(search.branch)
   const requestService = identifierValue(search.service)
@@ -175,6 +185,20 @@ export function parseRecordSearch(search: Record<string, unknown>): AppSectionSe
         : undefined
   const cataloguePage =
     rawPage !== undefined && Number.isInteger(rawPage) && rawPage > 0 ? rawPage : undefined
+  const rawParentId =
+    typeof search.parentId === 'number'
+      ? search.parentId
+      : typeof search.parentId === 'string'
+        ? Number(search.parentId)
+        : typeof search.parent === 'number'
+          ? search.parent
+          : typeof search.parent === 'string'
+            ? Number(search.parent)
+            : undefined
+  const catalogueParentId =
+    rawParentId !== undefined && Number.isInteger(rawParentId) && rawParentId > 0
+      ? rawParentId
+      : undefined
 
   if (request) result.request = request
   if (quotation) result.quotation = quotation
@@ -185,15 +209,19 @@ export function parseRecordSearch(search: Record<string, unknown>): AppSectionSe
   if (deliverable) result.deliverable = deliverable
   if (estate) result.estate = estate
   if (property) result.property = property
+  if (standaloneProperty) result.standaloneProperty = standaloneProperty
+  if (brokerage) result.brokerage = brokerage
   if (feedback) result.feedback = feedback
   if (create) result.create = create
 
   if (catalogueSearch) result.search = catalogueSearch
   if (catalogueStatus) result.status = catalogueStatus
+  if (catalogueParentId) result.parentId = catalogueParentId
+  const specializedDomain = stringValue(search.specializedDomain)
+  if (specializedDomain) result.specializedDomain = specializedDomain
   if (orderPaymentStatus) result.paymentStatus = orderPaymentStatus
   if (approvalSource) result.source = approvalSource
   if (approvalHighValue) result.highValue = true
-  if (catalogueDivision) result.division = catalogueDivision
   if (requestPriority) result.priority = requestPriority
   if (requestBranch) result.branch = requestBranch
   if (requestService) result.service = requestService
@@ -280,7 +308,11 @@ function AppShellRouteContent() {
   if (section === 'feedback-quality') return <FeedbackQualityLivePage recordSearch={recordSearch} />
   if (section === 'reports-analytics') return <ReportsAnalyticsLivePage />
   if (section === 'real-estate-inventory')
-    return <RealEstateInventoryLivePage recordSearch={recordSearch} />
+    return recordSearch.estate ? (
+      <RealEstateInventoryLivePage recordSearch={recordSearch} />
+    ) : (
+      <RealEstateHubLivePage recordSearch={recordSearch} />
+    )
   if (section === 'survey-engineering-others')
     return <SpecializedOperationsLivePage recordSearch={recordSearch} />
 

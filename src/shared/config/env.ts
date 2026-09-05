@@ -3,7 +3,8 @@ import { z } from 'zod'
 function getDefaultApiBaseUrl(): string {
   if (typeof window !== 'undefined') {
     const searchParams = new URLSearchParams(window.location.search)
-    const override = searchParams.get('apiBaseUrl') || searchParams.get('backendUrl') || searchParams.get('apiUrl')
+    const override =
+      searchParams.get('apiBaseUrl') || searchParams.get('backendUrl') || searchParams.get('apiUrl')
     if (override) {
       const clean = override.trim().replace(/\/+$/, '')
       return clean.endsWith('/api/v1') ? clean : `${clean}/api/v1`
@@ -43,8 +44,6 @@ function getDefaultApiBaseUrl(): string {
 
   return 'https://bomachauth.bgbot.app/api/v1'
 }
-
-
 
 const envSchema = z.object({
   VITE_API_BASE_URL: z.string().min(1).default(getDefaultApiBaseUrl()),

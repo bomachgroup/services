@@ -1,33 +1,20 @@
-import { IconBuilding, IconHome, IconMap2, IconX } from '@tabler/icons-react'
+import { IconX } from '@tabler/icons-react'
 import { useState } from 'react'
 
+import { PropertyWorkspaceBanner } from '../components/PropertyWorkspaceBanner'
+import { RealEstateFormDropdown } from '../components/RealEstateFormDropdown'
 import {
+  commercialBuildingTypes,
   propertyStatuses,
   propertyTypes,
+  residentialBuildingTypes,
   type CreatePropertyInput,
   type Property,
-  type PropertyType,
 } from '../real-estate/real-estate.types'
 import { validateProperty } from '../real-estate/real-estate.validation'
 
-const residentialTypeOptions = [
-  { value: 'house', label: 'House' },
-  { value: 'villa', label: 'Villa' },
-  { value: 'apartment', label: 'Apartment' },
-  { value: 'townhouse', label: 'Townhouse' },
-  { value: 'duplex', label: 'Duplex' },
-  { value: 'bungalow', label: 'Bungalow' },
-  { value: 'penthouse', label: 'Penthouse' },
-] as const
-
-const commercialTypeOptions = [
-  { value: 'office', label: 'Office' },
-  { value: 'retail', label: 'Retail Space' },
-  { value: 'warehouse', label: 'Warehouse' },
-  { value: 'shopping_mall', label: 'Shopping Mall' },
-  { value: 'hotel', label: 'Hotel' },
-  { value: 'mixed_use', label: 'Mixed Use' },
-] as const
+const residentialTypeOptions = [...residentialBuildingTypes]
+const commercialTypeOptions = [...commercialBuildingTypes]
 
 function parsePositiveInteger(value: string, fallback: number | null = null) {
   if (value.trim() === '') return fallback
@@ -72,10 +59,22 @@ function mapPropertyToInput(property: Property): CreatePropertyInput {
   }
 }
 
-function propertyTypeIcon(propertyType: PropertyType) {
-  if (propertyType === 'plot') return <IconMap2 size={16} />
-  if (propertyType === 'residential') return <IconHome size={16} />
-  return <IconBuilding size={16} />
+function propertyTypeLabel(property: Property, value: CreatePropertyInput) {
+  if (value.propertyType === 'plot') return 'Plot of land'
+  if (value.propertyType === 'residential') {
+    return (
+      property.buildingTypeResidentialDisplay ||
+      value.buildingTypeResidential ||
+      'Residential building'
+    )
+  }
+  return (
+    property.buildingTypeCommercialDisplay || value.buildingTypeCommercial || 'Commercial building'
+  )
+}
+
+function statusLabel(property: Property, value: CreatePropertyInput) {
+  return property.statusDisplay || value.status.replaceAll('_', ' ')
 }
 
 export function EditPropertyLiveWorkspace({
@@ -132,20 +131,25 @@ export function EditPropertyLiveWorkspace({
         <div className="commercial-modal-body">
           {error ? <div className="commercial-notice commercial-notice-red">{error}</div> : null}
 
+          <PropertyWorkspaceBanner
+            eyebrow="Editing property"
+            propertyName={value.propertyName || property.propertyName}
+            propertyType={value.propertyType}
+            typeLabel={propertyTypeLabel(property, value)}
+            statusLabel={statusLabel(property, value)}
+            price={value.price}
+          />
+
           <section className="commercial-form-section">
             <div className="commercial-form-section-heading">
               <div>
                 <h3>Property identity</h3>
                 <p>Name, type, status and base commercial information.</p>
               </div>
-              <div className="specialized-inline-chip">
-                {propertyTypeIcon(propertyType)}
-                <span>{property.propertyName}</span>
-              </div>
             </div>
 
-            <div className="commercial-form-grid">
-              <label className="commercial-field">
+            <div className="commercial-form-grid commercial-form-grid--property">
+              <label className="commercial-field commercial-field--full">
                 <span>
                   Property name <em>*</em>
                 </span>
@@ -156,40 +160,23 @@ export function EditPropertyLiveWorkspace({
                 />
               </label>
 
-              <label className="commercial-field">
-                <span>Property type</span>
-                <select
-                  value={value.propertyType}
-                  onChange={(event) =>
-                    setField(
-                      'propertyType',
-                      event.target.value as CreatePropertyInput['propertyType'],
-                    )
-                  }
-                >
-                  {propertyTypes.map((item) => (
-                    <option key={item.value} value={item.value}>
-                      {item.label}
-                    </option>
-                  ))}
-                </select>
-              </label>
+              <RealEstateFormDropdown
+                label="Property type"
+                options={propertyTypes}
+                value={value.propertyType}
+                onChange={(nextValue) =>
+                  setField('propertyType', nextValue as CreatePropertyInput['propertyType'])
+                }
+              />
 
-              <label className="commercial-field">
-                <span>Status</span>
-                <select
-                  value={value.status}
-                  onChange={(event) =>
-                    setField('status', event.target.value as CreatePropertyInput['status'])
-                  }
-                >
-                  {propertyStatuses.map((item) => (
-                    <option key={item.value} value={item.value}>
-                      {item.label}
-                    </option>
-                  ))}
-                </select>
-              </label>
+              <RealEstateFormDropdown
+                label="Status"
+                options={propertyStatuses}
+                value={value.status}
+                onChange={(nextValue) =>
+                  setField('status', nextValue as CreatePropertyInput['status'])
+                }
+              />
 
               <label className="commercial-field">
                 <span>
@@ -233,6 +220,7 @@ export function EditPropertyLiveWorkspace({
               <label className="commercial-field commercial-field--full">
                 <span>Description</span>
                 <textarea
+                  rows={3}
                   value={value.description ?? ''}
                   onChange={(event) => setField('description', event.target.value)}
                 />
@@ -249,7 +237,7 @@ export function EditPropertyLiveWorkspace({
                 </div>
               </div>
 
-              <div className="commercial-form-grid">
+              <div className="commercial-form-grid commercial-form-grid--property">
                 <label className="commercial-field">
                   <span>
                     Plot size (sqm) <em>*</em>
@@ -287,23 +275,18 @@ export function EditPropertyLiveWorkspace({
                 </div>
               </div>
 
-              <div className="commercial-form-grid">
-                <label className="commercial-field">
-                  <span>
-                    Residential type <em>*</em>
-                  </span>
-                  <select
-                    value={value.buildingTypeResidential ?? ''}
-                    onChange={(event) => setField('buildingTypeResidential', event.target.value)}
-                  >
-                    <option value="">Select residential type</option>
-                    {residentialTypeOptions.map((item) => (
-                      <option key={item.value} value={item.value}>
-                        {item.label}
-                      </option>
-                    ))}
-                  </select>
-                </label>
+              <div className="commercial-form-grid commercial-form-grid--property">
+                <RealEstateFormDropdown
+                  label="Residential type"
+                  required
+                  placeholder="Select residential type"
+                  options={[
+                    { value: '', label: 'Select residential type' },
+                    ...residentialTypeOptions,
+                  ]}
+                  value={value.buildingTypeResidential ?? ''}
+                  onChange={(nextValue) => setField('buildingTypeResidential', nextValue)}
+                />
 
                 <label className="commercial-field">
                   <span>
@@ -380,23 +363,18 @@ export function EditPropertyLiveWorkspace({
                 </div>
               </div>
 
-              <div className="commercial-form-grid">
-                <label className="commercial-field">
-                  <span>
-                    Commercial type <em>*</em>
-                  </span>
-                  <select
-                    value={value.buildingTypeCommercial ?? ''}
-                    onChange={(event) => setField('buildingTypeCommercial', event.target.value)}
-                  >
-                    <option value="">Select commercial type</option>
-                    {commercialTypeOptions.map((item) => (
-                      <option key={item.value} value={item.value}>
-                        {item.label}
-                      </option>
-                    ))}
-                  </select>
-                </label>
+              <div className="commercial-form-grid commercial-form-grid--property">
+                <RealEstateFormDropdown
+                  label="Commercial type"
+                  required
+                  placeholder="Select commercial type"
+                  options={[
+                    { value: '', label: 'Select commercial type' },
+                    ...commercialTypeOptions,
+                  ]}
+                  value={value.buildingTypeCommercial ?? ''}
+                  onChange={(nextValue) => setField('buildingTypeCommercial', nextValue)}
+                />
 
                 <label className="commercial-field">
                   <span>

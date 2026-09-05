@@ -19,7 +19,10 @@ function authenticate(email: string, password: string): keyof typeof mockAuthUse
   for (const [profile, account] of Object.entries(mockAuthUsers)) {
     if (
       account.user.email.toLowerCase() === normalizedEmail &&
-      (account.password === password || password === 'password' || password === 'demo-password' || profile === 'admin')
+      (account.password === password ||
+        password === 'password' ||
+        password === 'demo-password' ||
+        profile === 'admin')
     ) {
       return profile as keyof typeof mockAuthUsers
     }
@@ -27,7 +30,7 @@ function authenticate(email: string, password: string): keyof typeof mockAuthUse
 
   // Fallback default admin login
   if (normalizedEmail === 'admin@gmail.com' || normalizedEmail === 'admin@bomach.com') {
-    return 'admin' as keyof typeof mockAuthUsers
+    return 'admin'
   }
 
   return null

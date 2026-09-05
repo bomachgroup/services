@@ -11,6 +11,7 @@ import { formatCurrency } from '@/shared/lib/formatters'
 import type { AppSectionSearch } from '@/routes/app/$section'
 import { withOptionalSearchValue, withoutSearchKeys } from '@/shared/navigation/search-state'
 import { ErrorState, useToast } from '@/shared/ui'
+import { DropdownSelect, mapDropdownOptions } from '@/shared/ui/dropdown-select'
 import { EmptyState } from '@/shared/ui/empty-state'
 import {
   CompactActionButton,
@@ -28,6 +29,7 @@ import type {
   CreateServiceRequestInput,
   UpdateServiceRequestInput,
 } from '../api/service-requests.types'
+import type { SpecializedRequestHandoff } from '@/modules/specialized-services/request-plugins'
 import { CreateServiceRequestLiveWorkspace } from '../workspaces/CreateServiceRequestLiveWorkspace'
 import { ServiceRequestDetailWorkspace } from '../workspaces/ServiceRequestDetailWorkspace'
 import { CommercialRegisterPagination } from '../components/CommercialRegisterPagination'
@@ -336,6 +338,22 @@ export function ServiceRequestsLivePage({ recordSearch }: { recordSearch: AppSec
       ),
     ).values(),
   )
+  const statusFilterOptions = [
+    { value: '', label: 'All statuses' },
+    ...mapDropdownOptions(choices.statuses),
+  ]
+  const priorityFilterOptions = [
+    { value: '', label: 'All priorities' },
+    ...mapDropdownOptions(choices.priorities),
+  ]
+  const branchFilterOptions = [
+    { value: '', label: 'All branches' },
+    ...branches.map((branch) => ({ value: String(branch.id), label: branch.name })),
+  ]
+  const serviceFilterOptions = [
+    { value: '', label: 'All services' },
+    ...services.map((service) => ({ value: String(service.id), label: service.name })),
+  ]
 
   return (
     <ModulePageFrame
@@ -421,53 +439,38 @@ export function ServiceRequestsLivePage({ recordSearch }: { recordSearch: AppSec
               />
             </label>
 
-            <select
+            <DropdownSelect
+              compact
+              placeholder="All statuses"
+              options={statusFilterOptions}
               value={recordSearch.status ?? ''}
-              onChange={(event) => setSearchValue('status', event.target.value)}
-            >
-              <option value="">All statuses</option>
-              {choices.statuses.map((item) => (
-                <option key={item.value} value={item.value}>
-                  {item.label}
-                </option>
-              ))}
-            </select>
+              onChange={(value) => setSearchValue('status', value)}
+            />
 
-            <select
+            <DropdownSelect
+              compact
+              placeholder="All priorities"
+              options={priorityFilterOptions}
               value={recordSearch.priority ?? ''}
-              onChange={(event) => setSearchValue('priority', event.target.value)}
-            >
-              <option value="">All priorities</option>
-              {choices.priorities.map((item) => (
-                <option key={item.value} value={item.value}>
-                  {item.label}
-                </option>
-              ))}
-            </select>
+              onChange={(value) => setSearchValue('priority', value)}
+            />
 
-            <select
+            <DropdownSelect
+              compact
+              placeholder="All branches"
+              options={branchFilterOptions}
               value={recordSearch.branch ?? ''}
-              onChange={(event) => setSearchValue('branch', event.target.value)}
-            >
-              <option value="">All branches</option>
-              {branches.map((branch) => (
-                <option key={branch.id} value={branch.id}>
-                  {branch.name}
-                </option>
-              ))}
-            </select>
+              onChange={(value) => setSearchValue('branch', value)}
+            />
 
-            <select
+            <DropdownSelect
+              compact
+              className="ui-dropdown--service-filter"
+              placeholder="All services"
+              options={serviceFilterOptions}
               value={recordSearch.service ?? ''}
-              onChange={(event) => setSearchValue('service', event.target.value)}
-            >
-              <option value="">All services</option>
-              {services.map((service) => (
-                <option key={service.id} value={service.id}>
-                  {service.name}
-                </option>
-              ))}
-            </select>
+              onChange={(value) => setSearchValue('service', value)}
+            />
           </div>
 
           {requests.length === 0 ? (
@@ -522,7 +525,7 @@ export function ServiceRequestsLivePage({ recordSearch }: { recordSearch: AppSec
                       </td>
                       <td>
                         <b>{request.serviceName}</b>
-                        <small>{request.subserviceName || '—'}</small>
+                        <small>{request.branchName || 'No branch'}</small>
                       </td>
                       <td>{request.source}</td>
                       <td>
@@ -583,6 +586,7 @@ export function ServiceRequestsLivePage({ recordSearch }: { recordSearch: AppSec
           services={services}
           choices={choices}
           saving={createMutation.isPending}
+          initialServiceId={recordSearch.service ? Number(recordSearch.service) : 0}
           onClose={() => {
             setManualCreateOpen(false)
             if (recordSearch.create !== 'request') return
@@ -594,6 +598,17 @@ export function ServiceRequestsLivePage({ recordSearch }: { recordSearch: AppSec
             })
           }}
           onSubmit={(input, attachments) => createMutation.mutateAsync({ input, attachments })}
+          onContinueSpecialized={(handoff: SpecializedRequestHandoff) => {
+            setManualCreateOpen(false)
+            void navigate({
+              to: '/app/$section',
+              params: { section: handoff.navigation.section },
+              search: (previous) => ({
+                ...withoutCreateSearch(withoutRequestSearch(previous)),
+                ...handoff.navigation.search,
+              }),
+            })
+          }}
         />
       ) : null}
 

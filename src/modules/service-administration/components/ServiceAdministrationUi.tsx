@@ -101,7 +101,7 @@ export function ServiceCatalogueGrid({
                   {service.name}
                 </p>
                 <p className="text-foreground-subtle mt-0.5 text-[0.5625rem]">
-                  {service.code} · {service.division}
+                  {service.code} · {service.parentName ?? 'No parent'}
                 </p>
               </div>
             </div>
@@ -118,10 +118,10 @@ export function ServiceCatalogueGrid({
               <p className="text-foreground-subtle text-[0.5rem] uppercase">Branches</p>
             </div>
             <div className="bg-surface-muted rounded-lg p-1.5">
-              <p className="text-foreground text-[0.6875rem] font-extrabold">
-                {service.subserviceCount}
+              <p className="text-foreground text-[0.6875rem] font-extrabold capitalize">
+                {service.specializedDomain ?? 'standard'}
               </p>
-              <p className="text-foreground-subtle text-[0.5rem] uppercase">Subservices</p>
+              <p className="text-foreground-subtle text-[0.5rem] uppercase">Domain</p>
             </div>
             <div className="bg-surface-muted rounded-lg p-1.5">
               <p className="text-foreground text-[0.6875rem] font-extrabold">
@@ -160,7 +160,7 @@ export function ServiceDetailPanel({
             </p>
             <h2 className="text-foreground mt-1 text-base font-extrabold">{service.name}</h2>
             <p className="text-foreground-subtle text-[0.625rem]">
-              {service.code} · {service.division}
+              {service.code} · {service.parentName ?? 'No parent'}
             </p>
           </div>
           <CompactActionButton onClick={onClose} tone="ghost">
@@ -174,7 +174,7 @@ export function ServiceDetailPanel({
               ['Status', service.status],
               ['Owner', service.owner],
               ['Readiness', `${service.readiness}%`],
-              ['Subservices', service.subserviceCount],
+              ['Domain', service.specializedDomain ?? 'standard'],
             ].map(([label, value]) => (
               <div key={label} className="bg-surface-muted rounded-xl p-3">
                 <p className="text-foreground-subtle text-[0.5625rem] font-bold uppercase">
@@ -485,19 +485,12 @@ export function NewServiceDialog({
 }: {
   open: boolean
   onClose: () => void
-  onSubmit: (value: {
-    name: string
-    code: string
-    division: string
-    description: string
-    owner: string
-  }) => void
+  onSubmit: (value: { name: string; code: string; description: string; owner: string }) => void
   pending: boolean
 }) {
   const [value, setValue] = useState({
     name: '',
     code: '',
-    division: 'Engineering',
     description: '',
     owner: '',
   })
@@ -542,22 +535,6 @@ export function NewServiceDialog({
             value={value.code}
             onChange={(code) => setValue((current) => ({ ...current, code }))}
           />
-          <label className="space-y-1">
-            <span className="text-[0.625rem] font-bold">Division</span>
-            <select
-              value={value.division}
-              onChange={(event) =>
-                setValue((current) => ({ ...current, division: event.target.value }))
-              }
-              className="border-border rounded-control h-9 w-full border px-3 text-xs"
-            >
-              {['Engineering', 'Survey', 'Real Estate', 'ICT', 'Facility Management'].map(
-                (division) => (
-                  <option key={division}>{division}</option>
-                ),
-              )}
-            </select>
-          </label>
           <Field
             label="Service owner"
             value={value.owner}

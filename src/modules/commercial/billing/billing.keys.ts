@@ -9,7 +9,10 @@ export const billingKeys = {
   summary: () => [...billingKeys.all, 'summary'] as const,
   allInvoices: () => [...billingKeys.all, 'all-invoices'] as const,
   eligibleQuotes: () => [...billingKeys.all, 'eligible-quotes'] as const,
+  financeAccounts: () => [...billingKeys.all, 'finance-accounts'] as const,
   payments: (invoiceId: number) => [...billingKeys.all, 'payments', invoiceId] as const,
-  submissions: (status: PaymentSubmissionStatus | '') =>
-    [...billingKeys.all, 'payment-submissions', status] as const,
+  submissions: (status: PaymentSubmissionStatus | '', invoiceId?: number) =>
+    [...billingKeys.all, 'payment-submissions', status, invoiceId ?? 'all'] as const,
+  allPaymentSubmissions: () => [...billingKeys.all, 'payment-submissions'] as const,
+  invoiceForQuote: (quoteId: number) => [...billingKeys.all, 'invoice-for-quote', quoteId] as const,
 }

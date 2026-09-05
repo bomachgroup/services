@@ -91,9 +91,14 @@ export function AppShell({ children, navigation }: AppShellProps) {
     await navigate({ to: '/login', replace: true })
   }
 
-  const searchParams = new URLSearchParams(typeof window !== 'undefined' ? window.location.search : '')
+  const searchParams = new URLSearchParams(
+    typeof window !== 'undefined' ? window.location.search : '',
+  )
   const isEmbed = searchParams.get('embed') === 'true' || searchParams.get('embedded') === 'true'
-  const hideSidebar = isEmbed || searchParams.get('hideSidebar') === 'true' || searchParams.get('hide_sidebar') === 'true'
+  const hideSidebar =
+    isEmbed ||
+    searchParams.get('hideSidebar') === 'true' ||
+    searchParams.get('hide_sidebar') === 'true'
   const compactSidebar = sidebarCollapsed && !mobileSidebarOpen
 
   return (

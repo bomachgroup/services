@@ -1,27 +1,175 @@
-import { IconApps, IconCopy } from '@tabler/icons-react'
+import { IconApps, IconChevronDown, IconChevronRight, IconCopy } from '@tabler/icons-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 
 import { AccessLockIcon } from '@/shared/ui/module-controls'
+import { DropdownSelect } from '@/shared/ui/dropdown-select'
+import {
+  RequestFormBuilderPanel,
+  RequestFormBuilderSaveButton,
+} from '../components/RequestFormBuilderPanel'
+import { SERVICE_CATALOGUE_STATUS_FILTER_OPTIONS } from '../components/service-admin-dropdown-options'
 import type {
   PricingCalculator,
   PricingType,
   RequestFieldTypeOption,
   RequestFormField,
   ServiceCatalogueItem,
+  ServiceParentOption,
   SaveRequestFormInput,
   ServiceRequestForm,
 } from '../types/service-administration.types'
 import { formatNumberFieldValue, parseNumberFieldValue } from '@/shared/lib/number-input'
 import { formatCurrency } from '@/shared/lib/formatters'
 
-const divisionClassNames: Record<string, string> = {
+const parentClassNames: Record<string, string> = {
   'Real Estate': 'service-admin-service-icon--real-estate',
+  'Real Estate Development & Brokerage': 'service-admin-service-icon--real-estate',
   Engineering: 'service-admin-service-icon--engineering',
   'Engineering & Construction': 'service-admin-service-icon--engineering',
   Survey: 'service-admin-service-icon--survey',
   'Land Surveying & Geospatial': 'service-admin-service-icon--survey',
   ICT: 'service-admin-service-icon--ict',
   'Information Technology': 'service-admin-service-icon--ict',
+  'Courier, Logistics & E-commerce': 'service-admin-service-icon--logistics',
+  'Agriculture & Food Processing': 'service-admin-service-icon--agriculture',
+  'Legal Services': 'service-admin-service-icon--legal',
+}
+
+type ServiceParentGroup = {
+  key: string
+  parentId: number | null
+  parentName: string
+  services: ServiceCatalogueItem[]
+}
+
+function parentGroupKey(parentId: number | null | undefined, parentName?: string) {
+  if (parentId != null) return `parent-${parentId}`
+  return `parent-name-${parentName?.trim() || 'none'}`
+}
+
+const EXPANDED_PARENT_GROUPS_KEY = 'bomach.service-catalogue.expanded-parent-groups'
+
+function readExpandedParentGroups(): Set<string> {
+  if (typeof window === 'undefined') return new Set()
+
+  try {
+    const raw = window.localStorage.getItem(EXPANDED_PARENT_GROUPS_KEY)
+    if (!raw) return new Set()
+
+    const parsed: unknown = JSON.parse(raw)
+    if (!Array.isArray(parsed)) return new Set()
+
+    return new Set(parsed.filter((item): item is string => typeof item === 'string'))
+  } catch {
+    return new Set()
+  }
+}
+
+function writeExpandedParentGroups(expanded: Set<string>) {
+  if (typeof window === 'undefined') return
+
+  window.localStorage.setItem(EXPANDED_PARENT_GROUPS_KEY, JSON.stringify([...expanded]))
+}
+
+function parentIconClass(parentName?: string) {
+  return parentClassNames[parentName ?? ''] ?? 'service-admin-service-icon--default'
+}
+
+function groupServicesByParent(
+  services: ServiceCatalogueItem[],
+  parents: ServiceParentOption[],
+): ServiceParentGroup[] {
+  const grouped = new Map<string, ServiceParentGroup>()
+
+  for (const service of services) {
+    const key = parentGroupKey(service.parentId, service.parentName)
+    const existing = grouped.get(key)
+    if (existing) {
+      existing.services.push(service)
+      continue
+    }
+
+    grouped.set(key, {
+      key,
+      parentId: service.parentId ?? null,
+      parentName: service.parentName?.trim() || 'Unassigned',
+      services: [service],
+    })
+  }
+
+  const orderIndex = new Map(parents.map((parent, index) => [parent.id, index]))
+
+  return [...grouped.values()].sort((left, right) => {
+    const leftOrder =
+      left.parentId != null && orderIndex.has(left.parentId)
+        ? orderIndex.get(left.parentId)!
+        : Number.MAX_SAFE_INTEGER
+    const rightOrder =
+      right.parentId != null && orderIndex.has(right.parentId)
+        ? orderIndex.get(right.parentId)!
+        : Number.MAX_SAFE_INTEGER
+
+    if (leftOrder !== rightOrder) return leftOrder - rightOrder
+    return left.parentName.localeCompare(right.parentName)
+  })
+}
+
+function ServiceCatalogueCard({
+  service,
+  onConfigure,
+  configureLabel,
+  onDuplicate,
+  showParentMeta = false,
+}: {
+  service: ServiceCatalogueItem
+  onConfigure?: ((service: ServiceCatalogueItem) => void) | undefined
+  configureLabel?: 'Configure' | 'View'
+  onDuplicate?: ((service: ServiceCatalogueItem) => void) | undefined
+  showParentMeta?: boolean
+}) {
+  const parentClassName = parentIconClass(service.parentName)
+
+  return (
+    <article className="service-admin-service-card">
+      <div className={`service-admin-service-icon ${parentClassName}`}>
+        <IconApps size={18} />
+      </div>
+      <div className="service-admin-service-name">{service.name}</div>
+      <p className="service-admin-service-description">{service.description}</p>
+      <div className="service-admin-row-subtitle service-admin-service-meta">
+        {service.code}
+        {showParentMeta ? ` · ${service.parentName ?? 'No parent'}` : null}
+        {service.slaDays != null ? ` · ${service.slaDays}d SLA` : null}
+      </div>
+      <div className="service-admin-service-footer">
+        <span className={`service-admin-pill ${statusClass(service.status)}`}>
+          {service.status}
+        </span>
+        <div className="flex gap-1">
+          <button
+            type="button"
+            className="service-admin-button service-admin-button-small"
+            disabled={!onConfigure}
+            title={!onConfigure ? 'You do not have permission to view this service' : undefined}
+            onClick={() => onConfigure?.(service)}
+          >
+            <AccessLockIcon show={!onConfigure} size={11} />
+            {configureLabel}
+          </button>
+          {onDuplicate ? (
+            <button
+              type="button"
+              className="service-admin-button service-admin-button-small"
+              aria-label="Duplicate service"
+              onClick={() => onDuplicate(service)}
+            >
+              <IconCopy size={13} />
+            </button>
+          ) : null}
+        </div>
+      </div>
+    </article>
+  )
 }
 
 function statusClass(status: string) {
@@ -34,8 +182,9 @@ export function ServiceCatalogueScreen({
   services,
   totalCount,
   query,
-  division,
   status,
+  parentId,
+  parents,
   page,
   pageSize,
   onFiltersChange,
@@ -51,11 +200,12 @@ export function ServiceCatalogueScreen({
   services: ServiceCatalogueItem[]
   totalCount: number
   query: string
-  division: string
   status: string
+  parentId: number | null
+  parents: ServiceParentOption[]
   page: number
   pageSize: number
-  onFiltersChange: (filters: { query: string; division: string; status: string }) => void
+  onFiltersChange: (filters: { query: string; status: string; parentId?: number }) => void
   onPageChange: (page: number) => void
   onConfigure?: ((service: ServiceCatalogueItem) => void) | undefined
   configureLabel?: 'Configure' | 'View'
@@ -65,17 +215,18 @@ export function ServiceCatalogueScreen({
   branchAvailabilityDisabled?: boolean
   onDuplicate?: ((service: ServiceCatalogueItem) => void) | undefined
 }) {
-  const hasActiveFilters = query.trim().length > 0 || division.length > 0 || status.length > 0
-  const divisions = useMemo(
-    () => Array.from(new Set(services.map((service) => service.division))),
-    [services],
-  )
+  const hasActiveFilters = query.trim().length > 0 || status.length > 0 || parentId != null
   const pageCount = Math.max(1, Math.ceil(totalCount / pageSize))
   const [searchDraft, setSearchDraft] = useState(query)
   const [syncedQuery, setSyncedQuery] = useState(query)
+  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(readExpandedParentGroups)
   const onFiltersChangeRef = useRef(onFiltersChange)
-  const divisionRef = useRef(division)
   const statusRef = useRef(status)
+  const parentIdRef = useRef(parentId)
+  const groupedServices = useMemo(
+    () => groupServicesByParent(services, parents),
+    [parents, services],
+  )
 
   if (query !== syncedQuery) {
     setSyncedQuery(query)
@@ -87,9 +238,12 @@ export function ServiceCatalogueScreen({
   }, [onFiltersChange])
 
   useEffect(() => {
-    divisionRef.current = division
     statusRef.current = status
-  }, [division, status])
+  }, [status])
+
+  useEffect(() => {
+    parentIdRef.current = parentId
+  }, [parentId])
 
   useEffect(() => {
     if (searchDraft === query) return
@@ -97,8 +251,8 @@ export function ServiceCatalogueScreen({
     const timeoutId = window.setTimeout(() => {
       onFiltersChangeRef.current({
         query: searchDraft,
-        division: divisionRef.current,
         status: statusRef.current,
+        ...(parentIdRef.current ? { parentId: parentIdRef.current } : {}),
       })
     }, 350)
 
@@ -106,6 +260,31 @@ export function ServiceCatalogueScreen({
   }, [searchDraft, query])
 
   const recordCountLabel = `${totalCount} service${totalCount === 1 ? '' : 's'}`
+  const showGroupedLayout = parentId == null
+
+  const toggleGroup = (groupKey: string) => {
+    setExpandedGroups((current) => {
+      const next = new Set(current)
+      if (next.has(groupKey)) {
+        next.delete(groupKey)
+      } else {
+        next.add(groupKey)
+      }
+      writeExpandedParentGroups(next)
+      return next
+    })
+  }
+
+  const applyFilters = (next: { query?: string; status?: string; parentId?: number | null }) => {
+    const resolvedParentId =
+      next.parentId === null ? undefined : (next.parentId ?? parentId ?? undefined)
+
+    onFiltersChange({
+      query: next.query ?? searchDraft,
+      status: next.status ?? status,
+      ...(resolvedParentId ? { parentId: resolvedParentId } : {}),
+    })
+  }
 
   return (
     <div className="service-admin-page service-admin-content">
@@ -119,32 +298,37 @@ export function ServiceCatalogueScreen({
               if (event.key !== 'Enter') return
               event.preventDefault()
               if (searchDraft === query) return
-              onFiltersChange({ query: searchDraft, division, status })
+              applyFilters({ query: searchDraft })
             }}
             placeholder="Search services..."
           />
-          <select
-            value={division}
-            onChange={(event) =>
-              onFiltersChange({ query: searchDraft, division: event.target.value, status })
-            }
-          >
-            <option value="">All divisions</option>
-            {divisions.map((item) => (
-              <option key={item}>{item}</option>
-            ))}
-          </select>
-          <select
+          <DropdownSelect
+            compact
+            placeholder="All statuses"
+            options={SERVICE_CATALOGUE_STATUS_FILTER_OPTIONS}
             value={status}
-            onChange={(event) =>
-              onFiltersChange({ query: searchDraft, division, status: event.target.value })
-            }
-          >
-            <option value="">All statuses</option>
-            <option value="active">Active</option>
-            <option value="draft">Draft</option>
-            <option value="inactive">Inactive</option>
-          </select>
+            onChange={(value) => applyFilters({ status: value })}
+          />
+          {parents.length > 0 ? (
+            <DropdownSelect
+              compact
+              className="ui-dropdown--parent-filter"
+              placeholder="All parent services"
+              options={[
+                { value: '', label: 'All parent services' },
+                ...parents.map((parent) => ({
+                  value: String(parent.id),
+                  label: parent.name,
+                })),
+              ]}
+              value={parentId != null ? String(parentId) : ''}
+              onChange={(value) => {
+                applyFilters({
+                  parentId: value ? Number(value) : null,
+                })
+              }}
+            />
+          ) : null}
           <span className="service-admin-grow" />
           <button
             type="button"
@@ -172,114 +356,139 @@ export function ServiceCatalogueScreen({
           </button>
         </div>
 
-        <div className="service-admin-service-grid">
-          {services.length === 0 ? (
-            <section className="service-admin-card col-span-full border-dashed p-6 sm:p-8">
-              <div className="mx-auto max-w-xl text-center">
-                <div className="service-admin-card-title">
-                  {hasActiveFilters
-                    ? 'No services match the current filters'
-                    : 'No services in the catalogue yet'}
-                </div>
-                <div className="service-admin-card-subtitle mt-1">
-                  {hasActiveFilters
-                    ? 'Try clearing or adjusting the search and filter settings to see more services.'
-                    : 'Service cards will appear here after the first Service is created. You can still search, filter, review branch availability, and start the setup flow from this page.'}
-                </div>
-                <div className="mt-4 flex flex-wrap justify-center gap-2">
-                  {hasActiveFilters ? (
-                    <button
-                      type="button"
-                      className="service-admin-button service-admin-button-primary"
-                      onClick={() => onFiltersChange({ query: '', division: '', status: '' })}
-                    >
-                      Clear filters
-                    </button>
-                  ) : (
-                    <button
-                      type="button"
-                      className="service-admin-button service-admin-button-primary"
-                      disabled={createDisabled || !onCreate}
-                      title={
-                        createDisabled ? 'You do not have permission to create services' : undefined
-                      }
-                      onClick={() => onCreate?.()}
-                    >
-                      <AccessLockIcon show={createDisabled} />
-                      Create first Service
-                    </button>
-                  )}
+        {services.length === 0 ? (
+          <section className="service-admin-card col-span-full border-dashed p-6 sm:p-8">
+            <div className="mx-auto max-w-xl text-center">
+              <div className="service-admin-card-title">
+                {hasActiveFilters
+                  ? 'No services match the current filters'
+                  : 'No services in the catalogue yet'}
+              </div>
+              <div className="service-admin-card-subtitle mt-1">
+                {hasActiveFilters
+                  ? 'Try clearing or adjusting the search and filter settings to see more services.'
+                  : 'Service cards will appear here after the first Service is created. You can still search, filter, review branch availability, and start the setup flow from this page.'}
+              </div>
+              <div className="mt-4 flex flex-wrap justify-center gap-2">
+                {hasActiveFilters ? (
                   <button
                     type="button"
-                    className="service-admin-button"
-                    disabled={branchAvailabilityDisabled || !onBranchAvailability}
-                    title={
-                      branchAvailabilityDisabled
-                        ? 'You do not have permission to view branch availability'
-                        : undefined
-                    }
-                    onClick={() => onBranchAvailability?.()}
+                    className="service-admin-button service-admin-button-primary"
+                    onClick={() => applyFilters({ query: '', status: '', parentId: null })}
                   >
-                    <AccessLockIcon show={branchAvailabilityDisabled} />
-                    Branch Availability
+                    Clear filters
                   </button>
-                </div>
+                ) : (
+                  <button
+                    type="button"
+                    className="service-admin-button service-admin-button-primary"
+                    disabled={createDisabled || !onCreate}
+                    title={
+                      createDisabled ? 'You do not have permission to create services' : undefined
+                    }
+                    onClick={() => onCreate?.()}
+                  >
+                    <AccessLockIcon show={createDisabled} />
+                    Create first Service
+                  </button>
+                )}
+                <button
+                  type="button"
+                  className="service-admin-button"
+                  disabled={branchAvailabilityDisabled || !onBranchAvailability}
+                  title={
+                    branchAvailabilityDisabled
+                      ? 'You do not have permission to view branch availability'
+                      : undefined
+                  }
+                  onClick={() => onBranchAvailability?.()}
+                >
+                  <AccessLockIcon show={branchAvailabilityDisabled} />
+                  Branch Availability
+                </button>
               </div>
-            </section>
-          ) : null}
+            </div>
+          </section>
+        ) : showGroupedLayout ? (
+          <div className="service-admin-parent-groups">
+            {groupedServices.map((group) => {
+              const collapsed = !expandedGroups.has(group.key)
+              const activeCount = group.services.filter(
+                (service) => service.status === 'active',
+              ).length
+              const draftCount = group.services.filter(
+                (service) => service.status === 'draft',
+              ).length
 
-          {services.map((service) => {
-            const divisionClassName =
-              divisionClassNames[service.division] ?? 'service-admin-service-icon--default'
-
-            return (
-              <article key={service.id} className="service-admin-service-card">
-                <div className={`service-admin-service-icon ${divisionClassName}`}>
-                  <IconApps size={18} />
-                </div>
-                <div className="service-admin-service-name">{service.name}</div>
-                <p className="service-admin-service-description">{service.description}</p>
-                <div className="service-admin-row-subtitle service-admin-service-meta">
-                  {service.code} · {service.subserviceCount} sub-services · {service.slaDays ?? '—'}
-                  d SLA
-                </div>
-                <div className="service-admin-service-footer">
-                  <span className={`service-admin-pill ${statusClass(service.status)}`}>
-                    {service.status}
-                  </span>
-                  <div className="flex gap-1">
-                    <button
-                      type="button"
-                      className="service-admin-button service-admin-button-small"
-                      disabled={!onConfigure}
-                      title={
-                        !onConfigure ? 'You do not have permission to view this service' : undefined
-                      }
-                      onClick={() => onConfigure?.(service)}
+              return (
+                <section key={group.key} className="service-admin-parent-group">
+                  <button
+                    type="button"
+                    className="service-admin-parent-group-header"
+                    aria-expanded={!collapsed}
+                    onClick={() => toggleGroup(group.key)}
+                  >
+                    <span className="service-admin-parent-group-chevron" aria-hidden="true">
+                      {collapsed ? <IconChevronRight size={16} /> : <IconChevronDown size={16} />}
+                    </span>
+                    <span
+                      className={`service-admin-service-icon service-admin-parent-group-icon ${parentIconClass(group.parentName)}`}
                     >
-                      <AccessLockIcon show={!onConfigure} size={11} />
-                      {configureLabel}
-                    </button>
-                    {onDuplicate ? (
-                      <button
-                        type="button"
-                        className="service-admin-button service-admin-button-small"
-                        aria-label="Duplicate service"
-                        onClick={() => onDuplicate(service)}
-                      >
-                        <IconCopy size={13} />
-                      </button>
-                    ) : null}
-                  </div>
-                </div>
-              </article>
-            )
-          })}
-        </div>
+                      <IconApps size={16} />
+                    </span>
+                    <span className="service-admin-parent-group-copy">
+                      <span className="service-admin-parent-group-name">{group.parentName}</span>
+                      <span className="service-admin-parent-group-meta">
+                        {group.services.length} service{group.services.length === 1 ? '' : 's'}
+                        {activeCount > 0 ? ` · ${activeCount} active` : ''}
+                        {draftCount > 0 ? ` · ${draftCount} draft` : ''}
+                      </span>
+                    </span>
+                  </button>
+
+                  {!collapsed ? (
+                    <div className="service-admin-service-grid service-admin-parent-group-body">
+                      {group.services.map((service) => (
+                        <ServiceCatalogueCard
+                          key={service.id}
+                          service={service}
+                          onConfigure={onConfigure}
+                          configureLabel={configureLabel}
+                          onDuplicate={onDuplicate}
+                        />
+                      ))}
+                    </div>
+                  ) : null}
+                </section>
+              )
+            })}
+          </div>
+        ) : (
+          <div className="service-admin-service-grid">
+            {services.map((service) => (
+              <ServiceCatalogueCard
+                key={service.id}
+                service={service}
+                onConfigure={onConfigure}
+                configureLabel={configureLabel}
+                onDuplicate={onDuplicate}
+                showParentMeta
+              />
+            ))}
+          </div>
+        )}
 
         <div className="service-admin-table-pagination">
           <div className="service-admin-table-pagination-summary">
             <span className="service-admin-table-pagination-count">{recordCountLabel}</span>
+            {showGroupedLayout ? (
+              <>
+                <span className="service-admin-table-pagination-divider" aria-hidden="true" />
+                <span>
+                  {groupedServices.length} parent group{groupedServices.length === 1 ? '' : 's'}
+                </span>
+              </>
+            ) : null}
             <span className="service-admin-table-pagination-divider" aria-hidden="true" />
             <span>
               Page <b>{page}</b> of <b>{pageCount}</b>
@@ -572,19 +781,14 @@ export function RequestFormBuilderScreen({
     form?.status ?? 'draft',
   )
   const [fields, setFields] = useState<RequestFormField[]>(form?.fields ?? [])
-  const [editingIndex, setEditingIndex] = useState<number | null>(null)
 
   if (formSourceKey !== draftKey) {
     setDraftKey(formSourceKey)
     setFormStatus(form?.status ?? 'draft')
     setFields(form?.fields ?? [])
-    setEditingIndex(null)
   }
 
-  const editingField = editingIndex === null ? undefined : fields[editingIndex]
-  const paletteDisabled = !canEdit || !selectedService
   const saveDisabled = !canEdit || !selectedService || saving
-  const saveLocked = !canEdit
 
   const saveForm = () => {
     if (!selectedService || !onSave) return
@@ -600,232 +804,43 @@ export function RequestFormBuilderScreen({
 
   return (
     <div className="service-admin-page service-admin-content">
-      <div className="service-admin-request-builder">
-        <aside className="service-admin-request-palette">
-          <h2>Field Palette</h2>
-          <div className="service-admin-request-palette-list">
-            {fieldTypes.map((item) => (
-              <button
-                key={item.value}
-                type="button"
-                disabled={paletteDisabled}
-                onClick={() =>
-                  setFields((current) => [
-                    ...current,
-                    {
-                      id: `field-${Date.now()}`,
-                      label: item.label,
-                      key: item.label.toLowerCase().replace(/[^a-z0-9]+/g, '_'),
-                      type: item.value,
-                      required: false,
-                    },
-                  ])
-                }
-              >
-                <span>+</span>
-                {item.label}
-              </button>
-            ))}
-            {fieldTypes.length === 0 ? (
-              <div className="service-admin-card-subtitle py-3">
-                Field types will load once the form builder is available.
-              </div>
-            ) : null}
-          </div>
-          <label className="service-admin-field">
-            <span>Form status</span>
-            <select
-              value={formStatus}
-              disabled={!canEdit || !selectedService}
-              onChange={(event) =>
-                setFormStatus(event.target.value as ServiceRequestForm['status'])
-              }
-            >
-              <option value="draft">Draft</option>
-              <option value="active">Active</option>
-              <option value="inactive">Inactive</option>
-            </select>
-          </label>
-          <button
-            type="button"
-            className="service-admin-request-save"
+      <RequestFormBuilderPanel
+        fieldTypes={fieldTypes}
+        fields={fields}
+        onFieldsChange={setFields}
+        formStatus={formStatus}
+        onFormStatusChange={setFormStatus}
+        canEdit={canEdit && Boolean(selectedService)}
+        emptyTitle={selectedService ? 'No fields on this form yet' : 'No service selected'}
+        emptyDescription={
+          selectedService
+            ? 'Add fields from the palette to define what clients must provide for this service.'
+            : 'Choose a service to start designing its request form.'
+        }
+        headerAction={
+          <DropdownSelect
+            label="Service"
+            compact
+            className="service-admin-request-service-dropdown"
+            placeholder={services.length === 0 ? 'Create a service first' : 'Select a service'}
+            disabled={services.length === 0}
+            options={services.map((service) => ({
+              value: String(service.id),
+              label: service.name,
+            }))}
+            value={selectedService?.id != null ? String(selectedService.id) : ''}
+            onChange={(value) => onSelectedServiceChange(value)}
+          />
+        }
+        paletteFooter={
+          <RequestFormBuilderSaveButton
+            canEdit={canEdit}
             disabled={saveDisabled}
-            title={
-              saveLocked
-                ? 'You do not have permission to save this form'
-                : !selectedService
-                  ? 'Select a service before saving'
-                  : undefined
-            }
+            saving={saving}
             onClick={saveForm}
-          >
-            <AccessLockIcon show={saveLocked && saveDisabled} />
-            {saving ? 'Saving…' : 'Save Form'}
-          </button>
-        </aside>
-
-        <section className="service-admin-request-canvas">
-          <div className="service-admin-request-canvas-header">
-            <div>
-              <h2>Service Request Form Builder</h2>
-              <p>Create the exact information required per service</p>
-            </div>
-            <label className="service-admin-request-service-picker">
-              <span>Service</span>
-              <select
-                aria-label="Select service"
-                value={selectedService?.id ?? ''}
-                disabled={services.length === 0}
-                onChange={(event) => onSelectedServiceChange(event.target.value)}
-              >
-                {services.length === 0 ? (
-                  <option value="">Create a service first</option>
-                ) : (
-                  services.map((service) => (
-                    <option key={service.id} value={service.id}>
-                      {service.name}
-                    </option>
-                  ))
-                )}
-              </select>
-            </label>
-          </div>
-
-          {fields.length === 0 ? (
-            <div className="service-admin-empty-table-state" role="status">
-              <div className="service-admin-card-title">
-                {selectedService ? 'No fields on this form yet' : 'No service selected'}
-              </div>
-              <div className="service-admin-card-subtitle mt-1">
-                {selectedService
-                  ? 'Add fields from the palette to define what clients must provide for this service.'
-                  : 'Choose a service to start designing its request form.'}
-              </div>
-            </div>
-          ) : (
-            <div className="service-admin-request-field-list">
-              {fields.map((field, index) => (
-                <article key={field.id} className="service-admin-request-field-row">
-                  <span className="service-admin-request-drag">::</span>
-                  <div className="service-admin-grow">
-                    <b>{field.label}</b>
-                    <small>
-                      {field.type} · {field.required ? 'Required' : 'Optional'}
-                    </small>
-                  </div>
-                  {canEdit ? (
-                    <button type="button" onClick={() => setEditingIndex(index)}>
-                      Edit
-                    </button>
-                  ) : null}
-                  {canEdit ? (
-                    <button
-                      type="button"
-                      onClick={() =>
-                        setFields((current) =>
-                          current.filter((_, itemIndex) => itemIndex !== index),
-                        )
-                      }
-                    >
-                      Delete
-                    </button>
-                  ) : null}
-                </article>
-              ))}
-            </div>
-          )}
-        </section>
-      </div>
-
-      {canEdit && editingField && editingIndex !== null ? (
-        <div
-          className="service-admin-editor-backdrop"
-          role="presentation"
-          onMouseDown={() => setEditingIndex(null)}
-        >
-          <section
-            className="service-admin-field-editor-modal"
-            role="dialog"
-            aria-modal="true"
-            aria-label={`Edit ${editingField.label}`}
-            onMouseDown={(event) => event.stopPropagation()}
-          >
-            <header>
-              <h2>Edit Field</h2>
-              <button type="button" onClick={() => setEditingIndex(null)}>
-                ×
-              </button>
-            </header>
-            <div className="service-admin-field-editor-body">
-              <label>
-                <span>Label</span>
-                <input
-                  value={editingField.label}
-                  onChange={(event) =>
-                    setFields((current) =>
-                      current.map((item, index) =>
-                        index === editingIndex ? { ...item, label: event.target.value } : item,
-                      ),
-                    )
-                  }
-                />
-              </label>
-              <label>
-                <span>Type</span>
-                <select
-                  value={editingField.type}
-                  onChange={(event) =>
-                    setFields((current) =>
-                      current.map((item, index) =>
-                        index === editingIndex
-                          ? { ...item, type: event.target.value as RequestFormField['type'] }
-                          : item,
-                      ),
-                    )
-                  }
-                >
-                  {fieldTypes.length > 0 ? (
-                    fieldTypes.map((type) => (
-                      <option key={type.value} value={type.value}>
-                        {type.label}
-                      </option>
-                    ))
-                  ) : (
-                    <>
-                      <option value="text">Text</option>
-                      <option value="textarea">Long text</option>
-                      <option value="number">Number</option>
-                      <option value="date">Date</option>
-                      <option value="select">Dropdown</option>
-                      <option value="file">File upload</option>
-                      <option value="checkbox">Checkbox</option>
-                    </>
-                  )}
-                </select>
-              </label>
-              <label className="service-admin-field-editor-check">
-                <input
-                  type="checkbox"
-                  checked={editingField.required}
-                  onChange={(event) =>
-                    setFields((current) =>
-                      current.map((item, index) =>
-                        index === editingIndex ? { ...item, required: event.target.checked } : item,
-                      ),
-                    )
-                  }
-                />
-                Required field
-              </label>
-            </div>
-            <footer>
-              <button type="button" onClick={() => setEditingIndex(null)}>
-                Done
-              </button>
-            </footer>
-          </section>
-        </div>
-      ) : null}
+          />
+        }
+      />
     </div>
   )
 }

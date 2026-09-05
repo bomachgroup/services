@@ -1,7 +1,9 @@
 import { IconX } from '@tabler/icons-react'
 import { useState } from 'react'
 
+import { RealEstateFormDropdown } from '../components/RealEstateFormDropdown'
 import {
+  brokeragePropertyTypes,
   brokerageStatuses,
   brokerageVerificationStatuses,
   type CreateBrokerageInput,
@@ -30,11 +32,13 @@ function numberInputValue(value: number | null | undefined) {
 
 export function CreateBrokerageLiveWorkspace({
   estates,
+  defaultEstateId = null,
   saving,
   onClose,
   onSubmit,
 }: {
   estates: Estate[]
+  defaultEstateId?: number | null
   saving: boolean
   onClose: () => void
   onSubmit: (i: CreateBrokerageInput) => void
@@ -51,7 +55,7 @@ export function CreateBrokerageLiveWorkspace({
     commissionRate: 5,
     verificationStatus: 'pending',
     status: 'available',
-    estateId: null,
+    estateId: defaultEstateId,
     tags: [],
   })
   const [tags, setTags] = useState('')
@@ -122,19 +126,14 @@ export function CreateBrokerageLiveWorkspace({
                 />
               </label>
 
-              <label className="commercial-field">
-                <span>Property type</span>
-                <select
-                  value={value.propertyType}
-                  onChange={(event) =>
-                    setField('propertyType', event.target.value as typeof value.propertyType)
-                  }
-                >
-                  <option value="land">Land</option>
-                  <option value="residential">Residential</option>
-                  <option value="commercial">Commercial</option>
-                </select>
-              </label>
+              <RealEstateFormDropdown
+                label="Property type"
+                options={brokeragePropertyTypes}
+                value={value.propertyType}
+                onChange={(nextValue) =>
+                  setField('propertyType', nextValue as typeof value.propertyType)
+                }
+              />
 
               <label className="commercial-field commercial-form-span">
                 <span>
@@ -179,40 +178,21 @@ export function CreateBrokerageLiveWorkspace({
                 />
               </label>
 
-              <label className="commercial-field">
-                <span>Verification</span>
-                <select
-                  value={value.verificationStatus}
-                  onChange={(event) =>
-                    setField(
-                      'verificationStatus',
-                      event.target.value as typeof value.verificationStatus,
-                    )
-                  }
-                >
-                  {brokerageVerificationStatuses.map((item) => (
-                    <option key={item.value} value={item.value}>
-                      {item.label}
-                    </option>
-                  ))}
-                </select>
-              </label>
+              <RealEstateFormDropdown
+                label="Verification"
+                options={brokerageVerificationStatuses}
+                value={value.verificationStatus}
+                onChange={(nextValue) =>
+                  setField('verificationStatus', nextValue as typeof value.verificationStatus)
+                }
+              />
 
-              <label className="commercial-field">
-                <span>Market status</span>
-                <select
-                  value={value.status}
-                  onChange={(event) =>
-                    setField('status', event.target.value as typeof value.status)
-                  }
-                >
-                  {brokerageStatuses.map((item) => (
-                    <option key={item.value} value={item.value}>
-                      {item.label}
-                    </option>
-                  ))}
-                </select>
-              </label>
+              <RealEstateFormDropdown
+                label="Market status"
+                options={brokerageStatuses}
+                value={value.status}
+                onChange={(nextValue) => setField('status', nextValue as typeof value.status)}
+              />
 
               <label className="commercial-field commercial-form-span">
                 <span>Description</span>
@@ -260,20 +240,20 @@ export function CreateBrokerageLiveWorkspace({
                 />
               </label>
 
-              <label className="commercial-field">
-                <span>Related estate</span>
-                <select
-                  value={value.estateId ?? 0}
-                  onChange={(event) => setField('estateId', Number(event.target.value) || null)}
-                >
-                  <option value={0}>No Estate link</option>
-                  {estates.map((estate) => (
-                    <option key={estate.id} value={estate.id}>
-                      {estate.estateCode} · {estate.estateName}
-                    </option>
-                  ))}
-                </select>
-              </label>
+              <RealEstateFormDropdown
+                label="Related estate"
+                searchable
+                placeholder="No estate link"
+                options={[
+                  { value: '0', label: 'No estate link' },
+                  ...estates.map((estate) => ({
+                    value: String(estate.id),
+                    label: `${estate.estateCode} · ${estate.estateName}`,
+                  })),
+                ]}
+                value={value.estateId ? String(value.estateId) : '0'}
+                onChange={(nextValue) => setField('estateId', Number(nextValue) || null)}
+              />
 
               <label className="commercial-field commercial-form-span">
                 <span>Tags</span>
