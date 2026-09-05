@@ -19,18 +19,6 @@ import {
 } from './embedded-auth'
 import type { AuthContextValue, AuthUser } from './auth.types'
 
-type AuthTokenMessage = {
-  type: 'BOMACH_AUTH_TOKEN'
-  token: string
-  refreshToken?: string
-}
-
-function isAuthTokenMessage(value: unknown): value is AuthTokenMessage {
-  if (!value || typeof value !== 'object') return false
-  const payload = value as Record<string, unknown>
-  return payload.type === 'BOMACH_AUTH_TOKEN' && typeof payload.token === 'string'
-}
-
 export function AuthProvider({ children }: PropsWithChildren) {
   const queryClient = useQueryClient()
   const toast = useToast()
@@ -91,19 +79,16 @@ export function AuthProvider({ children }: PropsWithChildren) {
     const handleMessage = (event: MessageEvent<unknown>) => {
       if (!isTrustedAuthTokenMessage(event, window.parent, parentOrigin)) return
 
-      if (event.data && typeof event.data === 'object' && 'token' in event.data) {
-        const data = event.data as { token?: unknown; refreshToken?: unknown }
-        const t = String(data.token)
-        tokenStore.set({
-          accessToken: t,
-          refreshToken: data.refreshToken ? String(data.refreshToken) : t,
-        })
-        setEmbedAuthReady(true)
-        setAuthBootstrapError(null)
-        queryClient.invalidateQueries({
-          queryKey: currentUserQueryOptions.queryKey,
-        })
-      }
+      const { token, refreshToken } = event.data
+      tokenStore.set({
+        accessToken: token,
+        refreshToken: refreshToken ?? token,
+      })
+      setEmbedAuthReady(true)
+      setAuthBootstrapError(null)
+      void queryClient.invalidateQueries({
+        queryKey: currentUserQueryOptions.queryKey,
+      })
     }
 
     window.addEventListener('message', handleMessage)
