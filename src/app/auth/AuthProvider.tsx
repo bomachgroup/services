@@ -10,6 +10,13 @@ import { tokenStore } from '@/shared/auth/token-store'
 import { useToast } from '@/shared/ui'
 
 import { AuthContext } from './auth.context'
+import {
+  AUTH_READY_MESSAGE,
+  getAuthBootstrapError,
+  getTrustedParentOrigin,
+  isTrustedAuthTokenMessage,
+  shouldRetryAuthReadyAnnouncement,
+} from './embedded-auth'
 import type { AuthContextValue, AuthUser } from './auth.types'
 
 export function AuthProvider({ children }: PropsWithChildren) {
@@ -56,57 +63,28 @@ export function AuthProvider({ children }: PropsWithChildren) {
     }
   }, [currentUserQueryOptions.queryKey, queryClient])
 
-  // Handle token passed from query params (e.g. embedded in Bomach OS) or window postMessage
+  // Embedded credentials are delivered by the parent window via postMessage.
   useEffect(() => {
     if (typeof window === 'undefined') return
 
-    const params = new URLSearchParams(window.location.search)
-    const queryToken = params.get('token') || params.get('access_token')
-    const queryRefreshToken = params.get('refresh_token') || queryToken
-
-    if (queryToken) {
-      tokenStore.set({
-        accessToken: queryToken,
-        refreshToken: queryRefreshToken || queryToken,
-      })
-      setEmbedAuthReady(true)
-      setAuthBootstrapError(null)
-      queryClient.invalidateQueries({
-        queryKey: currentUserQueryOptions.queryKey,
-      })
-    }
-
     if (!isEmbedded || window.parent === window) return
 
-    const parentOrigin = (() => {
-      try {
-        return document.referrer ? new URL(document.referrer).origin : '*'
-      } catch {
-        return '*'
-      }
-    })()
+    const parentOrigin = getTrustedParentOrigin(document.referrer)
     let readyAnnouncements = 0
     const announceReady = () => {
-      window.parent.postMessage({ type: 'BOMACH_AUTH_READY' }, parentOrigin)
+      window.parent.postMessage(AUTH_READY_MESSAGE, parentOrigin)
       readyAnnouncements += 1
     }
 
-    const handleMessage = (e: MessageEvent) => {
-      if (
-        e.source !== window.parent ||
-        (parentOrigin !== '*' && e.origin !== parentOrigin) ||
-        !e.data ||
-        e.data.type !== 'BOMACH_AUTH_TOKEN' ||
-        !e.data.token
-      ) {
-        return
-      }
+    const handleMessage = (event: MessageEvent<unknown>) => {
+      if (!isTrustedAuthTokenMessage(event, window.parent, parentOrigin)) return
 
-      if (e.data && e.data.type === 'BOMACH_AUTH_TOKEN' && e.data.token) {
-        const t = String(e.data.token)
+      if (event.data && typeof event.data === 'object' && 'token' in event.data) {
+        const data = event.data as { token?: unknown; refreshToken?: unknown }
+        const t = String(data.token)
         tokenStore.set({
           accessToken: t,
-          refreshToken: e.data.refreshToken ? String(e.data.refreshToken) : t,
+          refreshToken: data.refreshToken ? String(data.refreshToken) : t,
         })
         setEmbedAuthReady(true)
         setAuthBootstrapError(null)
@@ -119,7 +97,12 @@ export function AuthProvider({ children }: PropsWithChildren) {
     window.addEventListener('message', handleMessage)
     announceReady()
     const retryTimer = window.setInterval(() => {
-      if (tokenStore.getAccessToken() || readyAnnouncements >= 12) {
+      if (
+        !shouldRetryAuthReadyAnnouncement({
+          hasToken: Boolean(tokenStore.getAccessToken()),
+          attempts: readyAnnouncements,
+        })
+      ) {
         window.clearInterval(retryTimer)
         return
       }
@@ -127,9 +110,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
     }, 1000)
     const timeout = window.setTimeout(() => {
       if (!tokenStore.getAccessToken()) {
-        setAuthBootstrapError(
-          'Bomach OS did not provide a valid session to Services. Return to Bomach OS and open Services again.',
-        )
+        setAuthBootstrapError(getAuthBootstrapError())
       }
     }, 12000)
 
