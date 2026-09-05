@@ -70,8 +70,6 @@ export function mapServiceRequestListItem(payload: unknown): ServiceRequestListI
     clientName: text(value.client_name),
     serviceId: num(value.service_id),
     serviceName: text(value.service_name),
-    subserviceId: nullableNumber(value.subservice_id),
-    subserviceName: text(value.subservice_name),
     branchId: nullableNumber(value.branch_id),
     branchName: text(value.branch_name),
     quoteId: nullableNumber(value.quote_id),
@@ -182,23 +180,30 @@ export function mapServiceRequestChoices(payload: unknown): ServiceRequestChoice
   }
 }
 
+export function mapClient(payload: unknown): ClientOption {
+  const row = record(payload)
+  return {
+    id: num(row.id),
+    name:
+      text(row.company_name) ||
+      [text(row.first_name), text(row.last_name)].filter(Boolean).join(' ') ||
+      text(row.full_name) ||
+      text(row.email),
+    email: text(row.email),
+    phone: text(row.phone) || text(row.phone_number),
+    companyName: text(row.company_name),
+    active: row.is_active !== false,
+  }
+}
+
 export function mapClients(payload: unknown): ClientOption[] {
   const { rows } = paginatedRows(payload)
-  return rows.map((item) => {
-    const row = record(item)
-    return {
-      id: num(row.id),
-      name:
-        text(row.company_name) ||
-        text(row.full_name) ||
-        [text(row.first_name), text(row.last_name)].filter(Boolean).join(' ') ||
-        text(row.email),
-      email: text(row.email),
-      phone: text(row.phone) || text(row.phone_number),
-      companyName: text(row.company_name),
-      active: row.is_active !== false,
-    }
-  })
+  return rows.map((item) => mapClient(item))
+}
+
+export function mapClientsPage(payload: unknown): PaginatedResult<ClientOption> {
+  const { count, rows } = paginatedRows(payload)
+  return { count, items: rows.map((item) => mapClient(item)) }
 }
 
 export function mapServices(payload: unknown): ServiceOption[] {
@@ -209,7 +214,9 @@ export function mapServices(payload: unknown): ServiceOption[] {
       id: num(row.id),
       code: text(row.code),
       name: text(row.name),
-      division: text(row.division),
+      parentName: text(row.parent_name ?? row.parentName),
+      specializedServiceId: nullableNumber(row.specialized_service_id),
+      specializedDomain: nullableText(row.specialized_domain),
       activeBranches: array(row.active_branches).map((item) => {
         const branch = record(item)
         return {
@@ -310,7 +317,8 @@ export function mapIntakeForm(payload: unknown): ServiceIntakeForm {
       id: num(service.id),
       code: text(service.code),
       name: text(service.name),
-      division: text(service.division),
+      parentName: text(service.parent_name),
+      specializedDomain: text(service.specialized_domain) || null,
       defaultSlaDays: num(service.default_sla_days),
       fulfillmentMode: text(service.fulfillment_mode),
     },
@@ -322,15 +330,5 @@ export function mapIntakeForm(payload: unknown): ServiceIntakeForm {
       active: form.is_active === true,
       fields: array(form.fields).map(mapField),
     },
-    subservices: array(root.subservices).map((item) => {
-      const row = record(item)
-      return {
-        id: num(row.id),
-        code: text(row.code),
-        name: text(row.name),
-        description: text(row.description),
-        status: text(row.status),
-      }
-    }),
   }
 }

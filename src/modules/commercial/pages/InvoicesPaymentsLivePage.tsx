@@ -25,10 +25,11 @@ import { billingKeys } from '../billing/billing.keys'
 import { billingQueries } from '../billing/billing.queries'
 import type {
   CreateInvoiceFromQuoteInput,
+  CreatePaymentSubmissionInput,
   Invoice,
+  PaginatedPaymentSubmissions,
   PaymentSubmission,
   PaymentSubmissionStatus,
-  RecordPaymentInput,
   ReviewPaymentSubmissionInput,
   UpdateInvoiceInput,
 } from '../billing/billing.types'
@@ -116,6 +117,17 @@ export function InvoicesPaymentsLivePage({ recordSearch }: { recordSearch: AppSe
     enabled: activeTab === 'submissions' && hasPermission(user, PERMISSIONS.paymentsList),
   })
 
+  const selectedInvoiceSubmissionsQuery = useQuery({
+    ...billingQueries.submissions('pending', selectedInvoiceId ?? undefined),
+    enabled: Boolean(selectedInvoiceId) && hasPermission(user, PERMISSIONS.paymentsList),
+  })
+
+  const financeAccountsQuery = useQuery({
+    ...billingQueries.financeAccounts(),
+    enabled:
+      (Boolean(selectedInvoiceId) || builderOpen) && hasPermission(user, PERMISSIONS.paymentsList),
+  })
+
   const clientNames = useMemo(
     () => new Map((clientsQuery.data ?? []).map((client) => [client.id, client.name])),
     [clientsQuery.data],
@@ -165,6 +177,29 @@ export function InvoicesPaymentsLivePage({ recordSearch }: { recordSearch: AppSe
             }),
           ]
         : []),
+    ])
+  }
+
+  const refreshPaymentFlow = async (invoiceId: number) => {
+    if (!invoiceId) {
+      await queryClient.invalidateQueries({
+        queryKey: billingQueries.allPaymentSubmissions().queryKey,
+      })
+      return
+    }
+
+    await Promise.all([
+      queryClient.refetchQueries({ queryKey: billingKeys.invoiceDetail(invoiceId) }),
+      queryClient.refetchQueries({ queryKey: billingKeys.payments(invoiceId) }),
+      queryClient.refetchQueries({
+        queryKey: billingKeys.submissions('pending', invoiceId),
+      }),
+      queryClient.invalidateQueries({ queryKey: billingKeys.invoiceLists() }),
+      queryClient.invalidateQueries({ queryKey: billingKeys.summary() }),
+      queryClient.invalidateQueries({ queryKey: billingKeys.allInvoices() }),
+      queryClient.invalidateQueries({
+        queryKey: billingQueries.allPaymentSubmissions().queryKey,
+      }),
     ])
   }
 
@@ -248,33 +283,19 @@ export function InvoicesPaymentsLivePage({ recordSearch }: { recordSearch: AppSe
     },
   })
 
-  const recordPaymentMutation = useMutation({
-    mutationFn: (
-      input: Omit<RecordPaymentInput, 'createdById'> & {
-        createdById: number
-      },
-    ) => billingApi.recordPayment(input),
-    onSuccess: async (payment) => {
-      const invoice = await billingApi.detail(payment.invoiceId)
-      await invalidateInvoices(invoice.id, invoice.quoteId)
-      toast.success('Payment recorded', {
-        description: `${formatCurrency(payment.amount)} confirmed against ${invoice.invoiceNumber}.`,
+  const createPaymentSubmissionMutation = useMutation({
+    mutationFn: (input: CreatePaymentSubmissionInput) => billingApi.createPaymentSubmission(input),
+    onSuccess: async (submission, input) => {
+      const invoiceId = submission.invoiceId || input.invoiceId
+      await refreshPaymentFlow(invoiceId)
+      toast.success('Payment proof uploaded', {
+        description: `${formatCurrency(submission.amount)} is waiting for review.`,
       })
     },
-    onError: async (error) => {
-      toast.error('Payment could not be recorded', {
+    onError: (error) => {
+      toast.error('Payment proof could not be uploaded', {
         description: presentError(error, 'form-submit').message,
       })
-      if (selectedInvoiceId) {
-        await Promise.all([
-          queryClient.invalidateQueries({
-            queryKey: billingKeys.invoiceDetail(selectedInvoiceId),
-          }),
-          queryClient.invalidateQueries({
-            queryKey: billingKeys.payments(selectedInvoiceId),
-          }),
-        ])
-      }
     },
   })
 
@@ -285,19 +306,59 @@ export function InvoicesPaymentsLivePage({ recordSearch }: { recordSearch: AppSe
     }: {
       submission: PaymentSubmission
       input: ReviewPaymentSubmissionInput
+      invoiceId: number
     }) => billingApi.reviewPaymentSubmission(submission.id, input),
-    onSuccess: async () => {
+    onMutate: async ({ submission, input, invoiceId }) => {
+      if (input.status !== 'confirmed' && input.status !== 'rejected') {
+        return undefined
+      }
+
+      const pendingKey = billingKeys.submissions('pending', invoiceId)
+      const globalKey = billingKeys.submissions(submissionStatus)
       await Promise.all([
-        queryClient.invalidateQueries({
-          queryKey: billingKeys.submissions(submissionStatus),
-        }),
-        queryClient.invalidateQueries({ queryKey: billingKeys.invoiceLists() }),
-        queryClient.invalidateQueries({ queryKey: billingKeys.summary() }),
-        queryClient.invalidateQueries({ queryKey: billingKeys.allInvoices() }),
+        queryClient.cancelQueries({ queryKey: pendingKey }),
+        queryClient.cancelQueries({ queryKey: globalKey }),
       ])
-      toast.success('Payment submission reviewed')
+
+      const previousPending = queryClient.getQueryData<PaginatedPaymentSubmissions>(pendingKey)
+      if (previousPending) {
+        queryClient.setQueryData(pendingKey, {
+          ...previousPending,
+          count: Math.max(0, previousPending.count - 1),
+          items: previousPending.items.filter((item) => item.id !== submission.id),
+        })
+      }
+
+      const previousGlobal = queryClient.getQueryData<PaginatedPaymentSubmissions>(globalKey)
+      if (previousGlobal && submissionStatus === 'pending') {
+        queryClient.setQueryData(globalKey, {
+          ...previousGlobal,
+          count: Math.max(0, previousGlobal.count - 1),
+          items: previousGlobal.items.filter((item) => item.id !== submission.id),
+        })
+      }
+
+      return { previousPending, pendingKey, previousGlobal, globalKey }
     },
-    onError: (error) => {
+    onSuccess: async (_submission, { input, invoiceId }) => {
+      await refreshPaymentFlow(invoiceId)
+      toast.success(
+        input.status === 'confirmed' ? 'Payment confirmed and recorded' : 'Payment proof rejected',
+        {
+          description:
+            input.status === 'confirmed'
+              ? 'Invoice balance and payment history have been updated.'
+              : 'The client can submit a new proof if needed.',
+        },
+      )
+    },
+    onError: (error, _variables, context) => {
+      if (context?.previousPending && context.pendingKey) {
+        queryClient.setQueryData(context.pendingKey, context.previousPending)
+      }
+      if (context?.previousGlobal && context.globalKey) {
+        queryClient.setQueryData(context.globalKey, context.previousGlobal)
+      }
       toast.error('Payment submission could not be reviewed', {
         description: presentError(error, 'background-action').message,
       })
@@ -369,6 +430,26 @@ export function InvoicesPaymentsLivePage({ recordSearch }: { recordSearch: AppSe
     }, 350)
     return () => window.clearTimeout(timeoutId)
   }, [recordSearch.search, searchDraft, setSearchValue])
+
+  useEffect(() => {
+    if (!sourceQuotationId || !handoffQuotationQuery.data) return
+    let cancelled = false
+
+    void billingApi.invoiceForQuote(sourceQuotationId).then((invoice) => {
+      if (cancelled || !invoice) return
+      setBuilderOpen(false)
+      void navigate({
+        to: '/app/$section',
+        params: { section: 'invoices-payments' },
+        search: { invoice: String(invoice.id) },
+        replace: true,
+      })
+    })
+
+    return () => {
+      cancelled = true
+    }
+  }, [handoffQuotationQuery.data, navigate, sourceQuotationId])
 
   const beginDirectCreate = async () => {
     setBuilderOpen(true)
@@ -653,7 +734,11 @@ export function InvoicesPaymentsLivePage({ recordSearch }: { recordSearch: AppSe
               canReview={hasPermission(user, PERMISSIONS.paymentsCreate)}
               onStatusChange={setSubmissionStatus}
               onReview={(submission, input) =>
-                reviewSubmissionMutation.mutate({ submission, input })
+                reviewSubmissionMutation.mutate({
+                  submission,
+                  input,
+                  invoiceId: submission.invoiceId,
+                })
               }
             />
           )}
@@ -723,6 +808,8 @@ export function InvoicesPaymentsLivePage({ recordSearch }: { recordSearch: AppSe
           }
           quotationSelectionLocked={Boolean(sourceQuotationId)}
           quotationSelectionLoading={builderQuotationLoading}
+          financeAccounts={financeAccountsQuery.data ?? []}
+          financeAccountsLoading={financeAccountsQuery.isPending}
           saving={createInvoiceMutation.isPending}
           onSelectQuotation={(quotationId) => void selectBuilderQuotation(quotationId)}
           onClose={closeBuilder}
@@ -785,8 +872,14 @@ export function InvoicesPaymentsLivePage({ recordSearch }: { recordSearch: AppSe
             updateInvoiceMutation.isPending ||
             sendInvoiceMutation.isPending ||
             cancelInvoiceMutation.isPending ||
-            recordPaymentMutation.isPending
+            createPaymentSubmissionMutation.isPending ||
+            reviewSubmissionMutation.isPending
           }
+          financeAccounts={financeAccountsQuery.data ?? []}
+          financeAccountsLoading={financeAccountsQuery.isPending}
+          pendingSubmissions={selectedInvoiceSubmissionsQuery.data?.items ?? []}
+          pendingSubmissionsLoading={selectedInvoiceSubmissionsQuery.isPending}
+          canReviewSubmissions={hasPermission(user, PERMISSIONS.paymentsCreate)}
           canUpdate={hasPermission(user, PERMISSIONS.serviceInvoicesUpdate)}
           canRecordPayment={hasPermission(user, PERMISSIONS.paymentsCreate)}
           canCreateServiceOrder={hasPermission(user, PERMISSIONS.ordersCreate)}
@@ -821,19 +914,14 @@ export function InvoicesPaymentsLivePage({ recordSearch }: { recordSearch: AppSe
           }
           onSend={() => sendInvoiceMutation.mutate(detailInvoice)}
           onCancel={() => cancelInvoiceMutation.mutate(detailInvoice.id)}
-          onRecordPayment={(input) => {
-            const createdById = Number(user?.id)
-            if (!Number.isFinite(createdById) || createdById <= 0) {
-              toast.error('Payment could not be recorded', {
-                description: 'The signed-in backend user ID is unavailable.',
-              })
-              return
-            }
-            recordPaymentMutation.mutate({
-              ...input,
-              createdById,
+          onSubmitPaymentProof={(input) => createPaymentSubmissionMutation.mutateAsync(input)}
+          onReviewPaymentSubmission={(submission, input) =>
+            reviewSubmissionMutation.mutate({
+              submission,
+              input,
+              invoiceId: detailInvoice.id,
             })
-          }}
+          }
         />
       ) : null}
     </ModulePageFrame>

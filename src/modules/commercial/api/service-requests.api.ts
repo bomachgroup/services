@@ -1,7 +1,9 @@
 import { apiClient } from '@/shared/api/api-client'
 
 import {
+  mapClient,
   mapClients,
+  mapClientsPage,
   mapEmployees,
   mapIntakeForm,
   mapServicePricingConfig,
@@ -12,6 +14,7 @@ import {
 } from './service-requests.mapper'
 import type {
   ClientOption,
+  CreateClientInput,
   CreateServiceRequestActivityInput,
   CreateServiceRequestAttachmentInput,
   CreateServiceRequestInput,
@@ -71,6 +74,34 @@ export const serviceRequestsApi = {
 
   async clients(): Promise<ClientOption[]> {
     return mapClients(await apiClient.get<unknown>('/clients/admin/clients'))
+  },
+
+  async searchClients(search: string, limit = 20): Promise<ClientOption[]> {
+    const page = await this.listClients(search, limit, 0)
+    return page.items
+  },
+
+  async listClients(
+    search: string,
+    limit = 20,
+    offset = 0,
+  ): Promise<PaginatedResult<ClientOption>> {
+    const query = new URLSearchParams()
+    query.set('limit', String(limit))
+    query.set('offset', String(offset))
+    if (search.trim()) query.set('search', search.trim())
+    return mapClientsPage(await apiClient.get<unknown>(`/clients/clients/?${query.toString()}`))
+  },
+
+  async createClient(input: CreateClientInput): Promise<ClientOption> {
+    return mapClient(
+      await apiClient.post<unknown>('/clients/clients/', {
+        email: input.email.trim(),
+        first_name: input.firstName.trim(),
+        last_name: input.lastName.trim(),
+        phone_number: input.phoneNumber.trim(),
+      }),
+    )
   },
 
   async services(): Promise<ServiceOption[]> {
@@ -148,7 +179,6 @@ export const serviceRequestsApi = {
       await apiClient.post<unknown>('/service-requests/admin', {
         client_id: input.clientId,
         service_id: input.serviceId,
-        ...(input.subserviceId ? { subservice_id: input.subserviceId } : {}),
         ...(input.branchId ? { branch_id: input.branchId } : {}),
         contact_name: input.contactName,
         contact_phone: input.contactPhone,
@@ -164,6 +194,7 @@ export const serviceRequestsApi = {
         next_action: input.nextAction,
         scope_summary: input.scopeSummary,
         answers: input.answers,
+        ...(input.crmLeadId ? { crm_lead_id: input.crmLeadId } : {}),
       }),
     )
   },

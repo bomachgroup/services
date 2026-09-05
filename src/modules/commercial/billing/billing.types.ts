@@ -19,7 +19,9 @@ export interface Invoice {
   clientId: number
   clientName: string
   quoteId: number | null
+  quoteNumber: string
   serviceRequestId: number | null
+  serviceRequestNumber: string
   serviceId: number
   serviceName: string
   orderId: number | null
@@ -34,6 +36,7 @@ export interface Invoice {
   balance: number
   paymentProgress: number
   status: InvoiceStatus
+  statusDisplay: string
   paymentSchedule: string
   paymentInstructions: string
   activationThresholdAmount: number
@@ -76,10 +79,14 @@ export interface Payment {
   paymentMethod: PaymentMethod
   paymentDate: string
   transactionReference: string
+  financeAccountId: number | null
+  financeAccountName: string
+  proofOfPayment: string
   notes: string
   createdAt: string
   updatedAt: string
   createdById: number
+  createdByName: string
 }
 
 export interface PaginatedPayments {
@@ -91,14 +98,31 @@ export interface PaymentSubmission {
   id: number
   reference: string
   invoiceNumber: string
+  invoiceId: number
+  clientName: string
   amount: number
   paymentMethod: PaymentMethod
   paymentDate: string
   proofOfPayment: string
+  financeAccountId: number | null
+  financeAccountName: string
+  transactionReference: string
+  submittedByType: string
   status: PaymentSubmissionStatus
   statusDisplay: string
   rejectionReason: string
   createdAt: string
+}
+
+export interface FinanceAccount {
+  id: number
+  displayName: string
+  accountType: string
+  accountTypeDisplay: string
+  branchName: string
+  bankName: string
+  accountNumber: string
+  accountName: string
 }
 
 export interface PaginatedPaymentSubmissions {
@@ -131,8 +155,20 @@ export interface RecordPaymentInput {
   createdById: number
 }
 
+export interface CreatePaymentSubmissionInput {
+  invoiceId: number
+  financeAccountId: number
+  amount: number
+  paymentMethod: PaymentMethod
+  paymentDate: string
+  transactionReference: string
+  proofOfPayment: string
+  notes: string
+}
+
 export interface ReviewPaymentSubmissionInput {
   status: 'confirmed' | 'rejected'
+  financeAccountId?: number
   rejectionReason?: string
 }
 

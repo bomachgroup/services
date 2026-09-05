@@ -76,6 +76,20 @@ export function mapRequestFormDto(dto: RequestFormDto, serviceName: string): Ser
   }
 }
 
+export function mapRequestFormFieldsToBackend(fields: RequestFormField[]) {
+  return fields.map((field, index) => ({
+    key: field.key,
+    label: field.label,
+    field_type: field.type,
+    required: field.required,
+    options: field.options ?? [],
+    validation: {},
+    help_text: field.helpText ?? '',
+    placeholder: '',
+    sort_order: index,
+  }))
+}
+
 export function mapSaveRequestFormInput(
   input: SaveRequestFormInput,
 ): RequestFormInputDto | RequestFormUpdateDto {
@@ -83,16 +97,6 @@ export function mapSaveRequestFormInput(
     name: input.name,
     status: backendFormStatus(input.status),
     is_active: input.status === 'active',
-    fields: input.fields.map((field, index) => ({
-      key: field.key,
-      label: field.label,
-      field_type: field.type,
-      required: field.required,
-      options: field.options ?? [],
-      validation: {},
-      help_text: field.helpText ?? '',
-      placeholder: '',
-      sort_order: index,
-    })),
+    fields: mapRequestFormFieldsToBackend(input.fields),
   }
 }

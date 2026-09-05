@@ -22,6 +22,7 @@ import {
 import { serviceRequestKeys } from '../api/service-requests.keys'
 import { serviceRequestQueries } from '../api/service-requests.queries'
 import type { ServiceRequestDetail } from '../api/service-requests.types'
+import { billingQueries } from '../billing/billing.queries'
 import { quotationsApi } from '../quotation/quotation.api'
 import { quotationKeys } from '../quotation/quotation.keys'
 import { quotationQueries } from '../quotation/quotation.queries'
@@ -90,6 +91,14 @@ export function QuotationsLivePage({ recordSearch }: { recordSearch: AppSectionS
   const detailQuery = useQuery({
     ...quotationQueries.detail(selectedQuoteId ?? 0),
     enabled: Boolean(selectedQuoteId) && hasPermission(user, PERMISSIONS.quotesView),
+  })
+
+  const linkedInvoiceQuery = useQuery({
+    ...billingQueries.invoiceForQuote(selectedQuoteId ?? 0),
+    enabled:
+      Boolean(selectedQuoteId) &&
+      detailQuery.data?.status === 'accepted' &&
+      hasPermission(user, PERMISSIONS.serviceInvoicesView),
   })
 
   const handoffRequestQuery = useQuery({
@@ -647,6 +656,7 @@ export function QuotationsLivePage({ recordSearch }: { recordSearch: AppSectionS
       {detailQuery.data && !builderMode ? (
         <QuotationDetailLiveWorkspace
           quotation={detailQuery.data}
+          linkedInvoice={linkedInvoiceQuery.data ?? null}
           saving={approveMutation.isPending || updateMutation.isPending}
           canApprove={hasPermission(user, PERMISSIONS.quotesApprove)}
           canEdit={hasPermission(user, PERMISSIONS.quotesUpdate)}
@@ -684,6 +694,15 @@ export function QuotationsLivePage({ recordSearch }: { recordSearch: AppSectionS
               search: { quotation: String(detailQuery.data.id) },
             })
           }
+          onViewInvoice={() => {
+            const invoiceId = linkedInvoiceQuery.data?.id
+            if (!invoiceId) return
+            void navigate({
+              to: '/app/$section',
+              params: { section: 'invoices-payments' },
+              search: { invoice: String(invoiceId) },
+            })
+          }}
         />
       ) : null}
     </ModulePageFrame>

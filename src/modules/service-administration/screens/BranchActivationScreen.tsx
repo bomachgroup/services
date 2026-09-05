@@ -150,7 +150,9 @@ export function BranchActivationScreen({
                 <tr key={service.id}>
                   <td>
                     <b>{service.name}</b>
-                    <div className="service-admin-row-subtitle">{service.division}</div>
+                    <div className="service-admin-row-subtitle">
+                      {service.parentName ?? 'No parent'}
+                    </div>
                   </td>
                   {branches.map((branch) => {
                     const key = `${service.id}:${branch.id}`

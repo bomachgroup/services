@@ -1,5 +1,7 @@
 import { IconRefresh, IconTrash, IconUpload, IconX } from '@tabler/icons-react'
 
+import { DropdownSelect } from '@/shared/ui/dropdown-select'
+
 import type { IntakeField } from '../api/service-requests.types'
 
 import { FileTypeIcon } from './file-presentation'
@@ -58,61 +60,47 @@ export function RequestIntakeFields({
         }
 
         if (field.fieldType === 'select') {
+          const placeholder = field.placeholder.trim() || 'Select an option'
           return (
-            <label key={field.id} className="commercial-field">
-              <span>
-                {field.label}
-                {field.required ? ' *' : ''}
-              </span>
-              <select
-                ref={(node) => {
-                  fieldRefs.current[field.key] = node
-                }}
-                value={fieldTextValue(value)}
-                onChange={(event) => setValue(event.target.value)}
-              >
-                <option value="">Select</option>
-                {field.options.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-              {fieldErrors[field.key] ? (
-                <small className="commercial-field-error">{fieldErrors[field.key]}</small>
-              ) : null}
-            </label>
+            <DropdownSelect
+              key={field.id}
+              label={field.label}
+              required={field.required}
+              placeholder={placeholder}
+              options={field.options}
+              value={fieldTextValue(value)}
+              helpText={field.helpText || undefined}
+              error={fieldErrors[field.key]}
+              searchable
+              onChange={(next) => setValue(next)}
+              containerRef={(node) => {
+                fieldRefs.current[field.key] = node
+              }}
+            />
           )
         }
 
         if (field.fieldType === 'multiselect') {
           const selected = Array.isArray(value) ? value.map(String) : []
+          const placeholder = field.placeholder.trim() || 'Select options'
+
           return (
-            <label key={field.id} className="commercial-field">
-              <span>
-                {field.label}
-                {field.required ? ' *' : ''}
-              </span>
-              <select
-                ref={(node) => {
-                  fieldRefs.current[field.key] = node
-                }}
-                multiple
-                value={selected}
-                onChange={(event) =>
-                  setValue(Array.from(event.target.selectedOptions).map((option) => option.value))
-                }
-              >
-                {field.options.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-              {fieldErrors[field.key] ? (
-                <small className="commercial-field-error">{fieldErrors[field.key]}</small>
-              ) : null}
-            </label>
+            <DropdownSelect
+              key={field.id}
+              mode="multiple"
+              label={field.label}
+              required={field.required}
+              placeholder={placeholder}
+              options={field.options}
+              value={selected}
+              helpText={field.helpText || undefined}
+              error={fieldErrors[field.key]}
+              searchable
+              onChange={setValue}
+              containerRef={(node) => {
+                fieldRefs.current[field.key] = node
+              }}
+            />
           )
         }
 

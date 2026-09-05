@@ -19,6 +19,8 @@ export const PERMISSIONS = {
 
   employeesList: 'employees.list',
   clientsList: 'clients.list',
+  clientsCreate: 'clients.create',
+  leadsList: 'leads.list',
 
   servicesList: 'services.list',
   servicesView: 'services.view',
@@ -26,17 +28,11 @@ export const PERMISSIONS = {
   servicesUpdate: 'services.update',
   servicesDelete: 'services.delete',
 
-  categoriesList: 'categories.list',
+  serviceParentsList: 'service_parents.list',
 
   branchesList: 'branches.list',
 
   rolesList: 'roles.list',
-
-  serviceSubservicesList: 'service_subservices.list',
-  serviceSubservicesView: 'service_subservices.view',
-  serviceSubservicesCreate: 'service_subservices.create',
-  serviceSubservicesUpdate: 'service_subservices.update',
-  serviceSubservicesDelete: 'service_subservices.delete',
 
   serviceRequestFormsList: 'service_request_forms.list',
   serviceRequestFormsView: 'service_request_forms.view',

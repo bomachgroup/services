@@ -19,6 +19,18 @@ import {
 } from './embedded-auth'
 import type { AuthContextValue, AuthUser } from './auth.types'
 
+type AuthTokenMessage = {
+  type: 'BOMACH_AUTH_TOKEN'
+  token: string
+  refreshToken?: string
+}
+
+function isAuthTokenMessage(value: unknown): value is AuthTokenMessage {
+  if (!value || typeof value !== 'object') return false
+  const payload = value as Record<string, unknown>
+  return payload.type === 'BOMACH_AUTH_TOKEN' && typeof payload.token === 'string'
+}
+
 export function AuthProvider({ children }: PropsWithChildren) {
   const queryClient = useQueryClient()
   const toast = useToast()
