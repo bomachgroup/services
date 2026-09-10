@@ -1,6 +1,9 @@
 import { IconExternalLink, IconX } from '@tabler/icons-react'
 import { useForm } from '@tanstack/react-form'
 import { useNavigate } from '@tanstack/react-router'
+
+import { DropdownSelect, mapDropdownOptions } from '@/shared/ui/dropdown-select'
+
 import type {
   ClientFeedback,
   FeedbackStatus,
@@ -98,20 +101,15 @@ export function FeedbackQualityFollowUpWorkspace({
           </div>
           <form.Field name="status">
             {(field) => (
-              <label className="experience-field">
-                <span>Status</span>
-                <select
-                  value={field.state.value}
-                  disabled={!canUpdate}
-                  onChange={(e) => field.handleChange(e.target.value as FeedbackStatus)}
-                >
-                  {feedbackStatusOptions.map((o) => (
-                    <option key={o.value} value={o.value}>
-                      {o.label}
-                    </option>
-                  ))}
-                </select>
-              </label>
+              <DropdownSelect
+                label="Status"
+                fullWidth
+                fieldClassName="experience-field"
+                disabled={!canUpdate}
+                options={mapDropdownOptions(feedbackStatusOptions)}
+                value={field.state.value}
+                onChange={(value) => field.handleChange(value as FeedbackStatus)}
+              />
             )}
           </form.Field>
           <form.Field name="internalNote">

@@ -5,6 +5,7 @@ import { useMemo, useState } from 'react'
 
 import { serviceOrderQueries } from '@/modules/fulfillment/service-orders/service-order.queries'
 import { DashboardSkeleton, ErrorState } from '@/shared/ui'
+import { DropdownSelect, mapDropdownOptions } from '@/shared/ui/dropdown-select'
 import { presentError } from '@/shared/errors'
 
 import {
@@ -171,61 +172,59 @@ export function RecordClientFeedbackWorkspace({
             <div className="experience-form-grid">
               <form.Field name="orderId">
                 {(field) => (
-                  <label className="experience-field experience-field-full">
-                    <span>Service Order *</span>
-                    <select
-                      value={field.state.value || ''}
-                      onChange={(event) => field.handleChange(Number(event.target.value))}
-                    >
-                      <option value="">Select an Order</option>
-                      {orders.map((order) => (
-                        <option key={order.id} value={order.id}>
-                          {order.orderNumber} — {order.serviceName}
-                        </option>
-                      ))}
-                    </select>
-                    {selectedOrder ? (
-                      <small className="experience-field-help">{orderProgress}</small>
-                    ) : null}
-                  </label>
+                  <DropdownSelect
+                    label="Service Order"
+                    required
+                    fullWidth
+                    fieldClassName="experience-field experience-field-full"
+                    placeholder="Select an Order"
+                    helpText={selectedOrder ? orderProgress : undefined}
+                    options={[
+                      { value: '', label: 'Select an Order' },
+                      ...mapDropdownOptions(
+                        orders.map((order) => ({
+                          value: String(order.id),
+                          label: `${order.orderNumber} — ${order.serviceName}`,
+                        })),
+                      ),
+                    ]}
+                    value={field.state.value ? String(field.state.value) : ''}
+                    onChange={(value) => field.handleChange(Number(value))}
+                  />
                 )}
               </form.Field>
 
               <form.Field name="feedbackType">
                 {(field) => (
-                  <label className="experience-field">
-                    <span>Feedback type *</span>
-                    <select
-                      value={field.state.value}
-                      onChange={(event) => field.handleChange(event.target.value as FeedbackType)}
-                    >
-                      {feedbackTypeOptions.map((option) => (
-                        <option key={option.value} value={option.value}>
-                          {option.label}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
+                  <DropdownSelect
+                    label="Feedback type"
+                    required
+                    fullWidth
+                    fieldClassName="experience-field"
+                    options={mapDropdownOptions(feedbackTypeOptions)}
+                    value={field.state.value}
+                    onChange={(value) => field.handleChange(value as FeedbackType)}
+                  />
                 )}
               </form.Field>
 
               <form.Field name="rating">
                 {(field) => (
-                  <label className="experience-field">
-                    <span>Client rating *</span>
-                    <select
-                      value={field.state.value}
-                      onChange={(event) =>
-                        field.handleChange(Number(event.target.value) as 1 | 2 | 3 | 4 | 5)
-                      }
-                    >
-                      <option value={5}>5 — Excellent</option>
-                      <option value={4}>4 — Good</option>
-                      <option value={3}>3 — Satisfactory</option>
-                      <option value={2}>2 — Poor</option>
-                      <option value={1}>1 — Very poor</option>
-                    </select>
-                  </label>
+                  <DropdownSelect
+                    label="Client rating"
+                    required
+                    fullWidth
+                    fieldClassName="experience-field"
+                    options={[
+                      { value: '5', label: '5 — Excellent' },
+                      { value: '4', label: '4 — Good' },
+                      { value: '3', label: '3 — Satisfactory' },
+                      { value: '2', label: '2 — Poor' },
+                      { value: '1', label: '1 — Very poor' },
+                    ]}
+                    value={String(field.state.value)}
+                    onChange={(value) => field.handleChange(Number(value) as 1 | 2 | 3 | 4 | 5)}
+                  />
                 )}
               </form.Field>
 
@@ -253,19 +252,14 @@ export function RecordClientFeedbackWorkspace({
             <div className="experience-form-grid">
               <form.Field name="status">
                 {(field) => (
-                  <label className="experience-field">
-                    <span>Quality status</span>
-                    <select
-                      value={field.state.value}
-                      onChange={(event) => field.handleChange(event.target.value as FeedbackStatus)}
-                    >
-                      {feedbackStatusOptions.map((option) => (
-                        <option key={option.value} value={option.value}>
-                          {option.label}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
+                  <DropdownSelect
+                    label="Quality status"
+                    fullWidth
+                    fieldClassName="experience-field"
+                    options={mapDropdownOptions(feedbackStatusOptions)}
+                    value={field.state.value}
+                    onChange={(value) => field.handleChange(value as FeedbackStatus)}
+                  />
                 )}
               </form.Field>
 

@@ -15,6 +15,7 @@ import type { AppSectionSearch } from '@/routes/app/$section'
 import { presentError } from '@/shared/errors'
 import { withOptionalSearchValue, withoutSearchKeys } from '@/shared/navigation/search-state'
 import { ErrorState, useToast } from '@/shared/ui'
+import { DropdownSelect, mapDropdownOptions } from '@/shared/ui/dropdown-select'
 import { EmptyState } from '@/shared/ui/empty-state'
 import {
   CompactActionButton,
@@ -278,35 +279,40 @@ export function FeedbackQualityLivePage({ recordSearch }: { recordSearch: AppSec
                 onChange={(e) => setSearchDraft(e.target.value)}
               />
             </label>
-            <select value={status} onChange={(e) => setValue('status', e.target.value)}>
-              <option value="">All statuses</option>
-              {feedbackStatusOptions.map((o) => (
-                <option key={o.value} value={o.value}>
-                  {o.label}
-                </option>
-              ))}
-            </select>
-            <select value={feedbackType} onChange={(e) => setValue('feedbackType', e.target.value)}>
-              <option value="">All feedback types</option>
-              {feedbackTypeOptions.map((o) => (
-                <option key={o.value} value={o.value}>
-                  {o.label}
-                </option>
-              ))}
-            </select>
-            <select
-              value={ratingMin ?? ''}
-              onChange={(e) =>
-                setValue('ratingMin', e.target.value ? Number(e.target.value) : null)
-              }
-            >
-              <option value="">Any rating</option>
-              <option value="5">5 only</option>
-              <option value="4">4+</option>
-              <option value="3">3+</option>
-              <option value="2">2+</option>
-              <option value="1">1+</option>
-            </select>
+            <DropdownSelect
+              compact
+              placeholder="All statuses"
+              options={[
+                { value: '', label: 'All statuses' },
+                ...mapDropdownOptions(feedbackStatusOptions),
+              ]}
+              value={status}
+              onChange={(value) => setValue('status', value)}
+            />
+            <DropdownSelect
+              compact
+              placeholder="All feedback types"
+              options={[
+                { value: '', label: 'All feedback types' },
+                ...mapDropdownOptions(feedbackTypeOptions),
+              ]}
+              value={feedbackType}
+              onChange={(value) => setValue('feedbackType', value)}
+            />
+            <DropdownSelect
+              compact
+              placeholder="Any rating"
+              options={[
+                { value: '', label: 'Any rating' },
+                { value: '5', label: '5 only' },
+                { value: '4', label: '4+' },
+                { value: '3', label: '3+' },
+                { value: '2', label: '2+' },
+                { value: '1', label: '1+' },
+              ]}
+              value={ratingMin != null ? String(ratingMin) : ''}
+              onChange={(value) => setValue('ratingMin', value ? Number(value) : null)}
+            />
             {hasFilters ? (
               <button className="experience-btn" type="button" onClick={clear}>
                 Clear

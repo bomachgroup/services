@@ -2,6 +2,8 @@ import { IconX } from '@tabler/icons-react'
 import { useForm } from '@tanstack/react-form'
 import { useState } from 'react'
 
+import { DropdownSelect } from '@/shared/ui/dropdown-select'
+
 import type { ServiceOrder } from '@/modules/fulfillment/types/fulfillment.types'
 
 import type { CreateFeedbackInput } from '../types/experience-intelligence.types'
@@ -62,78 +64,74 @@ export function RecordFeedbackWorkspace({
           <div className="experience-form-grid">
             <form.Field name="orderId">
               {(field) => (
-                <label className="experience-field">
-                  <span>Order</span>
-                  <select
-                    value={field.state.value}
-                    onChange={(event) => field.handleChange(event.target.value)}
-                  >
-                    {orders.map((order) => (
-                      <option key={order.id} value={order.id}>
-                        {order.id} — {order.client}
-                      </option>
-                    ))}
-                  </select>
-                </label>
+                <DropdownSelect
+                  label="Order"
+                  fullWidth
+                  fieldClassName="experience-field"
+                  options={orders.map((order) => ({
+                    value: order.id,
+                    label: `${order.id} — ${order.client}`,
+                  }))}
+                  value={field.state.value}
+                  onChange={(value) => field.handleChange(value)}
+                />
               )}
             </form.Field>
 
             <form.Field name="type">
               {(field) => (
-                <label className="experience-field">
-                  <span>Type</span>
-                  <select
-                    value={field.state.value}
-                    onChange={(event) =>
-                      field.handleChange(event.target.value as typeof field.state.value)
-                    }
-                  >
-                    <option>Completion</option>
-                    <option>Milestone</option>
-                    <option>Complaint</option>
-                    <option>Defect / Rework</option>
-                    <option>Testimonial</option>
-                    <option>Referral</option>
-                  </select>
-                </label>
+                <DropdownSelect
+                  label="Type"
+                  fullWidth
+                  fieldClassName="experience-field"
+                  options={[
+                    'Completion',
+                    'Milestone',
+                    'Complaint',
+                    'Defect / Rework',
+                    'Testimonial',
+                    'Referral',
+                  ].map((type) => ({ value: type, label: type }))}
+                  value={field.state.value}
+                  onChange={(value) => field.handleChange(value as typeof field.state.value)}
+                />
               )}
             </form.Field>
 
             <form.Field name="rating">
               {(field) => (
-                <label className="experience-field">
-                  <span>Rating</span>
-                  <select
-                    value={field.state.value}
-                    onChange={(event) =>
-                      field.handleChange(Number(event.target.value) as typeof field.state.value)
-                    }
-                  >
-                    <option value={5}>5 — Excellent</option>
-                    <option value={4}>4 — Good</option>
-                    <option value={3}>3 — Satisfactory</option>
-                    <option value={2}>2 — Poor</option>
-                    <option value={1}>1 — Very poor</option>
-                  </select>
-                </label>
+                <DropdownSelect
+                  label="Rating"
+                  fullWidth
+                  fieldClassName="experience-field"
+                  options={[
+                    { value: '5', label: '5 — Excellent' },
+                    { value: '4', label: '4 — Good' },
+                    { value: '3', label: '3 — Satisfactory' },
+                    { value: '2', label: '2 — Poor' },
+                    { value: '1', label: '1 — Very poor' },
+                  ]}
+                  value={String(field.state.value)}
+                  onChange={(value) =>
+                    field.handleChange(Number(value) as typeof field.state.value)
+                  }
+                />
               )}
             </form.Field>
 
             <form.Field name="status">
               {(field) => (
-                <label className="experience-field">
-                  <span>Status</span>
-                  <select
-                    value={field.state.value}
-                    onChange={(event) =>
-                      field.handleChange(event.target.value as typeof field.state.value)
-                    }
-                  >
-                    <option>Closed</option>
-                    <option>Open</option>
-                    <option>Action Required</option>
-                  </select>
-                </label>
+                <DropdownSelect
+                  label="Status"
+                  fullWidth
+                  fieldClassName="experience-field"
+                  options={['Closed', 'Open', 'Action Required'].map((status) => ({
+                    value: status,
+                    label: status,
+                  }))}
+                  value={field.state.value}
+                  onChange={(value) => field.handleChange(value as typeof field.state.value)}
+                />
               )}
             </form.Field>
 
