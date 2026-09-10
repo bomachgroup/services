@@ -145,6 +145,19 @@ export const billingApi = {
         payment_schedule: input.paymentSchedule,
         payment_instructions: input.paymentInstructions,
         notes: input.notes,
+        ...(input.attachments
+          ? {
+              attachments: input.attachments.map((attachment) => ({
+                id: attachment.id,
+                label: attachment.label,
+                file_name: attachment.fileName,
+                file_url: attachment.fileUrl,
+                content_type: attachment.contentType,
+                file_size_bytes: attachment.fileSizeBytes,
+                sort_order: attachment.sortOrder,
+              })),
+            }
+          : {}),
       }),
     )
   },
@@ -177,10 +190,12 @@ export const billingApi = {
     return mapPayment(
       await apiClient.post<unknown>('/payments', {
         invoice_id: input.invoiceId,
+        finance_account_id: input.financeAccountId,
         amount: input.amount,
         payment_method: input.paymentMethod,
         payment_date: input.paymentDate,
         transaction_reference: input.transactionReference,
+        proof_of_payment: input.proofOfPayment || '',
         notes: input.notes,
         created_by_id: input.createdById,
       }),
@@ -218,13 +233,13 @@ export const billingApi = {
     if (status) query.set('status', status)
     if (invoiceId) query.set('invoice_id', String(invoiceId))
     return mapPaymentSubmissionList(
-      await apiClient.get<unknown>(`/invoices/payment-submissions?${query.toString()}`),
+      await apiClient.get<unknown>(`/finance/payments/submissions?${query.toString()}`),
     )
   },
 
   async reviewPaymentSubmission(submissionId: number, input: ReviewPaymentSubmissionInput) {
     return mapPaymentSubmission(
-      await apiClient.post<unknown>(`/invoices/payment-submissions/${submissionId}/review`, {
+      await apiClient.post<unknown>(`/finance/payments/submissions/${submissionId}/review`, {
         status: input.status,
         ...(input.financeAccountId ? { finance_account_id: input.financeAccountId } : {}),
         rejection_reason: input.rejectionReason ?? '',

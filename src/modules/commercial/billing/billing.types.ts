@@ -7,10 +7,48 @@ export type PaymentSubmissionStatus = 'pending' | 'confirmed' | 'rejected'
 
 export interface InvoiceItem {
   id: number
+  sourceQuoteItemId: number | null
   description: string
+  kind: string
+  kindDisplay: string
+  paymentTiming: string
+  paymentTimingDisplay: string
   quantity: number
   unitPrice: number
   total: number
+  sortOrder: number
+  sourceContext: Record<string, unknown>
+}
+
+export interface InvoiceAttachment {
+  id?: number
+  label: string
+  fileName: string
+  fileUrl: string
+  contentType: string
+  fileSizeBytes: number
+  sortOrder: number
+  createdAt?: string
+  updatedAt?: string
+}
+
+export interface InvoiceScheduleLine {
+  sequence: number
+  label: string
+  dueDate: string | null
+  amount: number
+  status: string
+  amountRemaining: number | null
+}
+
+export type InvoicePaymentDuePhase = 'activation' | 'installment' | 'balance' | 'paid'
+
+export interface InvoicePaymentDue {
+  amountDueNow: number
+  label: string
+  dueDate: string | null
+  phase: InvoicePaymentDuePhase
+  scheduleLines: InvoiceScheduleLine[]
 }
 
 export interface Invoice {
@@ -37,12 +75,15 @@ export interface Invoice {
   paymentProgress: number
   status: InvoiceStatus
   statusDisplay: string
+  realEstateSettlementMode: string
   paymentSchedule: string
   paymentInstructions: string
   activationThresholdAmount: number
   activationThresholdMetAt: string | null
+  paymentDue: InvoicePaymentDue
   notes: string
   items: InvoiceItem[]
+  attachments: InvoiceAttachment[]
   createdAt: string
   updatedAt: string
   createdById: number
@@ -143,15 +184,18 @@ export interface UpdateInvoiceInput {
   paymentSchedule: string
   paymentInstructions: string
   notes: string
+  attachments?: InvoiceAttachment[]
 }
 
 export interface RecordPaymentInput {
   invoiceId: number
+  financeAccountId: number
   amount: number
   paymentMethod: PaymentMethod
   paymentDate: string
   transactionReference: string
   notes: string
+  proofOfPayment?: string
   createdById: number
 }
 

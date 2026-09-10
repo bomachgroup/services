@@ -3,6 +3,8 @@ import { useForm } from '@tanstack/react-form'
 import { useMemo, useState } from 'react'
 
 import { formatNumberFieldValue, parseNumberFieldValue } from '@/shared/lib/number-input'
+import { DropdownSelect, mapDropdownOptions } from '@/shared/ui/dropdown-select'
+import { DatePicker } from '@/shared/ui/date-picker'
 
 import {
   commercialMoney,
@@ -104,35 +106,36 @@ export function InvoiceBuilderWorkspace({
                 <div className="commercial-form-grid">
                   <form.Field name="quotationId">
                     {(field) => (
-                      <label className="commercial-field">
-                        <span>Quotation *</span>
-                        <select
-                          value={field.state.value}
-                          onChange={(event) => applyQuotation(event.target.value)}
-                        >
-                          {eligible.map((quotation) => (
-                            <option key={quotation.id} value={quotation.id}>
-                              {quotation.id} — {quotation.client} —{' '}
-                              {commercialMoney.format(quotation.total)}
-                            </option>
-                          ))}
-                        </select>
-                        {errors.quotationId ? <em>{errors.quotationId}</em> : null}
-                      </label>
+                      <DropdownSelect
+                        label="Quotation"
+                        required
+                        fullWidth
+                        fieldClassName="commercial-field"
+                        options={mapDropdownOptions(
+                          eligible.map((quotation) => ({
+                            value: quotation.id,
+                            label: `${quotation.id} — ${quotation.client} — ${commercialMoney.format(quotation.total)}`,
+                          })),
+                        )}
+                        value={field.state.value}
+                        invalid={Boolean(errors.quotationId)}
+                        error={errors.quotationId}
+                        onChange={applyQuotation}
+                      />
                     )}
                   </form.Field>
 
                   <form.Field name="dueAt">
                     {(field) => (
-                      <label className="commercial-field">
-                        <span>Due date *</span>
-                        <input
-                          type="date"
-                          value={field.state.value}
-                          onChange={(event) => field.handleChange(event.target.value)}
-                        />
-                        {errors.dueAt ? <em>{errors.dueAt}</em> : null}
-                      </label>
+                      <DatePicker
+                    label="Due date"
+                    required
+                    value={field.state.value}
+                    onChange={(value) => field.handleChange(value)}
+                    fieldClassName="commercial-field"
+                    invalid={Boolean(errors.dueAt)}
+                    error={errors.dueAt}
+                  />
                     )}
                   </form.Field>
                 </div>
@@ -160,18 +163,22 @@ export function InvoiceBuilderWorkspace({
 
                   <form.Field name="schedule">
                     {(field) => (
-                      <label className="commercial-field">
-                        <span>Payment schedule *</span>
-                        <select
-                          value={field.state.value}
-                          onChange={(event) => field.handleChange(event.target.value)}
-                        >
-                          {invoicePaymentSchedules.map((schedule) => (
-                            <option key={schedule}>{schedule}</option>
-                          ))}
-                        </select>
-                        {errors.schedule ? <em>{errors.schedule}</em> : null}
-                      </label>
+                      <DropdownSelect
+                        label="Payment schedule"
+                        required
+                        fullWidth
+                        fieldClassName="commercial-field"
+                        options={mapDropdownOptions(
+                          invoicePaymentSchedules.map((schedule) => ({
+                            value: schedule,
+                            label: schedule,
+                          })),
+                        )}
+                        value={field.state.value}
+                        invalid={Boolean(errors.schedule)}
+                        error={errors.schedule}
+                        onChange={(value) => field.handleChange(value)}
+                      />
                     )}
                   </form.Field>
 
