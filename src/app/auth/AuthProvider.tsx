@@ -10,19 +10,14 @@ import { tokenStore } from '@/shared/auth/token-store'
 import { useToast } from '@/shared/ui'
 
 import { AuthContext } from './auth.context'
+import {
+  AUTH_READY_MESSAGE,
+  getAuthBootstrapError,
+  getTrustedParentOrigin,
+  isTrustedAuthTokenMessage,
+  shouldRetryAuthReadyAnnouncement,
+} from './embedded-auth'
 import type { AuthContextValue, AuthUser } from './auth.types'
-
-type AuthTokenMessage = {
-  type: 'BOMACH_AUTH_TOKEN'
-  token: string
-  refreshToken?: string
-}
-
-function isAuthTokenMessage(value: unknown): value is AuthTokenMessage {
-  if (!value || typeof value !== 'object') return false
-  const payload = value as Record<string, unknown>
-  return payload.type === 'BOMACH_AUTH_TOKEN' && typeof payload.token === 'string'
-}
 
 export function AuthProvider({ children }: PropsWithChildren) {
   const queryClient = useQueryClient()
@@ -68,56 +63,26 @@ export function AuthProvider({ children }: PropsWithChildren) {
     }
   }, [currentUserQueryOptions.queryKey, queryClient])
 
-  // Handle token passed from query params (e.g. embedded in Bomach OS) or window postMessage
+  // Embedded credentials are delivered by the parent window via postMessage.
   useEffect(() => {
     if (typeof window === 'undefined') return
 
-    const params = new URLSearchParams(window.location.search)
-    const queryToken = params.get('token') || params.get('access_token')
-    const queryRefreshToken = params.get('refresh_token') || queryToken
-
-    if (queryToken) {
-      tokenStore.set({
-        accessToken: queryToken,
-        refreshToken: queryRefreshToken || queryToken,
-      })
-      queueMicrotask(() => {
-        setEmbedAuthReady(true)
-        setAuthBootstrapError(null)
-        void queryClient.invalidateQueries({
-          queryKey: currentUserQueryOptions.queryKey,
-        })
-      })
-    }
-
     if (!isEmbedded || window.parent === window) return
 
-    const parentOrigin = (() => {
-      try {
-        return document.referrer ? new URL(document.referrer).origin : '*'
-      } catch {
-        return '*'
-      }
-    })()
+    const parentOrigin = getTrustedParentOrigin(document.referrer)
     let readyAnnouncements = 0
     const announceReady = () => {
-      window.parent.postMessage({ type: 'BOMACH_AUTH_READY' }, parentOrigin)
+      window.parent.postMessage(AUTH_READY_MESSAGE, parentOrigin)
       readyAnnouncements += 1
     }
 
     const handleMessage = (event: MessageEvent<unknown>) => {
-      if (
-        event.source !== window.parent ||
-        (parentOrigin !== '*' && event.origin !== parentOrigin) ||
-        !isAuthTokenMessage(event.data)
-      ) {
-        return
-      }
+      if (!isTrustedAuthTokenMessage(event, window.parent, parentOrigin)) return
 
-      const token = event.data.token
+      const { token, refreshToken } = event.data
       tokenStore.set({
         accessToken: token,
-        refreshToken: typeof event.data.refreshToken === 'string' ? event.data.refreshToken : token,
+        refreshToken: refreshToken ?? token,
       })
       setEmbedAuthReady(true)
       setAuthBootstrapError(null)
@@ -129,7 +94,12 @@ export function AuthProvider({ children }: PropsWithChildren) {
     window.addEventListener('message', handleMessage)
     announceReady()
     const retryTimer = window.setInterval(() => {
-      if (tokenStore.getAccessToken() || readyAnnouncements >= 12) {
+      if (
+        !shouldRetryAuthReadyAnnouncement({
+          hasToken: Boolean(tokenStore.getAccessToken()),
+          attempts: readyAnnouncements,
+        })
+      ) {
         window.clearInterval(retryTimer)
         return
       }
@@ -137,9 +107,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
     }, 1000)
     const timeout = window.setTimeout(() => {
       if (!tokenStore.getAccessToken()) {
-        setAuthBootstrapError(
-          'Bomach OS did not provide a valid session to Services. Return to Bomach OS and open Services again.',
-        )
+        setAuthBootstrapError(getAuthBootstrapError())
       }
     }, 12000)
 
