@@ -1,4 +1,4 @@
-import { mapPricingConfigDto } from './pricing-config.mapper'
+import { mapCalculatorDto } from './calculator.mapper'
 import { mapRequestFormDto } from './request-form.mapper'
 import { mapWorkflowDto } from './workflow.mapper'
 import type {
@@ -18,14 +18,9 @@ function normalizeStatus(status: string): ServiceStatus {
 function calculateReadiness(card: ServiceCatalogueCardDto): number {
   // Match the backend publish rule:
   // - active request form
-  // - active pricing config
   // - at least one active branch
-  // Workflow is intentionally NOT required by the current backend.
-  const checks = [
-    Boolean(card.active_request_form),
-    Boolean(card.active_pricing_config),
-    card.active_branches.length > 0,
-  ]
+  // Calculator is optional; workflow is not required.
+  const checks = [Boolean(card.active_request_form), card.active_branches.length > 0]
 
   return Math.round((checks.filter(Boolean).length / checks.length) * 100)
 }
@@ -44,7 +39,7 @@ export function mapServiceCatalogueCard(dto: ServiceCatalogueCardDto): ServiceCa
     specializedServiceId: dto.specialized_service_id,
     specializedDomain: dto.specialized_domain,
     specializedConfig: dto.specialized_config,
-    ...(dto.active_pricing_config?.name ? { calculatorName: dto.active_pricing_config.name } : {}),
+    ...(dto.active_calculator?.name ? { calculatorName: dto.active_calculator.name } : {}),
     ...(dto.active_request_form?.name ? { requestFormName: dto.active_request_form.name } : {}),
     ...(dto.active_workflow?.name ? { workflowName: dto.active_workflow.name } : {}),
     readiness: calculateReadiness(dto),
@@ -64,10 +59,10 @@ export function mapServiceCatalogueDetail(dto: ServiceCatalogueDetailDto): Servi
     dto.active_workflow ??
     dto.workflows[0]
 
-  const activePricingConfig =
-    dto.pricing_configs.find((config) => config.id === dto.active_pricing_config_id) ??
-    dto.active_pricing_config ??
-    dto.pricing_configs[0]
+  const activeCalculator =
+    dto.active_calculator_id != null && dto.active_calculator?.id === dto.active_calculator_id
+      ? dto.active_calculator
+      : (dto.active_calculator ?? null)
 
   return {
     ...mapServiceCatalogueCard(dto),
@@ -79,7 +74,14 @@ export function mapServiceCatalogueDetail(dto: ServiceCatalogueDetailDto): Servi
       .slice()
       .sort((a, b) => a.sort_order - b.sort_order)
       .map((stage) => stage.name),
-    ...(activePricingConfig ? { activeCalculator: mapPricingConfigDto(activePricingConfig) } : {}),
+    ...(activeCalculator
+      ? {
+          activeCalculator: mapCalculatorDto(activeCalculator, {
+            id: dto.id,
+            name: dto.name,
+          }),
+        }
+      : {}),
     ...(activeRequestForm
       ? { activeRequestForm: mapRequestFormDto(activeRequestForm, dto.name) }
       : {}),

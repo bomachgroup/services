@@ -610,9 +610,9 @@ export function CalculatorLibraryScreen({
               disabled={createDisabled || !onCreate}
               title={
                 showCreateLock
-                  ? 'You do not have permission to create calculators'
+                  ? 'Calculators are server-managed; attach one from the service catalogue'
                   : !hasServices
-                    ? 'Create a service in the catalogue before adding a calculator'
+                    ? 'Create a service in the catalogue before attaching a calculator'
                     : undefined
               }
               onClick={() => onCreate?.()}
@@ -644,7 +644,7 @@ export function CalculatorLibraryScreen({
                         <div className="service-admin-card-subtitle mt-1">
                           {!hasServices
                             ? 'Create a service in the catalogue first, then add a calculator for it.'
-                            : 'Calculator configurations will appear here once a service has pricing set up.'}
+                            : 'Server-managed calculators appear here. Attach one to a service from the catalogue.'}
                         </div>
                       </div>
                     </td>

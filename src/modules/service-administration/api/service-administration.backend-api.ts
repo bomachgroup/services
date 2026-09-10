@@ -8,6 +8,7 @@ import type {
   FieldTypeDto,
   LimitOffsetPageDto,
   MessageDto,
+  CalculatorDto,
   PricingConfigDto,
   PricingConfigInputDto,
   PricingConfigListFilters,
@@ -150,26 +151,39 @@ export const serviceAdministrationBackendApi = {
   },
 
   listPricingConfigs(filters: PricingConfigListFilters = {}) {
-    return apiClient.get<LimitOffsetPageDto<PricingConfigDto>>(
-      withQuery(`${basePath}/pricing-configs`, {
-        service_id: filters.serviceId,
-        status: filters.status,
-        pricing_type: filters.pricingType,
-        search: filters.search,
-        limit: filters.limit,
-        offset: filters.offset,
-      }),
-    )
+    // Pricing configs were replaced by PricingCalculator. List the live calculator library.
+    void filters
+    return apiClient.get<CalculatorDto[]>(`${basePath}/calculator/list`).then((items) => ({
+      items,
+      count: items.length,
+    }))
   },
 
+  listCalculators() {
+    return apiClient.get<CalculatorDto[]>(`${basePath}/calculator/list`)
+  },
+
+  attachCalculator(serviceId: number, calculatorCode: string) {
+    return apiClient.post<CalculatorDto>(`${basePath}/${serviceId}/calculator`, {
+      calculator_code: calculatorCode,
+    })
+  },
+
+  detachCalculator(serviceId: number) {
+    return apiClient.delete<MessageDto>(`${basePath}/${serviceId}/calculator`)
+  },
+
+  /** @deprecated Legacy ServicePricingConfig CRUD — endpoints removed; prefer attachCalculator. */
   createPricingConfig(serviceId: number, input: PricingConfigInputDto) {
     return apiClient.post<PricingConfigDto>(`${basePath}/${serviceId}/pricing-configs`, input)
   },
 
+  /** @deprecated Legacy ServicePricingConfig CRUD — endpoints removed. */
   getPricingConfig(serviceId: number, configId: number) {
     return apiClient.get<PricingConfigDto>(`${basePath}/${serviceId}/pricing-configs/${configId}`)
   },
 
+  /** @deprecated Legacy ServicePricingConfig CRUD — endpoints removed. */
   updatePricingConfig(serviceId: number, configId: number, input: PricingConfigUpdateDto) {
     return apiClient.put<PricingConfigDto>(
       `${basePath}/${serviceId}/pricing-configs/${configId}`,
@@ -177,10 +191,12 @@ export const serviceAdministrationBackendApi = {
     )
   },
 
+  /** @deprecated Legacy ServicePricingConfig CRUD — endpoints removed. */
   deletePricingConfig(serviceId: number, configId: number) {
     return apiClient.delete<MessageDto>(`${basePath}/${serviceId}/pricing-configs/${configId}`)
   },
 
+  /** @deprecated Legacy ServicePricingConfig CRUD — endpoints removed. */
   activatePricingConfig(serviceId: number, configId: number) {
     return apiClient.post<PricingConfigDto>(
       `${basePath}/${serviceId}/pricing-configs/${configId}/activate`,

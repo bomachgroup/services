@@ -89,7 +89,7 @@ export interface ServiceCoreDto {
   fulfillment_mode: string
   client_visibility: string
   active_request_form_id: number | null
-  active_pricing_config_id: number | null
+  active_calculator_id: number | null
   active_workflow_id: number | null
   specialized_service_id: number | null
   specialized_domain: string | null
@@ -161,6 +161,16 @@ export interface PricingConfigDto {
   fields?: PricingFieldDto[]
 }
 
+/** Live PricingCalculator row from GET /services/calculator/list (and catalogue embeds). */
+export interface CalculatorDto {
+  id: number
+  name: string
+  code: string
+  calculator_kind: string
+  description?: string
+  status: string
+}
+
 export interface WorkflowStageDto {
   id: number
   workflow_id: number
@@ -203,14 +213,13 @@ export interface BranchActivationDto {
 
 export interface ServiceCatalogueCardDto extends ServiceCoreDto {
   active_request_form: RequestFormDto | null
-  active_pricing_config: PricingConfigDto | null
+  active_calculator: CalculatorDto | null
   active_workflow: WorkflowDto | null
   active_branches: BranchActivationDto[]
 }
 
 export interface ServiceCatalogueDetailDto extends ServiceCatalogueCardDto {
   request_forms: RequestFormDto[]
-  pricing_configs: PricingConfigDto[]
   workflows: WorkflowDto[]
   branch_activations: BranchActivationDto[]
 }
@@ -336,6 +345,5 @@ export interface ServicePublishDto {
   status?: string
   client_visibility?: string
   request_form_id?: number
-  pricing_config_id?: number
   workflow_id?: number
 }
