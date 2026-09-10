@@ -5,9 +5,6 @@ export type EstateFormValues = Omit<CreateEstateInput, 'tags'> & {
   minPriceOtherProperties: number
   maxPriceOtherProperties: number
   totalArea: number
-  legalFee: number
-  developmentFee: number
-  receiptFee: number
 }
 
 export function parseEstateLocation(cityTown: string) {
@@ -39,6 +36,10 @@ export function mapEstateToFormValues(estate: Estate): EstateFormValues {
     state: estate.state,
     cityTown: parseEstateLocation(estate.cityTown).city,
     preciseAddress: estate.preciseAddress,
+    boundary: estate.boundary,
+    documents: estate.documents,
+    additionalFees: estate.additionalFees,
+    pricingHistory: estate.pricingHistory,
     hasCOfO: estate.hasCOfO,
     hasDeedOfAssignment: estate.hasDeedOfAssignment,
     hasSurveyPlan: estate.hasSurveyPlan,
@@ -60,10 +61,16 @@ export function mapEstateToFormValues(estate: Estate): EstateFormValues {
     hasSecurity: estate.hasSecurity,
     hasDrainage: estate.hasDrainage,
     hasRecreation: estate.hasRecreation,
-    legalFee: estate.legalFee ?? 0,
-    developmentFee: estate.developmentFee ?? 0,
-    receiptFee: estate.receiptFee ?? 0,
     tags: estate.tags.join(', '),
+    allowReservation: estate.allowReservation,
+    reservationPercent: estate.reservationPercent,
+    reservationDurationHours: estate.reservationDurationHours,
+    requestClaimHoldHours: estate.requestClaimHoldHours ?? 48,
+    reservationRefundable: estate.reservationRefundable,
+    reservationRetentionPercent: estate.reservationRetentionPercent,
+    allowInstallment: estate.allowInstallment,
+    installmentDownPaymentPercent: estate.installmentDownPaymentPercent,
+    installmentMonths: estate.installmentMonths,
   }
 }
 
@@ -80,6 +87,10 @@ export function createDefaultEstateFormValues(): EstateFormValues {
     state: '',
     cityTown: '',
     preciseAddress: '',
+    boundary: [],
+    documents: [],
+    additionalFees: [],
+    pricingHistory: [],
     hasCOfO: false,
     hasDeedOfAssignment: false,
     hasSurveyPlan: false,
@@ -101,9 +112,15 @@ export function createDefaultEstateFormValues(): EstateFormValues {
     hasSecurity: false,
     hasDrainage: false,
     hasRecreation: false,
-    legalFee: 0,
-    developmentFee: 0,
-    receiptFee: 0,
     tags: '',
+    allowReservation: false,
+    reservationPercent: null,
+    reservationDurationHours: null,
+    requestClaimHoldHours: 48,
+    reservationRefundable: true,
+    reservationRetentionPercent: 0,
+    allowInstallment: false,
+    installmentDownPaymentPercent: null,
+    installmentMonths: null,
   }
 }

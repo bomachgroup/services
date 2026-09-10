@@ -2,6 +2,9 @@ import { IconX } from '@tabler/icons-react'
 import { useState } from 'react'
 
 import { RealEstateFormDropdown } from '../components/RealEstateFormDropdown'
+import { AdditionalFeesEditor } from '../real-estate/AdditionalFeesEditor'
+import { BoundaryEditor } from '../real-estate/BoundaryEditor'
+import { NamedDocumentsEditor } from '../real-estate/NamedDocumentsEditor'
 import {
   brokeragePropertyTypes,
   brokerageStatuses,
@@ -57,6 +60,9 @@ export function CreateBrokerageLiveWorkspace({
     status: 'available',
     estateId: defaultEstateId,
     tags: [],
+    boundary: [],
+    additionalFees: [],
+    documents: [],
   })
   const [tags, setTags] = useState('')
   const [error, setError] = useState('')
@@ -265,6 +271,23 @@ export function CreateBrokerageLiveWorkspace({
               </label>
             </div>
           </section>
+
+          <BoundaryEditor
+            label="Listing boundary"
+            value={value.boundary ?? []}
+            onChange={(nextBoundary) => setField('boundary', nextBoundary)}
+          />
+
+          <AdditionalFeesEditor
+            title="Listing fees"
+            value={value.additionalFees ?? []}
+            onChange={(nextFees) => setField('additionalFees', nextFees)}
+          />
+
+          <NamedDocumentsEditor
+            value={value.documents ?? []}
+            onChange={(nextDocuments) => setField('documents', nextDocuments)}
+          />
         </div>
 
         <footer className="commercial-modal-footer">

@@ -1,29 +1,91 @@
 export type EstateType = 'residential' | 'commercial' | 'industrial' | 'mixed_use' | 'land'
 export type EstateStatus = 'available' | 'sold_out' | 'under_development' | 'coming_soon'
 export type PropertyType = 'plot' | 'residential' | 'commercial'
-export type PropertyStatus = 'not-for-sale' | 'available' | 'reserved' | 'sold' | 'hold'
+export type PropertyStatus =
+  | 'not-for-sale'
+  | 'available'
+  | 'under_offer'
+  | 'reserved'
+  | 'sold'
+  | 'hold'
 export type BrokerageVerificationStatus = 'pending' | 'verified' | 'inspection_due'
 export type BrokerageStatus = 'available' | 'sold' | 'off_market'
 export type BrokeragePropertyType = 'residential' | 'commercial' | 'land'
+export type PlotUse = 'residential' | 'commercial'
+export type PricingMode = 'estate_rate' | 'manual_override'
+export type FeePaymentTiming = 'upfront' | 'deferred'
+
+export interface BoundaryPoint {
+  lat: number
+  lng: number
+}
+
+export interface BoundaryValidationResult {
+  valid: boolean
+  detail: string
+  pointCount: number
+}
 
 export interface Choice<Value extends string = string> {
   value: Value
   label: string
 }
 
-export interface EstateDocument {
+export interface NamedDocument {
   id: number
+  name: string
   file: string
-  caption: string
   createdAt: string
+}
+
+export type EstateDocument = NamedDocument
+
+export interface AdditionalFee {
+  id?: string
+  name: string
+  amount: number
+  paymentTiming: FeePaymentTiming
+  active: boolean
+}
+
+export interface PropertyFeeOverride {
+  estateFeeId: string
+  action: 'override' | 'exclude'
+  amount?: number | null
+}
+
+export interface PropertyFeeConfig {
+  inheritEstateFees: boolean
+  overrides: PropertyFeeOverride[]
+  additionalFees: AdditionalFee[]
+}
+
+export interface EffectivePricingFee extends AdditionalFee {
+  id: string
+  source: 'estate' | 'property_override' | 'property'
+}
+
+export interface EffectivePropertyPricing {
+  basePrice: number
+  basePriceSource: PricingMode
+  estateRate: number | null
+  areaSqm: number | null
+  fees: EffectivePricingFee[]
+  feesTotal: number
+  total: number
+}
+
+export interface PricingHistoryEvent {
+  event: string
+  at: string
+  changedBy: number | null
+  reason: string
+  data: Record<string, unknown>
 }
 
 export interface Estate {
   id: number
   isOurEstate: boolean
-  legalFee: number | null
-  developmentFee: number | null
-  receiptFee: number | null
   estateName: string
   estateCode: string
   estateType: EstateType
@@ -35,8 +97,10 @@ export interface Estate {
   state: string
   cityTown: string
   preciseAddress: string
-  boundary: Array<{ lat: number; lng: number }>
+  boundary: BoundaryPoint[]
   documents: EstateDocument[]
+  additionalFees: AdditionalFee[]
+  pricingHistory: PricingHistoryEvent[]
   hasCOfO: boolean
   hasDeedOfAssignment: boolean
   hasSurveyPlan: boolean
@@ -63,6 +127,15 @@ export interface Estate {
   hasRecreation: boolean
   amenities: string[]
   tags: string[]
+  allowReservation: boolean
+  reservationPercent: number | null
+  reservationDurationHours: number | null
+  requestClaimHoldHours: number | null
+  reservationRefundable: boolean
+  reservationRetentionPercent: number
+  allowInstallment: boolean
+  installmentDownPaymentPercent: number | null
+  installmentMonths: number | null
   isActive: boolean
   createdAt: string
   updatedAt: string
@@ -88,6 +161,7 @@ export interface EstateStats {
   total: number
   sold: number
   reserved: number
+  underOffer: number
   available: number
   hold: number
   notForSale: number
@@ -99,10 +173,16 @@ export interface EstatePlotLayoutItem {
   id: number
   plotNumber: number | null
   propertyName: string
+  propertyType: PropertyType
+  propertyTypeDisplay: string
+  plotUse: PlotUse | ''
+  plotUseDisplay: string
   status: PropertyStatus
   statusDisplay: string
   plotSize: number | null
+  plotSizeUnit: string
   price: number
+  isOurProperty: boolean
   clientName: string
 }
 
@@ -145,11 +225,21 @@ export interface CreateEstateInput {
   hasSecurity: boolean
   hasDrainage: boolean
   hasRecreation: boolean
-  legalFee?: number | null
-  developmentFee?: number | null
-  receiptFee?: number | null
   tags?: string[]
-  documents?: string[]
+  boundary?: BoundaryPoint[]
+  additionalFees?: AdditionalFee[]
+  pricingHistory?: PricingHistoryEvent[]
+  pricingChangeReason?: string
+  documents?: Array<Partial<NamedDocument> & { fileUrl?: string }>
+  allowReservation?: boolean
+  reservationPercent?: number | null
+  reservationDurationHours?: number | null
+  requestClaimHoldHours?: number | null
+  reservationRefundable?: boolean
+  reservationRetentionPercent?: number | null
+  allowInstallment?: boolean
+  installmentDownPaymentPercent?: number | null
+  installmentMonths?: number | null
 }
 
 export interface PropertyImage {
@@ -167,8 +257,15 @@ export interface Property {
   estateCode: string
   propertyType: PropertyType
   propertyTypeDisplay: string
+  plotUse: PlotUse | ''
+  plotUseDisplay: string
   propertyName: string
   price: number
+  boundary: BoundaryPoint[]
+  pricingMode: PricingMode
+  feeConfig: PropertyFeeConfig
+  pricingHistory: PricingHistoryEvent[]
+  effectivePricing: EffectivePropertyPricing | null
   description: string
   status: PropertyStatus
   statusDisplay: string
@@ -188,6 +285,7 @@ export interface Property {
   numberOfFloors: number | null
   unitsOffices: number | null
   images: PropertyImage[]
+  documents: NamedDocument[]
   isActive: boolean
   createdAt: string
   updatedAt: string
@@ -196,6 +294,7 @@ export interface Property {
 export interface PropertyFilters {
   propertyType?: PropertyType
   status?: PropertyStatus
+  isOurProperty?: boolean
   isActive?: boolean
   search?: string
   page?: number
@@ -210,8 +309,13 @@ export interface PaginatedProperties {
 export interface CreatePropertyInput {
   isOurProperty: boolean
   propertyType: PropertyType
+  plotUse?: PlotUse | ''
   propertyName: string
-  price: number
+  price?: number | null
+  boundary?: BoundaryPoint[]
+  pricingMode?: PricingMode
+  feeConfig?: PropertyFeeConfig
+  pricingChangeReason?: string
   description?: string
   status: PropertyStatus
   plotNumber?: number | null
@@ -228,12 +332,27 @@ export interface CreatePropertyInput {
   numberOfFloors?: number | null
   unitsOffices?: number | null
   images?: string[]
+  documents?: Array<Partial<NamedDocument> & { fileUrl?: string }>
+}
+
+export interface BulkPropertyCreateInput {
+  count: number
+  startingNumber: number
+  namePrefix: string
+  template: CreatePropertyInput
+}
+
+export interface BulkPropertyCreateResult {
+  createdCount: number
+  startingNumber: number
+  endingNumber: number
 }
 
 export interface QuickUpdatePlotInput {
   status?: PropertyStatus
-  price?: number
+  price?: number | null
   clientName?: string
+  pricingMode?: PricingMode
 }
 
 export type BatchItemStatus = 'queued' | 'creating' | 'created' | 'failed'
@@ -253,6 +372,7 @@ export interface BrokerageListing {
   description: string
   location: string
   price: number
+  boundary: BoundaryPoint[]
   propertyType: BrokeragePropertyType
   ownerName: string
   ownerPhone: string
@@ -263,8 +383,11 @@ export interface BrokerageListing {
   assignedAgentId: number | null
   estateId: number | null
   tags: string[]
+  additionalFees: AdditionalFee[]
+  pricingHistory: PricingHistoryEvent[]
   isActive: boolean
   images: Array<{ id: number; image: string; caption: string; createdAt: string }>
+  documents: NamedDocument[]
   createdAt: string
   updatedAt: string
 }
@@ -300,6 +423,7 @@ export interface CreateBrokerageInput {
   description?: string
   location: string
   price: number
+  boundary?: BoundaryPoint[]
   propertyType: BrokeragePropertyType
   ownerName: string
   ownerPhone?: string
@@ -312,10 +436,14 @@ export interface CreateBrokerageInput {
   tags?: string[]
   isActive?: boolean
   images?: string[]
+  documents?: Array<Partial<NamedDocument> & { fileUrl?: string }>
+  additionalFees?: AdditionalFee[]
+  pricingChangeReason?: string
 }
 
 export const propertyStatuses: Array<Choice<PropertyStatus>> = [
   { value: 'available', label: 'Available' },
+  { value: 'under_offer', label: 'Under offer' },
   { value: 'reserved', label: 'Reserved' },
   { value: 'sold', label: 'Sold' },
   { value: 'hold', label: 'Hold' },
@@ -326,6 +454,21 @@ export const propertyTypes: Array<Choice<PropertyType>> = [
   { value: 'plot', label: 'Plot of Land' },
   { value: 'residential', label: 'Residential Building' },
   { value: 'commercial', label: 'Commercial Building' },
+]
+
+export const plotUses: Array<Choice<PlotUse>> = [
+  { value: 'residential', label: 'Residential Plot' },
+  { value: 'commercial', label: 'Commercial Plot' },
+]
+
+export const pricingModes: Array<Choice<PricingMode>> = [
+  { value: 'estate_rate', label: 'Estate rate' },
+  { value: 'manual_override', label: 'Manual override' },
+]
+
+export const feePaymentTimings: Array<Choice<FeePaymentTiming>> = [
+  { value: 'upfront', label: 'Upfront' },
+  { value: 'deferred', label: 'Deferred' },
 ]
 
 export const estateTypes: Array<Choice<EstateType>> = [
@@ -398,3 +541,82 @@ export const estateLegalApprovalInfrastructureOptions = [
 
 export type EstateLegalApprovalInfrastructureField =
   (typeof estateLegalApprovalInfrastructureOptions)[number]['value']
+
+export interface RealEstateAssetSelectionInput {
+  propertyId?: number
+  brokerageListingId?: number
+  sortOrder?: number
+  settlementMode?: 'full_payment' | 'reservation' | 'installment'
+  agreedPrice?: number
+}
+
+export interface RealEstateSuggestedQuoteItem {
+  description: string
+  kind: 'primary' | 'additional_charge'
+  paymentTiming: 'deposit_based' | 'upfront' | 'deferred'
+  quantity: number
+  unitPrice: number
+  sortOrder: number
+  sourceContext: Record<string, unknown>
+  assetType: string
+  assetId: number
+  assetName: string
+}
+
+export interface RealEstateRequestAsset {
+  id: number
+  assetType: string
+  assetId: number
+  assetName: string
+  assetStatus: string
+  price: number
+  settlementMode: string
+  reservationExpiresAt: string | null
+  claimExpiresAt: string | null
+  paymentPlan: Record<string, unknown>
+  releasedAt: string | null
+  releaseReason: string
+}
+
+export interface RealEstatePaymentPolicy {
+  allowReservation: boolean
+  reservationPercent: number | null
+  reservationDurationHours: number | null
+  requestClaimHoldHours: number | null
+  reservationRefundable: boolean
+  reservationRetentionPercent: number
+  allowInstallment: boolean
+  installmentDownPaymentPercent: number | null
+  installmentMonths: number | null
+  termsSummary: string[]
+}
+
+export interface RealEstateCommercialContext {
+  requestId: number
+  requestNumber: string
+  requestContext: string
+  stage: string
+  assets: RealEstateRequestAsset[]
+  suggestedQuoteItems: RealEstateSuggestedQuoteItem[]
+  paymentPolicy: RealEstatePaymentPolicy
+  paymentTermsSummary: string[]
+  allowsServiceOrder: boolean
+  requiresFulfillment: boolean
+}
+
+export interface RealEstateCommercialHistoryItem {
+  id: number
+  requestId: number
+  requestNumber: string
+  clientName: string
+  serviceName: string
+  requestStatus: string
+  quoteNumber: string
+  invoiceNumber: string
+  assetType: string
+  assetId: number
+  assetName: string
+  releasedAt: string | null
+  releaseReason: string
+  createdAt: string
+}
