@@ -46,16 +46,37 @@ function containsAny(message: string, candidates: readonly string[]): boolean {
   return candidates.some((candidate) => normalized.includes(candidate))
 }
 
+function isStorageCredentialOrAwsMessage(message: string): boolean {
+  const normalized = normalise(message)
+  return (
+    normalized.includes('invalidaccesskeyid') ||
+    normalized.includes('signaturedoesnotmatch') ||
+    normalized.includes('expiredtoken') ||
+    normalized.includes('invalidtoken') ||
+    normalized.includes('nosuchbucket') ||
+    normalized.includes('accessdenied') ||
+    normalized.includes('deleteobject') ||
+    normalized.includes('putobject') ||
+    normalized.includes('botocore') ||
+    normalized.includes('boto3') ||
+    normalized.includes('unable to locate credentials') ||
+    normalized.includes('the aws access key id you provided') ||
+    (normalized.includes('an error occurred (') &&
+      (normalized.includes('s3') || normalized.includes('aws') || normalized.includes('object')))
+  )
+}
+
 function isTechnicalErrorMessage(message: string): boolean {
   const normalized = normalise(message)
   return (
+    isStorageCredentialOrAwsMessage(message) ||
     normalized.includes('traceback') ||
     normalized.includes('object has no attribute') ||
     normalized.includes('attributeerror') ||
     normalized.includes('typeerror') ||
     normalized.includes('keyerror') ||
     normalized.includes('integrityerror') ||
-    normalized.includes('validationerror') && normalized.includes('at 0x') ||
+    (normalized.includes('validationerror') && normalized.includes('at 0x')) ||
     normalized.includes('django.') ||
     normalized.includes('ninja.') ||
     normalized.includes('pydantic') ||
@@ -66,6 +87,9 @@ function isTechnicalErrorMessage(message: string): boolean {
 function sanitizeUserMessage(message: string | undefined, fallback: string): string {
   const trimmed = message?.trim() ?? ''
   if (!trimmed) return fallback
+  if (isStorageCredentialOrAwsMessage(trimmed)) {
+    return 'We could not update the attached files in storage. Please try again, or contact support if this keeps happening.'
+  }
   if (isTechnicalErrorMessage(trimmed)) return fallback
   return trimmed
 }
