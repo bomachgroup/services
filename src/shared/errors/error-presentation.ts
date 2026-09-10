@@ -46,6 +46,30 @@ function containsAny(message: string, candidates: readonly string[]): boolean {
   return candidates.some((candidate) => normalized.includes(candidate))
 }
 
+function isTechnicalErrorMessage(message: string): boolean {
+  const normalized = normalise(message)
+  return (
+    normalized.includes('traceback') ||
+    normalized.includes('object has no attribute') ||
+    normalized.includes('attributeerror') ||
+    normalized.includes('typeerror') ||
+    normalized.includes('keyerror') ||
+    normalized.includes('integrityerror') ||
+    normalized.includes('validationerror') && normalized.includes('at 0x') ||
+    normalized.includes('django.') ||
+    normalized.includes('ninja.') ||
+    normalized.includes('pydantic') ||
+    /'[a-z0-9_]+' object has no attribute/.test(normalized)
+  )
+}
+
+function sanitizeUserMessage(message: string | undefined, fallback: string): string {
+  const trimmed = message?.trim() ?? ''
+  if (!trimmed) return fallback
+  if (isTechnicalErrorMessage(trimmed)) return fallback
+  return trimmed
+}
+
 function firstString(value: unknown): string | undefined {
   if (typeof value === 'string' && value.trim()) return value.trim()
 
@@ -56,15 +80,57 @@ function firstString(value: unknown): string | undefined {
     }
   }
 
+  if (value && typeof value === 'object') {
+    const record = value as Record<string, unknown>
+    return firstString(record.msg) ?? firstString(record.message) ?? firstString(record.detail)
+  }
+
   return undefined
 }
 
+function fieldKeyFromLoc(loc: unknown): string | undefined {
+  if (!Array.isArray(loc)) return undefined
+  const parts = loc
+    .filter((part): part is string | number => typeof part === 'string' || typeof part === 'number')
+    .map(String)
+    .filter((part) => !['body', 'payload', 'query', 'path'].includes(part))
+  if (!parts.length) return undefined
+  // Prefer the first named field (e.g. documents from ['documents', '0'])
+  const named = parts.find((part) => Number.isNaN(Number(part)))
+  return named ?? parts.join('.')
+}
+
+function extractPydanticFieldErrors(details: unknown): Record<string, string> | undefined {
+  if (!details || typeof details !== 'object') return undefined
+  const detail = (details as { detail?: unknown }).detail
+  const items = Array.isArray(detail)
+    ? detail
+    : Array.isArray(details)
+      ? details
+      : null
+  if (!items) return undefined
+
+  const entries: Array<[string, string]> = []
+  for (const item of items) {
+    if (!item || typeof item !== 'object') continue
+    const record = item as { loc?: unknown; msg?: unknown; message?: unknown }
+    const key = fieldKeyFromLoc(record.loc)
+    const message = firstString(record.msg) ?? firstString(record.message)
+    if (key && message) entries.push([key, message])
+  }
+  return entries.length > 0 ? Object.fromEntries(entries) : undefined
+}
+
 function extractFieldErrors(details: unknown): Record<string, string> | undefined {
+  const pydanticErrors = extractPydanticFieldErrors(details)
+  if (pydanticErrors) return pydanticErrors
+
   if (!details || typeof details !== 'object' || Array.isArray(details)) return undefined
 
   const entries = Object.entries(details as ApiValidationDetails)
     .map(([field, value]) => [field, firstString(value)] as const)
     .filter((entry): entry is readonly [string, string] => Boolean(entry[1]))
+    .filter(([field]) => field !== 'detail')
 
   return entries.length > 0 ? Object.fromEntries(entries) : undefined
 }
@@ -176,16 +242,34 @@ function twoFactorError(error: ApiError): UserFacingError {
 }
 
 function validationError(error: ApiError): UserFacingError {
-  const fieldErrors = extractFieldErrors(error.details)
+  const rawFieldErrors = extractFieldErrors(error.details)
+  const fieldErrors = rawFieldErrors
+    ? Object.fromEntries(
+        Object.entries(rawFieldErrors)
+          .map(([key, message]) => [
+            key,
+            sanitizeUserMessage(
+              message,
+              'This field could not be accepted. Check the value and try again.',
+            ),
+          ])
+          .filter((entry): entry is [string, string] => Boolean(entry[1])),
+      )
+    : undefined
+  const fieldMessages = fieldErrors ? Object.values(fieldErrors) : []
+  const detailMessage = sanitizeUserMessage(error.message, '')
+  const singleFieldMessage = fieldMessages.length === 1 ? fieldMessages[0] : undefined
+  const fallback =
+    fieldErrors && Object.keys(fieldErrors).length > 0
+      ? 'Some information needs your attention before this can be submitted.'
+      : 'Review the form and correct the information that could not be accepted.'
 
   return {
     title: 'Check the highlighted information',
-    message: fieldErrors
-      ? 'Some information needs your attention before this can be submitted.'
-      : 'Review the form and correct the information that could not be accepted.',
+    message: singleFieldMessage || detailMessage || fallback,
     placement: 'form',
     retryable: true,
-    ...(fieldErrors ? { fieldErrors } : {}),
+    ...(fieldErrors && Object.keys(fieldErrors).length > 0 ? { fieldErrors } : {}),
   }
 }
 
@@ -284,7 +368,10 @@ export function presentError(
 
   return {
     title: 'Action unsuccessful',
-    message: 'The action could not be completed. Please try again.',
+    message: sanitizeUserMessage(
+      error.message,
+      'The action could not be completed. Please try again.',
+    ),
     placement: context === 'form-submit' ? 'form' : 'toast',
     retryable: true,
   }

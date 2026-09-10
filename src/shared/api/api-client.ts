@@ -13,10 +13,32 @@ interface ApiRequestOptions extends Omit<RequestInit, 'body'> {
 }
 
 interface ApiErrorPayload {
-  detail?: string
+  detail?: string | Array<{ loc?: unknown; msg?: string; message?: string; type?: string }>
   message?: string
   code?: string
   errors?: unknown
+}
+
+function resolveApiErrorMessage(payload: ApiErrorPayload | undefined, fallback: string): string {
+  if (!payload) return fallback
+
+  if (typeof payload.detail === 'string' && payload.detail.trim()) {
+    return payload.detail.trim()
+  }
+
+  if (Array.isArray(payload.detail)) {
+    for (const item of payload.detail) {
+      if (!item || typeof item !== 'object') continue
+      const message = item.msg?.trim() || item.message?.trim()
+      if (message) return message
+    }
+  }
+
+  if (typeof payload.message === 'string' && payload.message.trim()) {
+    return payload.message.trim()
+  }
+
+  return fallback
 }
 
 interface RefreshTokenResponse {
@@ -161,7 +183,7 @@ async function request<TResponse>(
     if (response.status === 401 && !options.skipAuth) tokenStore.clear('expired')
 
     throw new ApiError(
-      errorPayload?.detail ?? errorPayload?.message ?? 'The request could not be completed.',
+      resolveApiErrorMessage(errorPayload, 'The request could not be completed.'),
       {
         status: response.status,
         ...(errorPayload?.code !== undefined ? { code: errorPayload.code } : {}),
