@@ -12,6 +12,7 @@ import { formatCurrency } from '@/shared/lib/formatters'
 import { withOptionalSearchValue, withoutSearchKeys } from '@/shared/navigation/search-state'
 import { ErrorState, useToast } from '@/shared/ui'
 import { EmptyState } from '@/shared/ui/empty-state'
+import { DropdownSelect } from '@/shared/ui/dropdown-select'
 import {
   CompactActionButton,
   CompactPageToolbar,
@@ -245,6 +246,17 @@ export function ApprovalsLivePage({ recordSearch }: { recordSearch: AppSectionSe
     recordSearch.search || recordSearch.source || recordSearch.highValue || recordSearch.status,
   )
   const saving = approveMutation.isPending || rejectMutation.isPending
+  const sourceFilterOptions = [
+    { value: '', label: 'All approval types' },
+    ...(choicesQuery.data?.sources ?? []).map((option) => ({
+      value: option.value,
+      label: option.label,
+    })),
+  ]
+  const valueFilterOptions = [
+    { value: '', label: 'All values' },
+    { value: 'high', label: 'High value only' },
+  ]
 
   return (
     <ModulePageFrame
@@ -332,36 +344,29 @@ export function ApprovalsLivePage({ recordSearch }: { recordSearch: AppSectionSe
               />
             </label>
 
-            <select
+            <DropdownSelect
+              compact
+              placeholder="Pending"
+              options={statusChoices}
               value={status}
-              onChange={(event) => setSearchValue('status', event.target.value)}
-            >
-              {statusChoices.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
+              onChange={(value) => setSearchValue('status', value as ApprovalQueueStatus)}
+            />
 
-            <select
+            <DropdownSelect
+              compact
+              placeholder="All approval types"
+              options={sourceFilterOptions}
               value={recordSearch.source ?? ''}
-              onChange={(event) => setSearchValue('source', event.target.value)}
-            >
-              <option value="">All approval types</option>
-              {(choicesQuery.data?.sources ?? []).map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
+              onChange={(value) => setSearchValue('source', value)}
+            />
 
-            <select
+            <DropdownSelect
+              compact
+              placeholder="All values"
+              options={valueFilterOptions}
               value={recordSearch.highValue ? 'high' : ''}
-              onChange={(event) => setHighValue(event.target.value === 'high')}
-            >
-              <option value="">All values</option>
-              <option value="high">High value only</option>
-            </select>
+              onChange={(value) => setHighValue(value === 'high')}
+            />
 
             {hasActiveFilters ? (
               <button

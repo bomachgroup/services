@@ -1,15 +1,26 @@
 import { IconX } from '@tabler/icons-react'
 import { useForm } from '@tanstack/react-form'
 import { useQuery } from '@tanstack/react-query'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 
 import { formatCurrency } from '@/shared/lib/formatters'
 import { formatNumberFieldValue, parseNumberFieldValue } from '@/shared/lib/number-input'
 import { Button } from '@/shared/ui/button'
+import { DatePicker } from '@/shared/ui/date-picker'
+import { DropdownSelect, mapDropdownOptions } from '@/shared/ui/dropdown-select'
 import { EmptyState } from '@/shared/ui/empty-state'
 
 import type { ServiceRequestDetail, ServiceRequestListItem } from '../api/service-requests.types'
+import { CommercialDocumentsEditor } from '../components/CommercialDocumentsEditor'
+import { QuotationItemsEditor } from '../components/QuotationItemsEditor'
+import {
+  buildDefaultQuoteItems,
+  ensureSinglePrimary,
+  quotationPaymentTimingLabels,
+} from '../quotation/quotation-item.utils'
 import { quotationQueries } from '../quotation/quotation.queries'
+import { deriveRealEstateQuoteDeposit } from '../quotation/real-estate-quote-deposit'
+import { realEstateQueries } from '@/modules/specialized-services/real-estate/real-estate.queries'
 import {
   calculateQuotationPreview,
   validateQuotationPricing,
@@ -31,8 +42,7 @@ type QuotationBuilderFieldName =
   | 'description'
   | 'scopeSummary'
   | 'terms'
-  | 'serviceFee'
-  | 'otherCharges'
+  | 'items'
   | 'discount'
   | 'taxRate'
   | 'depositPercent'
@@ -85,7 +95,42 @@ export function QuotationBuilderLiveWorkspace({
   const [fieldErrors, setFieldErrors] = useState<
     Partial<Record<QuotationBuilderFieldName, string>>
   >({})
+  const [quoteItems, setQuoteItems] = useState(() => (quote?.items.length ? quote.items : []))
+  const [attachments, setAttachments] = useState(() => quote?.attachments ?? [])
+  const [documentsBusy, setDocumentsBusy] = useState(false)
   const fieldRefs = useRef<Record<string, HTMLElement | null>>({})
+  const realEstateContextQuery = useQuery({
+    ...realEstateQueries.commercialContext(request.id),
+    enabled: request.id > 0,
+  })
+  const realEstateDeposit = useMemo(
+    () => deriveRealEstateQuoteDeposit(realEstateContextQuery.data),
+    [realEstateContextQuery.data],
+  )
+  const suggestedRealEstateItems = ensureSinglePrimary(
+    realEstateContextQuery.data?.suggestedQuoteItems.map((item) => ({
+      description: item.description,
+      kind: item.kind === 'primary' ? 'primary' : 'additional_charge',
+      kindDisplay: item.kind === 'primary' ? 'Primary Item' : 'Additional Charge',
+      paymentTiming: item.paymentTiming,
+      paymentTimingDisplay: quotationPaymentTimingLabels[item.paymentTiming],
+      quantity: item.quantity,
+      unitPrice: item.unitPrice,
+      total: Math.round(item.quantity * item.unitPrice * 100) / 100,
+      sourceContext: item.sourceContext,
+      sortOrder: item.sortOrder,
+    })) ?? [],
+  )
+  const activeQuoteItems =
+    quoteItems.length > 0
+      ? quoteItems
+      : suggestedRealEstateItems.length > 0
+        ? suggestedRealEstateItems
+        : buildDefaultQuoteItems({
+            description: request.scopeSummary || request.serviceName,
+            serviceFee: quote?.serviceFee || request.estimatedValue || request.budget || 0,
+            otherCharges: quote?.otherCharges,
+          })
 
   const form = useForm({
     defaultValues: {
@@ -98,18 +143,22 @@ export function QuotationBuilderLiveWorkspace({
       otherCharges: quote?.otherCharges ?? 0,
       discount: quote?.discount ?? 0,
       taxRate: quote?.taxRate ?? 0,
-      depositPercent: quote?.depositPercent ?? 30,
+      depositPercent: quote?.depositPercent ?? realEstateDeposit?.percent ?? 30,
       validUntil: quote?.validUntil || defaultValidUntil(),
       requiredApproverRoleId: quote?.requiredApproverRoleId ?? 0,
     },
     onSubmit: ({ value }) => {
+      const depositPercent = realEstateDeposit
+        ? realEstateDeposit.percent
+        : Number(value.depositPercent)
       const nextErrors: Partial<Record<QuotationBuilderFieldName, string>> = {
         ...validateQuotationPricing({
           serviceFee: Number(value.serviceFee),
           otherCharges: Number(value.otherCharges),
+          items: activeQuoteItems,
           discount: Number(value.discount),
           taxRate: Number(value.taxRate),
-          depositPercent: Number(value.depositPercent),
+          depositPercent,
         }),
       }
 
@@ -128,6 +177,9 @@ export function QuotationBuilderLiveWorkspace({
       if (!value.requiredApproverRoleId) {
         nextErrors.requiredApproverRoleId = 'Select the required approver role.'
       }
+      if (documentsBusy) {
+        nextErrors.items = 'Wait for document uploads to finish before submitting.'
+      }
 
       const firstErrorField = (
         [
@@ -135,8 +187,7 @@ export function QuotationBuilderLiveWorkspace({
           'description',
           'scopeSummary',
           'validUntil',
-          'serviceFee',
-          'otherCharges',
+          'items',
           'discount',
           'taxRate',
           'depositPercent',
@@ -159,9 +210,15 @@ export function QuotationBuilderLiveWorkspace({
         terms: value.terms.trim(),
         serviceFee: Number(value.serviceFee),
         otherCharges: Number(value.otherCharges),
+        items: activeQuoteItems.map((item, index) => ({
+          ...item,
+          description: item.description.trim(),
+          sortOrder: item.sortOrder || index * 10,
+        })),
+        attachments,
         discount: Number(value.discount),
         taxRate: Number(value.taxRate),
-        depositPercent: Number(value.depositPercent),
+        depositPercent,
         validUntil: value.validUntil,
         requiredApproverRoleId: value.requiredApproverRoleId,
       }
@@ -182,23 +239,9 @@ export function QuotationBuilderLiveWorkspace({
   })
 
   useEffect(() => {
-    if (mode !== 'create') return
-    form.setFieldValue('description', `Quotation for ${request.serviceName}`)
-    form.setFieldValue('scopeSummary', request.scopeSummary)
-    form.setFieldValue('serviceFee', request.estimatedValue || request.budget || 0)
-    form.setFieldValue('otherCharges', 0)
-    form.setFieldValue('discount', 0)
-    form.setFieldValue('taxRate', 0)
-    form.setFieldValue('depositPercent', 30)
-    form.setFieldValue('requiredApproverRoleId', 0)
-  }, [
-    form,
-    mode,
-    request.budget,
-    request.estimatedValue,
-    request.scopeSummary,
-    request.serviceName,
-  ])
+    if (!realEstateDeposit) return
+    form.setFieldValue('depositPercent', realEstateDeposit.percent)
+  }, [form, realEstateDeposit])
 
   const canSelectRequest =
     mode === 'create' &&
@@ -254,34 +297,35 @@ export function QuotationBuilderLiveWorkspace({
 
             {canSelectRequest ? (
               <div className="commercial-form-grid">
-                <label className="commercial-field commercial-field--full">
-                  <span>Service request *</span>
-                  <select
-                    ref={(node) => {
-                      fieldRefs.current.requestId = node
-                    }}
-                    value={request.id}
-                    disabled={requestSelectionLoading}
-                    onChange={(event) => {
-                      setFieldErrors((current) => {
-                        if (!current.requestId) return current
-                        const next = { ...current }
-                        delete next.requestId
-                        return next
-                      })
-                      onRequestChange?.(Number(event.target.value))
-                    }}
-                  >
-                    {(eligibleRequests ?? []).map((item) => (
-                      <option key={item.id} value={item.id}>
-                        {item.requestNumber} — {item.clientName} — {item.serviceName}
-                      </option>
-                    ))}
-                  </select>
-                  {fieldErrors.requestId ? (
-                    <small className="commercial-field-error">{fieldErrors.requestId}</small>
-                  ) : null}
-                </label>
+                <DropdownSelect
+                  label="Service request"
+                  required
+                  fullWidth
+                  fieldClassName="commercial-field commercial-field--full"
+                  placeholder="Select service request"
+                  disabled={requestSelectionLoading}
+                  invalid={Boolean(fieldErrors.requestId)}
+                  error={fieldErrors.requestId}
+                  containerRef={(node) => {
+                    fieldRefs.current.requestId = node
+                  }}
+                  options={mapDropdownOptions(
+                    (eligibleRequests ?? []).map((item) => ({
+                      value: item.id,
+                      label: `${item.requestNumber} — ${item.clientName} — ${item.serviceName}`,
+                    })),
+                  )}
+                  value={String(request.id)}
+                  onChange={(value) => {
+                    setFieldErrors((current) => {
+                      if (!current.requestId) return current
+                      const next = { ...current }
+                      delete next.requestId
+                      return next
+                    })
+                    onRequestChange?.(Number(value))
+                  }}
+                />
               </div>
             ) : null}
 
@@ -311,7 +355,9 @@ export function QuotationBuilderLiveWorkspace({
               <form.Field name="description">
                 {(field) => (
                   <label className="commercial-field commercial-field--full">
-                    <span>Description *</span>
+                    <span>
+                      Description <em>*</em>
+                    </span>
                     <input
                       ref={(node) => {
                         fieldRefs.current.description = node
@@ -337,7 +383,9 @@ export function QuotationBuilderLiveWorkspace({
               <form.Field name="scopeSummary">
                 {(field) => (
                   <label className="commercial-field commercial-field--full">
-                    <span>Scope of work *</span>
+                    <span>
+                      Scope of work <em>*</em>
+                    </span>
                     <textarea
                       ref={(node) => {
                         fieldRefs.current.scopeSummary = node
@@ -363,92 +411,125 @@ export function QuotationBuilderLiveWorkspace({
 
               <form.Field name="validUntil">
                 {(field) => (
-                  <label className="commercial-field">
-                    <span>Valid until *</span>
-                    <input
-                      ref={(node) => {
-                        fieldRefs.current.validUntil = node
-                      }}
-                      type="date"
-                      value={field.state.value}
-                      onChange={(event) => {
-                        setFieldErrors((current) => {
-                          if (!current.validUntil) return current
-                          const next = { ...current }
-                          delete next.validUntil
-                          return next
-                        })
-                        field.handleChange(event.target.value)
-                      }}
-                    />
-                    {fieldErrors.validUntil ? (
-                      <small className="commercial-field-error">{fieldErrors.validUntil}</small>
-                    ) : null}
-                  </label>
+                  <DatePicker
+                    label="Valid until"
+                    required
+                    value={field.state.value}
+                    invalid={Boolean(fieldErrors.validUntil)}
+                    error={fieldErrors.validUntil}
+                    containerRef={(node) => {
+                      fieldRefs.current.validUntil = node
+                    }}
+                    onChange={(value) => {
+                      setFieldErrors((current) => {
+                        if (!current.validUntil) return current
+                        const next = { ...current }
+                        delete next.validUntil
+                        return next
+                      })
+                      field.handleChange(value)
+                    }}
+                  />
                 )}
               </form.Field>
+
+              {rolesQuery.isPending ? (
+                <label className="commercial-field">
+                  <span>
+                    Approver role <em>*</em>
+                  </span>
+                  <input value="Loading roles..." readOnly />
+                </label>
+              ) : rolesQuery.isError ? (
+                <div className="commercial-field">
+                  <span>
+                    Approver role <em>*</em>
+                  </span>
+                  <EmptyState
+                    title="Approver roles unavailable"
+                    description="Quotation submission is unavailable until approver roles are loaded."
+                    action={
+                      <Button variant="outline" size="sm" onClick={() => void rolesQuery.refetch()}>
+                        Retry
+                      </Button>
+                    }
+                  />
+                </div>
+              ) : (
+                <form.Field name="requiredApproverRoleId">
+                  {(field) => (
+                    <DropdownSelect
+                      label="Approver role"
+                      required
+                      fieldClassName="commercial-field"
+                      placeholder="Select role"
+                      invalid={Boolean(fieldErrors.requiredApproverRoleId)}
+                      error={fieldErrors.requiredApproverRoleId}
+                      containerRef={(node) => {
+                        fieldRefs.current.requiredApproverRoleId = node
+                      }}
+                      options={mapDropdownOptions(
+                        rolesQuery.data.map((role) => ({
+                          value: role.id,
+                          label: role.name,
+                        })),
+                      )}
+                      value={field.state.value ? String(field.state.value) : ''}
+                      onChange={(value) => {
+                        setFieldErrors((current) => {
+                          if (!current.requiredApproverRoleId) return current
+                          const next = { ...current }
+                          delete next.requiredApproverRoleId
+                          return next
+                        })
+                        field.handleChange(Number(value))
+                      }}
+                    />
+                  )}
+                </form.Field>
+              )}
             </div>
           </section>
 
-          <section className="commercial-form-section">
-            <h3>Pricing and approval</h3>
-            <div className="commercial-form-grid">
-              <form.Field name="serviceFee">
-                {(field) => (
-                  <label className="commercial-field">
-                    <span>Service fee</span>
-                    <input
-                      ref={(node) => {
-                        fieldRefs.current.serviceFee = node
-                      }}
-                      type="number"
-                      min="0"
-                      value={formatNumberFieldValue(field.state.value)}
-                      onChange={(event) => {
-                        setFieldErrors((current) => {
-                          if (!current.serviceFee) return current
-                          const next = { ...current }
-                          delete next.serviceFee
-                          return next
-                        })
-                        field.handleChange(parseNumberFieldValue(event.target.value))
-                      }}
-                    />
-                    {fieldErrors.serviceFee ? (
-                      <small className="commercial-field-error">{fieldErrors.serviceFee}</small>
-                    ) : null}
-                  </label>
-                )}
-              </form.Field>
+          <section
+            className="commercial-form-section"
+            ref={(node) => {
+              fieldRefs.current.items = node
+            }}
+          >
+            <div className="commercial-form-section-heading">
+              <div>
+                <h3>Pricing and approval</h3>
+              </div>
+            </div>
+            <QuotationItemsEditor
+              items={activeQuoteItems}
+              error={fieldErrors.items}
+              onChange={(items) => {
+                const nextItems = ensureSinglePrimary(items)
+                setQuoteItems(nextItems)
+                form.setFieldValue(
+                  'serviceFee',
+                  nextItems.find((item) => item.kind === 'primary')?.total ?? 0,
+                )
+                form.setFieldValue(
+                  'otherCharges',
+                  nextItems
+                    .filter((item) => item.kind !== 'primary')
+                    .reduce((sum, item) => sum + item.total, 0),
+                )
+              }}
+              onClearError={() =>
+                setFieldErrors((current) => {
+                  if (!current.items) return current
+                  const next = { ...current }
+                  delete next.items
+                  return next
+                })
+              }
+            />
 
-              <form.Field name="otherCharges">
-                {(field) => (
-                  <label className="commercial-field">
-                    <span>Other charges</span>
-                    <input
-                      ref={(node) => {
-                        fieldRefs.current.otherCharges = node
-                      }}
-                      type="number"
-                      min="0"
-                      value={formatNumberFieldValue(field.state.value)}
-                      onChange={(event) => {
-                        setFieldErrors((current) => {
-                          if (!current.otherCharges) return current
-                          const next = { ...current }
-                          delete next.otherCharges
-                          return next
-                        })
-                        field.handleChange(parseNumberFieldValue(event.target.value))
-                      }}
-                    />
-                    {fieldErrors.otherCharges ? (
-                      <small className="commercial-field-error">{fieldErrors.otherCharges}</small>
-                    ) : null}
-                  </label>
-                )}
-              </form.Field>
-
+            <div className="commercial-quote-meta-grid">
               <form.Field name="discount">
                 {(field) => (
                   <label className="commercial-field">
@@ -506,83 +587,46 @@ export function QuotationBuilderLiveWorkspace({
                 )}
               </form.Field>
 
-              <form.Field name="depositPercent">
-                {(field) => (
-                  <label className="commercial-field">
-                    <span>Required deposit (%)</span>
-                    <input
-                      ref={(node) => {
-                        fieldRefs.current.depositPercent = node
-                      }}
-                      type="number"
-                      min="0"
-                      max="100"
-                      value={formatNumberFieldValue(field.state.value)}
-                      onChange={(event) => {
-                        setFieldErrors((current) => {
-                          if (!current.depositPercent) return current
-                          const next = { ...current }
-                          delete next.depositPercent
-                          return next
-                        })
-                        field.handleChange(parseNumberFieldValue(event.target.value))
-                      }}
-                    />
-                    {fieldErrors.depositPercent ? (
-                      <small className="commercial-field-error">{fieldErrors.depositPercent}</small>
-                    ) : null}
-                  </label>
-                )}
-              </form.Field>
-
-              {rolesQuery.isPending ? (
-                <label className="commercial-field">
-                  <span>Required approver role *</span>
-                  <input value="Loading roles..." readOnly />
-                </label>
-              ) : rolesQuery.isError ? (
-                <div className="commercial-field">
-                  <span>Required approver role *</span>
-                  <EmptyState
-                    title="Approver roles unavailable"
-                    description="Quotation submission is unavailable until approver roles are loaded."
-                    action={
-                      <Button variant="outline" size="sm" onClick={() => void rolesQuery.refetch()}>
-                        Retry
-                      </Button>
-                    }
-                  />
+              {realEstateDeposit ? (
+                <div
+                  className="commercial-field"
+                  ref={(node) => {
+                    fieldRefs.current.depositPercent = node
+                  }}
+                >
+                  <span>Required deposit</span>
+                  <div className="commercial-quote-deposit-lock">
+                    <span>{realEstateDeposit.title}</span>
+                    <b>{realEstateDeposit.percent}%</b>
+                    {realEstateDeposit.detail ? <small>{realEstateDeposit.detail}</small> : null}
+                  </div>
                 </div>
               ) : (
-                <form.Field name="requiredApproverRoleId">
+                <form.Field name="depositPercent">
                   {(field) => (
                     <label className="commercial-field">
-                      <span>Required approver role *</span>
-                      <select
+                      <span>Required deposit (%)</span>
+                      <input
                         ref={(node) => {
-                          fieldRefs.current.requiredApproverRoleId = node
+                          fieldRefs.current.depositPercent = node
                         }}
-                        value={field.state.value}
+                        type="number"
+                        min="0"
+                        max="100"
+                        value={formatNumberFieldValue(field.state.value)}
                         onChange={(event) => {
                           setFieldErrors((current) => {
-                            if (!current.requiredApproverRoleId) return current
+                            if (!current.depositPercent) return current
                             const next = { ...current }
-                            delete next.requiredApproverRoleId
+                            delete next.depositPercent
                             return next
                           })
-                          field.handleChange(Number(event.target.value))
+                          field.handleChange(parseNumberFieldValue(event.target.value))
                         }}
-                      >
-                        <option value={0}>Select role</option>
-                        {rolesQuery.data.map((role) => (
-                          <option key={role.id} value={role.id}>
-                            {role.name}
-                          </option>
-                        ))}
-                      </select>
-                      {fieldErrors.requiredApproverRoleId ? (
+                      />
+                      {fieldErrors.depositPercent ? (
                         <small className="commercial-field-error">
-                          {fieldErrors.requiredApproverRoleId}
+                          {fieldErrors.depositPercent}
                         </small>
                       ) : null}
                     </label>
@@ -593,11 +637,22 @@ export function QuotationBuilderLiveWorkspace({
           </section>
 
           <section className="commercial-form-section">
+            <CommercialDocumentsEditor
+              attachments={attachments}
+              onChange={setAttachments}
+              onBusyChange={setDocumentsBusy}
+              onClearError={() => undefined}
+            />
+          </section>
+
+          <section className="commercial-form-section">
             <h3>Commercial terms</h3>
             <form.Field name="terms">
               {(field) => (
                 <label className="commercial-field commercial-field--full">
-                  <span>Terms *</span>
+                  <span>
+                    Terms <em>*</em>
+                  </span>
                   <textarea
                     ref={(node) => {
                       fieldRefs.current.terms = node
@@ -626,18 +681,23 @@ export function QuotationBuilderLiveWorkspace({
             selector={(state) => ({
               serviceFee: state.values.serviceFee,
               otherCharges: state.values.otherCharges,
+              items: activeQuoteItems,
               discount: state.values.discount,
               taxRate: state.values.taxRate,
               depositPercent: state.values.depositPercent,
             })}
           >
             {(value) => {
+              const depositPercent = realEstateDeposit
+                ? realEstateDeposit.percent
+                : Number(value.depositPercent)
               const preview = calculateQuotationPreview({
                 serviceFee: Number(value.serviceFee),
                 otherCharges: Number(value.otherCharges),
+                items: value.items,
                 discount: Number(value.discount),
                 taxRate: Number(value.taxRate),
-                depositPercent: Number(value.depositPercent),
+                depositPercent,
               })
               return (
                 <section className="commercial-form-section commercial-quote-preview-section">
@@ -649,6 +709,8 @@ export function QuotationBuilderLiveWorkspace({
                         {formatCurrency(Number(value.discount))} · Tax{' '}
                         {formatCurrency(preview.taxAmount)} · Deposit{' '}
                         {formatCurrency(preview.depositAmount)}
+                        {realEstateDeposit ? ` (${depositPercent}%)` : ''} · Initial payment{' '}
+                        {formatCurrency(preview.initialPaymentAmount)}
                       </p>
                     </div>
                     <div className="commercial-quote-total-chip commercial-quote-total-chip--lg">

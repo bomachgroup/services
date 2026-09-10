@@ -1,5 +1,34 @@
 export type QuotationStatus =
-  'draft' | 'awaiting_approval' | 'sent' | 'accepted' | 'rejected' | 'expired'
+  'draft' | 'awaiting_approval' | 'sent' | 'accepted' | 'rejected' | 'expired' | 'superseded'
+
+export type QuotationItemKind = 'primary' | 'additional_charge'
+export type QuotationPaymentTiming = 'deposit_based' | 'upfront' | 'deferred'
+
+export interface QuotationItem {
+  id?: number
+  description: string
+  kind: QuotationItemKind
+  kindDisplay: string
+  paymentTiming: QuotationPaymentTiming
+  paymentTimingDisplay: string
+  quantity: number
+  unitPrice: number
+  total: number
+  sourceContext: Record<string, unknown>
+  sortOrder: number
+}
+
+export interface CommercialAttachment {
+  id?: number
+  label: string
+  fileName: string
+  fileUrl: string
+  contentType: string
+  fileSizeBytes: number
+  sortOrder: number
+  createdAt?: string
+  updatedAt?: string
+}
 
 export interface Quotation {
   id: number
@@ -26,10 +55,12 @@ export interface Quotation {
   taxAmount: number
   depositPercent: number
   depositAmount: number
+  initialPaymentAmount: number
   amount: number
   validUntil: string
   status: QuotationStatus
   statusDisplay: string
+  realEstateSettlementMode: string
   approvedById: number | null
   approvedByName: string
   approvedAt: string | null
@@ -40,6 +71,8 @@ export interface Quotation {
   createdByName: string
   createdAt: string
   updatedAt: string
+  items: QuotationItem[]
+  attachments: CommercialAttachment[]
 }
 
 export interface PaginatedQuotations {
@@ -77,6 +110,8 @@ export interface CreateQuotationInput {
   terms: string
   serviceFee: number
   otherCharges: number
+  items?: QuotationItem[]
+  attachments?: CommercialAttachment[]
   discount: number
   taxRate: number
   depositPercent: number

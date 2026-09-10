@@ -12,6 +12,10 @@ export function getQuotationCapabilities(
     clientRespond: status === 'sent',
     createInvoice: status === 'accepted' && !hasActiveInvoice,
     viewInvoice: status === 'accepted' && hasActiveInvoice,
-    revise: status === 'rejected' || status === 'expired',
+    revise:
+      status === 'rejected' ||
+      status === 'expired' ||
+      status === 'sent' ||
+      (status === 'accepted' && !hasActiveInvoice),
   }
 }
