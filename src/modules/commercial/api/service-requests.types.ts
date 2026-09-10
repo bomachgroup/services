@@ -6,6 +6,8 @@ export type ServiceRequestStatus =
   | 'quoted'
   | 'converted'
   | 'rejected'
+  | 'completed'
+  | 'cancelled'
 
 export type ServiceRequestPriority = 'normal' | 'high' | 'critical'
 
@@ -158,6 +160,7 @@ export interface ServiceOption {
   parentName: string
   specializedServiceId?: number | null
   specializedDomain?: string | null
+  specializedConfig?: Record<string, unknown>
   activeBranches: BranchOption[]
 }
 

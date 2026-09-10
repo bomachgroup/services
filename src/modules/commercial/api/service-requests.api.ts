@@ -6,7 +6,6 @@ import {
   mapClientsPage,
   mapEmployees,
   mapIntakeForm,
-  mapServicePricingConfig,
   mapServiceRequestChoices,
   mapServiceRequestDetail,
   mapServiceRequestList,
@@ -124,24 +123,11 @@ export const serviceRequestsApi = {
     )
   },
 
-  async activePricingConfig(serviceId: number): Promise<ServicePricingConfig | null> {
-    const list = await apiClient.get<unknown>(
-      `/services/pricing-configs?service_id=${serviceId}&status=active&limit=1&offset=0`,
-    )
-    const items =
-      typeof list === 'object' && list !== null
-        ? (list as Record<string, unknown>).items
-        : undefined
-    const rows: unknown[] = Array.isArray(list) ? list : Array.isArray(items) ? items : []
-    const first = rows[0]
-    if (!first || typeof first !== 'object' || first === null) return null
-
-    const configId = Number((first as { id?: unknown }).id)
-    if (!Number.isFinite(configId) || configId <= 0) return null
-
-    return mapServicePricingConfig(
-      await apiClient.get<unknown>(`/services/${serviceId}/pricing-configs/${configId}`),
-    )
+  activePricingConfig(serviceId: number): ServicePricingConfig | null {
+    // Formula ServicePricingConfig endpoints were removed. Quote auto-pricing now uses
+    // PricingCalculator attachments; intake estimate returns null without a legacy config.
+    void serviceId
+    return null
   },
 
   async uploadFile(file: File, signal?: AbortSignal): Promise<string> {

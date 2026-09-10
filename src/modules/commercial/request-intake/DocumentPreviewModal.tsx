@@ -1,4 +1,5 @@
 import { IconExternalLink, IconX } from '@tabler/icons-react'
+import { useEffect, useState } from 'react'
 
 import { FileTypeIcon } from './file-presentation'
 import {
@@ -64,6 +65,25 @@ export function DocumentPreviewModal({
   const title = document.label?.trim() || fileName
   const isImage = isImageContentType(contentType, fileName)
   const isPdf = isPdfContentType(contentType, fileName)
+  const [loadFailed, setLoadFailed] = useState(false)
+
+  // Iframes swallow load errors and render the browser's error page. Probe the
+  // file first so a missing/unreachable document shows a clear message with a
+  // new-tab action instead.
+  useEffect(() => {
+    if (!/^https?:\/\//i.test(document.fileUrl)) return
+    let cancelled = false
+    fetch(document.fileUrl, { method: 'HEAD' })
+      .then((response) => {
+        if (!cancelled && !response.ok) setLoadFailed(true)
+      })
+      .catch(() => {
+        if (!cancelled) setLoadFailed(true)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [document.fileUrl])
 
   return (
     <div
@@ -94,8 +114,24 @@ export function DocumentPreviewModal({
         </header>
 
         <div className="commercial-document-preview-body">
-          {isImage ? (
-            <img src={document.fileUrl} alt={title} className="commercial-document-preview-image" />
+          {loadFailed ? (
+            <div className="commercial-document-preview-fallback">
+              <div className="commercial-document-preview-fallback-icon">
+                <FileTypeIcon fileName={fileName} contentType={contentType} size={28} />
+              </div>
+              <strong>{fileName}</strong>
+              <p>
+                This document could not be loaded — the file may be missing or unavailable right
+                now. Try opening it in a new tab.
+              </p>
+            </div>
+          ) : isImage ? (
+            <img
+              src={document.fileUrl}
+              alt={title}
+              className="commercial-document-preview-image"
+              onError={() => setLoadFailed(true)}
+            />
           ) : isPdf ? (
             <iframe
               src={document.fileUrl}
