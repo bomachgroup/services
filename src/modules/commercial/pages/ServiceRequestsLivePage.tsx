@@ -64,6 +64,10 @@ function withoutRequestSearch(previous: AppSectionSearch) {
 function withoutCreateSearch(previous: AppSectionSearch) {
   const next = { ...previous }
   delete next.create
+  delete next.estate
+  delete next.property
+  delete next.standaloneProperty
+  delete next.brokerage
   return next
 }
 
@@ -587,6 +591,33 @@ export function ServiceRequestsLivePage({ recordSearch }: { recordSearch: AppSec
           choices={choices}
           saving={createMutation.isPending}
           initialServiceId={recordSearch.service ? Number(recordSearch.service) : 0}
+          initialSpecializedContext={
+            recordSearch.property
+              ? {
+                  sourceMode: 'estate',
+                  estateId: recordSearch.estate ? Number(recordSearch.estate) : 0,
+                  selectedId: Number(recordSearch.property),
+                  settlementMode: 'full_payment',
+                  agreedPrice: null,
+                }
+              : recordSearch.standaloneProperty
+                ? {
+                    sourceMode: 'standalone',
+                    estateId: 0,
+                    selectedId: Number(recordSearch.standaloneProperty),
+                    settlementMode: 'full_payment',
+                    agreedPrice: null,
+                  }
+                : recordSearch.brokerage
+                  ? {
+                      sourceMode: 'brokerage',
+                      estateId: 0,
+                      selectedId: Number(recordSearch.brokerage),
+                      settlementMode: 'full_payment',
+                      agreedPrice: null,
+                    }
+                  : null
+          }
           onClose={() => {
             setManualCreateOpen(false)
             if (recordSearch.create !== 'request') return
@@ -598,14 +629,16 @@ export function ServiceRequestsLivePage({ recordSearch }: { recordSearch: AppSec
             })
           }}
           onSubmit={(input, attachments) => createMutation.mutateAsync({ input, attachments })}
-          onContinueSpecialized={(handoff: SpecializedRequestHandoff) => {
+          onContinueSpecialized={(handoff: SpecializedRequestHandoff, createdRequest) => {
             setManualCreateOpen(false)
             void navigate({
               to: '/app/$section',
-              params: { section: handoff.navigation.section },
+              params: { section: createdRequest ? 'quotations' : handoff.navigation.section },
               search: (previous) => ({
                 ...withoutCreateSearch(withoutRequestSearch(previous)),
-                ...handoff.navigation.search,
+                ...(createdRequest
+                  ? { request: String(createdRequest.id) }
+                  : handoff.navigation.search),
               }),
             })
           }}

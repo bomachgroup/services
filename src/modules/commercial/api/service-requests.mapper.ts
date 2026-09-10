@@ -217,6 +217,7 @@ export function mapServices(payload: unknown): ServiceOption[] {
       parentName: text(row.parent_name ?? row.parentName),
       specializedServiceId: nullableNumber(row.specialized_service_id),
       specializedDomain: nullableText(row.specialized_domain),
+      specializedConfig: record(row.specialized_config),
       activeBranches: array(row.active_branches).map((item) => {
         const branch = record(item)
         return {

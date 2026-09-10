@@ -1,5 +1,6 @@
 import { IconRefresh, IconTrash, IconUpload, IconX } from '@tabler/icons-react'
 
+import { DatePicker } from '@/shared/ui/date-picker'
 import { DropdownSelect } from '@/shared/ui/dropdown-select'
 
 import type { IntakeField } from '../api/service-requests.types'
@@ -41,7 +42,7 @@ export function RequestIntakeFields({
             <label key={field.id} className="commercial-field commercial-field--full">
               <span>
                 {field.label}
-                {field.required ? ' *' : ''}
+                {field.required ? <em>*</em> : null}
               </span>
               <textarea
                 ref={(node) => {
@@ -120,7 +121,7 @@ export function RequestIntakeFields({
               />
               <span>
                 {field.label}
-                {field.required ? ' *' : ''}
+                {field.required ? <em>*</em> : null}
               </span>
               {fieldErrors[field.key] ? (
                 <small className="commercial-field-error">{fieldErrors[field.key]}</small>
@@ -142,7 +143,7 @@ export function RequestIntakeFields({
             >
               <span>
                 {field.label}
-                {field.required ? ' *' : ''}
+                {field.required ? <em>*</em> : null}
               </span>
               <label className="commercial-upload-dropzone">
                 <div className="commercial-upload-dropzone-icon">
@@ -225,24 +226,43 @@ export function RequestIntakeFields({
           )
         }
 
+        if (field.fieldType === 'date') {
+          return (
+            <DatePicker
+              key={field.id}
+              label={field.label}
+              required={field.required}
+              clearable={!field.required}
+              placeholder={field.placeholder.trim() || 'Select date'}
+              value={fieldTextValue(value)}
+              helpText={field.helpText || undefined}
+              error={fieldErrors[field.key]}
+              invalid={Boolean(fieldErrors[field.key])}
+              onChange={(next) => setValue(next)}
+              containerRef={(node) => {
+                fieldRefs.current[field.key] = node
+              }}
+              fieldClassName="commercial-field"
+            />
+          )
+        }
+
         return (
           <label key={field.id} className="commercial-field">
             <span>
               {field.label}
-              {field.required ? ' *' : ''}
+              {field.required ? <em>*</em> : null}
             </span>
             <input
               ref={(node) => {
                 fieldRefs.current[field.key] = node
               }}
               type={
-                field.fieldType === 'date'
-                  ? 'date'
-                  : field.fieldType === 'number' || field.fieldType === 'money'
-                    ? 'number'
-                    : field.fieldType === 'email'
-                      ? 'email'
-                      : 'text'
+                field.fieldType === 'number' || field.fieldType === 'money'
+                  ? 'number'
+                  : field.fieldType === 'email'
+                    ? 'email'
+                    : 'text'
               }
               placeholder={field.placeholder}
               value={fieldTextValue(value)}

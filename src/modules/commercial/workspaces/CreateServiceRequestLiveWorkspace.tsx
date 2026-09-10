@@ -1,7 +1,6 @@
 import {
   IconAlertCircle,
   IconArrowLeft,
-  IconCalculator,
   IconChevronDown,
   IconLoader2,
   IconSearch,
@@ -17,12 +16,12 @@ import { hasPermission, PERMISSIONS } from '@/app/permissions'
 
 import { presentError } from '@/shared/errors'
 import { ApiError } from '@/shared/api/api-error'
-import { formatCurrency } from '@/shared/lib/formatters'
 import { parseNumberFieldValue } from '@/shared/lib/number-input'
 import { Button } from '@/shared/ui/button'
 import { DropdownSelect, mapDropdownOptions } from '@/shared/ui/dropdown-select'
 import { EmptyState } from '@/shared/ui/empty-state'
 import { useToast } from '@/shared/ui/toast/useToast'
+import { DatePicker } from '@/shared/ui/date-picker'
 
 import { serviceRequestsApi } from '../api/service-requests.api'
 import { serviceRequestKeys } from '../api/service-requests.keys'
@@ -36,24 +35,24 @@ import type {
   ServiceRequestChoices,
 } from '../api/service-requests.types'
 import type { MarketingLeadOption } from '../api/marketing-leads.types'
+import { realEstateApi } from '@/modules/specialized-services/real-estate/real-estate.api'
+import { isSaleCapableRealEstateService } from '@/modules/specialized-services/request-plugins/real-estate/real-estate.request-context'
+import { realEstateRequestContext } from '@/modules/specialized-services/request-plugins/real-estate/real-estate.request-context'
 
 import {
   resolveSpecializedRequestPlugin,
   SpecializedRequestContextPanel,
-  type SpecializedRequestHandoff,
+  type SpecializedRequestContinueHandler,
 } from '@/modules/specialized-services/request-plugins'
 
 import { RequestIntakeFields } from '../request-intake/RequestIntakeFields'
 import type { PendingUpload } from '../request-intake/request-intake.types'
 import {
-  calculateEstimateTotal,
   firstScopeValue,
   isBudgetField,
-  isPreferredDateField,
   isPriorityValue,
   isScopeField,
   normalizeAnswers,
-  nonNegativeNumber,
   resolveAutoAnswer,
   shouldHideAutoField,
   validateAnswerFields,
@@ -65,6 +64,37 @@ type ClientDirectoryTab = 'clients' | 'leads'
 
 const OTHERS_PARENT_KEY = '__others__'
 const OTHERS_PARENT_LABEL = 'Others'
+
+function realEstateAssetSelection(context: unknown) {
+  const value =
+    typeof context === 'object' && context !== null
+      ? (context as {
+          sourceMode?: string
+          selectedId?: number | null
+          settlementMode?: 'full_payment' | 'reservation' | 'installment'
+          agreedPrice?: number | null
+        })
+      : {}
+  if (!value.selectedId) return []
+  const terms = {
+    settlementMode: value.settlementMode ?? 'full_payment',
+    ...(value.agreedPrice != null && value.agreedPrice > 0
+      ? { agreedPrice: value.agreedPrice }
+      : {}),
+  }
+  if (value.sourceMode === 'brokerage') return [{ brokerageListingId: value.selectedId, ...terms }]
+  return [{ propertyId: value.selectedId, ...terms }]
+}
+
+function realEstateAgreedPrice(context: unknown) {
+  const value =
+    typeof context === 'object' && context !== null
+      ? (context as { agreedPrice?: number | null; inventoryPrice?: number | null })
+      : {}
+  if (value.agreedPrice != null && value.agreedPrice > 0) return value.agreedPrice
+  if (value.inventoryPrice != null && value.inventoryPrice > 0) return value.inventoryPrice
+  return null
+}
 
 function serviceParentKey(service: ServiceOption): string {
   return service.parentName.trim() ? service.parentName.trim() : OTHERS_PARENT_KEY
@@ -455,6 +485,7 @@ export function CreateServiceRequestLiveWorkspace({
   choices,
   saving,
   initialServiceId = 0,
+  initialSpecializedContext = null,
   onClose,
   onSubmit,
   onContinueSpecialized,
@@ -464,12 +495,13 @@ export function CreateServiceRequestLiveWorkspace({
   choices: ServiceRequestChoices
   saving: boolean
   initialServiceId?: number
+  initialSpecializedContext?: unknown
   onClose: () => void
   onSubmit: (
     input: CreateServiceRequestInput,
     attachments: CreateServiceRequestAttachmentInput[],
   ) => Promise<unknown> | void
-  onContinueSpecialized?: (handoff: SpecializedRequestHandoff) => Promise<unknown> | void
+  onContinueSpecialized?: SpecializedRequestContinueHandler
 }) {
   const toast = useToast()
   const queryClient = useQueryClient()
@@ -504,7 +536,8 @@ export function CreateServiceRequestLiveWorkspace({
   const [newClientPhone, setNewClientPhone] = useState('')
   const [uploadsByField, setUploadsByField] = useState<Record<string, PendingUpload[]>>({})
   const [answerValues, setAnswerValues] = useState<Record<string, unknown>>({})
-  const [specializedContextDraft, setSpecializedContextDraft] = useState<unknown>(null)
+  const [specializedContextDraft, setSpecializedContextDraft] =
+    useState<unknown>(initialSpecializedContext)
   const [specializedContextError, setSpecializedContextError] = useState('')
   const controllersRef = useRef<Record<string, AbortController>>({})
   const uploadIdRef = useRef(0)
@@ -546,10 +579,6 @@ export function CreateServiceRequestLiveWorkspace({
     ...serviceRequestQueries.intake(serviceId),
     enabled: serviceId > 0 && !usesSpecializedFlow,
   })
-  const pricingConfigQuery = useQuery({
-    ...serviceRequestQueries.pricingConfig(serviceId),
-    enabled: serviceId > 0 && !usesSpecializedFlow,
-  })
   const isBrowsingDirectory = !showCreateClient && !pickedClient
   const clientDirectoryQuery = useInfiniteQuery({
     ...serviceRequestQueries.clientDirectory(clientSearch),
@@ -586,14 +615,11 @@ export function CreateServiceRequestLiveWorkspace({
   )
   const branches = selectedService?.activeBranches ?? []
   const fields = intakeQuery.data?.form.fields ?? []
-  const hasBudgetField = fields.some(isBudgetField)
-  const hasPreferredDateField = fields.some(isPreferredDateField)
   const hasScopeSummaryField = fields.some(isScopeField)
   const flattenedUploads = Object.values(uploadsByField).flat()
   const hasUploadingFiles = flattenedUploads.some((upload) => upload.status === 'uploading')
   const hasUploadErrors = flattenedUploads.some((upload) => upload.status === 'error')
   const initialAnswers: Record<string, unknown> = {}
-  const activePricingConfig = pricingConfigQuery.data
 
   const form = useForm({
     defaultValues: {
@@ -639,14 +665,17 @@ export function CreateServiceRequestLiveWorkspace({
       }
 
       if (activeSpecializedPlugin && usesSpecializedFlow) {
-        const contextError = activeSpecializedPlugin.validateContext(specializedContext)
+        const contextError = activeSpecializedPlugin.validateContext(
+          specializedContext,
+          selectedService,
+        )
         if (contextError) {
           setSpecializedContextError(contextError)
           setError(contextError)
           return
         }
 
-        if (!onContinueSpecialized || !selectedService) {
+        if (!selectedService) {
           setError('This specialized service flow is not available.')
           return
         }
@@ -655,6 +684,13 @@ export function CreateServiceRequestLiveWorkspace({
         setSpecializedContextError('')
 
         try {
+          if (!isSaleCapableRealEstateService(selectedService)) {
+            setError(
+              'This real estate service does not sell or reserve inventory. Use the standard intake form, or choose Land Sales / Brokerage / Agency.',
+            )
+            return
+          }
+          const agreedPrice = realEstateAgreedPrice(specializedContext)
           const handoff = activeSpecializedPlugin.buildHandoff({
             service: selectedService,
             context: specializedContext,
@@ -671,7 +707,29 @@ export function CreateServiceRequestLiveWorkspace({
               crmLeadId: crmLeadIdRef.current,
             },
           })
-          await onContinueSpecialized(handoff)
+          const createdRequest = await realEstateApi.createCommercialRequest({
+            clientId: value.clientId || pickedClientRef.current?.id || 0,
+            serviceId,
+            ...(value.branchId ? { branchId: value.branchId } : {}),
+            contactName: value.contactName.trim(),
+            contactPhone: value.contactPhone.trim(),
+            contactEmail: value.contactEmail.trim(),
+            customerType: value.customerType,
+            source: value.source,
+            sourceReference: value.sourceReference.trim(),
+            priority: value.priority,
+            ...(agreedPrice ? { budget: agreedPrice } : {}),
+            estimatedValue: Number(agreedPrice ?? value.estimatedValue ?? 0),
+            nextAction: '',
+            scopeSummary: value.scopeSummary.trim(),
+            answers: {},
+            ...(crmLeadIdRef.current ? { crmLeadId: crmLeadIdRef.current } : {}),
+            assetSelection: realEstateAssetSelection(specializedContext),
+          })
+          await queryClient.invalidateQueries({ queryKey: serviceRequestKeys.all })
+          toast.success(`Request ${createdRequest.requestNumber} created`)
+          onClose()
+          if (onContinueSpecialized) await onContinueSpecialized(handoff, createdRequest)
         } catch (continueError) {
           setError(presentError(continueError, 'form-submit').message)
         }
@@ -832,11 +890,24 @@ export function CreateServiceRequestLiveWorkspace({
   }, [form, initialServiceId, serviceId, services])
 
   useEffect(() => {
+    if (initialServiceId || serviceId || !initialSpecializedContext || services.length === 0) return
+    const service =
+      services.find((item) => realEstateRequestContext(item) === 'land_sale') ??
+      services.find(isSaleCapableRealEstateService)
+    if (!service) return
     queueMicrotask(() => {
-      setSpecializedContextDraft(null)
+      setParentServiceKey(serviceParentKey(service))
+      setServiceId(service.id)
+      form.setFieldValue('branchId', service.activeBranches[0]?.id ?? 0)
+    })
+  }, [form, initialServiceId, initialSpecializedContext, serviceId, services])
+
+  useEffect(() => {
+    queueMicrotask(() => {
+      setSpecializedContextDraft(initialSpecializedContext)
       setSpecializedContextError('')
     })
-  }, [serviceId, activeSpecializedPlugin?.domain])
+  }, [serviceId, activeSpecializedPlugin?.domain, initialSpecializedContext])
 
   const updateUploadsForField = (
     fieldKey: string,
@@ -1209,38 +1280,6 @@ export function CreateServiceRequestLiveWorkspace({
     uploads: flattenedUploads,
   }
   const visibleFields = fields.filter((field) => !shouldHideAutoField(field, autoAnswerContext))
-  const estimatePreview =
-    activePricingConfig && !pricingConfigQuery.isError
-      ? calculateEstimateTotal(activePricingConfig, fields, answerValues, autoAnswerContext)
-      : null
-
-  const calculateEstimate = () => {
-    if (pricingConfigQuery.isPending) {
-      toast.error('Pricing is still loading.')
-      return
-    }
-
-    if (!activePricingConfig || pricingConfigQuery.isError) {
-      toast.error('No active pricing setup is available for this service.')
-      return
-    }
-
-    const result = calculateEstimateTotal(
-      activePricingConfig,
-      fields,
-      answerValues,
-      autoAnswerContext,
-    )
-    if (!result.supported) {
-      toast.error('Estimate cannot be calculated yet.', {
-        description: result.reason,
-      })
-      return
-    }
-
-    form.setFieldValue('estimatedValue', result.total)
-    toast.success(`Estimate calculated: ${formatCurrency(result.total)}`)
-  }
 
   const retryIntakeForm = () => {
     void intakeQuery.refetch()
@@ -1841,90 +1880,15 @@ export function CreateServiceRequestLiveWorkspace({
                           )}
                         </form.Field>
 
-                        {!hasBudgetField ? (
-                          <form.Field name="budget">
-                            {(field) => (
-                              <label className="commercial-field">
-                                <span>Budget</span>
-                                <input
-                                  type="number"
-                                  min="0"
-                                  value={field.state.value}
-                                  onChange={(event) =>
-                                    field.handleChange(nonNegativeNumber(event.target.value))
-                                  }
-                                />
-                              </label>
-                            )}
-                          </form.Field>
-                        ) : null}
-
-                        <form.Field name="estimatedValue">
-                          {(field) => (
-                            <label className="commercial-field commercial-field--full">
-                              <span>Estimated value</span>
-                              <div className="commercial-estimate-row">
-                                <input
-                                  type="number"
-                                  min="0"
-                                  value={field.state.value}
-                                  onChange={(event) =>
-                                    field.handleChange(nonNegativeNumber(event.target.value))
-                                  }
-                                />
-                                <Button
-                                  type="button"
-                                  size="sm"
-                                  variant="outline"
-                                  className="commercial-estimate-button"
-                                  onClick={calculateEstimate}
-                                  disabled={pricingConfigQuery.isPending}
-                                >
-                                  <IconCalculator size={14} />
-                                  {pricingConfigQuery.isPending
-                                    ? 'Loading pricing...'
-                                    : 'Calculate estimate'}
-                                </Button>
-                              </div>
-                              {estimatePreview?.supported ? (
-                                <small>
-                                  Current calculator result: {formatCurrency(estimatePreview.total)}
-                                </small>
-                              ) : activePricingConfig ? (
-                                <small>
-                                  Use the button when the pricing inputs for this service are
-                                  filled.
-                                </small>
-                              ) : null}
-                            </label>
-                          )}
-                        </form.Field>
-
-                        {!hasPreferredDateField ? (
-                          <form.Field name="preferredDate">
-                            {(field) => (
-                              <label className="commercial-field">
-                                <span>Preferred date</span>
-                                <input
-                                  type="date"
-                                  value={field.state.value}
-                                  onChange={(event) => field.handleChange(event.target.value)}
-                                />
-                              </label>
-                            )}
-                          </form.Field>
-                        ) : null}
-
                         <form.Field name="dueDate">
                           {(field) => (
-                            <label className="commercial-field">
-                              <span>Due date</span>
-                              <input
-                                type="date"
-                                value={field.state.value}
-                                onChange={(event) => field.handleChange(event.target.value)}
-                              />
-                            </label>
+                            <DatePicker
+                              label="Due date"
+                              clearable
+                              value={field.state.value}
+                              onChange={(value) => field.handleChange(value)}
+                              fieldClassName="commercial-field"
+                            />
                           )}
                         </form.Field>
 

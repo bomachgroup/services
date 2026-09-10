@@ -1,6 +1,8 @@
 import { IconSearch } from '@tabler/icons-react'
 import { useMemo, useState } from 'react'
 
+import { DropdownSelect, mapDropdownOptions } from '@/shared/ui/dropdown-select'
+
 import { commercialMoney, requestStatusClass } from '../commercial.ui'
 import type { CommercialServiceRequest, CommercialSummary } from '../types/commercial.types'
 
@@ -88,23 +90,30 @@ export function ServiceRequestsScreen({
             />
           </label>
 
-          <select value={status} onChange={(event) => setStatus(event.target.value)}>
-            {statuses.map((item) => (
-              <option key={item}>{item}</option>
-            ))}
-          </select>
+          <DropdownSelect
+            compact
+            placeholder="All statuses"
+            options={mapDropdownOptions(statuses.map((item) => ({ value: item, label: item })))}
+            value={status}
+            onChange={setStatus}
+          />
 
-          <select value={branch} onChange={(event) => setBranch(event.target.value)}>
-            {branches.map((item) => (
-              <option key={item}>{item}</option>
-            ))}
-          </select>
+          <DropdownSelect
+            compact
+            placeholder="All branches"
+            options={mapDropdownOptions(branches.map((item) => ({ value: item, label: item })))}
+            value={branch}
+            onChange={setBranch}
+          />
 
-          <select value={service} onChange={(event) => setService(event.target.value)}>
-            {services.map((item) => (
-              <option key={item}>{item}</option>
-            ))}
-          </select>
+          <DropdownSelect
+            compact
+            className="ui-dropdown--service-filter"
+            placeholder="All services"
+            options={mapDropdownOptions(services.map((item) => ({ value: item, label: item })))}
+            value={service}
+            onChange={setService}
+          />
         </div>
 
         {filtered.length === 0 ? (

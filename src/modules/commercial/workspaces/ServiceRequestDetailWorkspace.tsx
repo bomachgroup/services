@@ -1,11 +1,14 @@
 import { IconRefresh, IconTrash, IconUpload, IconX } from '@tabler/icons-react'
 import { useForm } from '@tanstack/react-form'
+import { useQuery } from '@tanstack/react-query'
 import { useRef, useState } from 'react'
 
 import { presentError } from '@/shared/errors'
 import { formatCurrency } from '@/shared/lib/formatters'
 import { formatNumberFieldValue, parseNumberFieldValue } from '@/shared/lib/number-input'
 import { useToast } from '@/shared/ui/toast/useToast'
+import { DropdownSelect, mapDropdownOptions } from '@/shared/ui/dropdown-select'
+import { realEstateQueries } from '@/modules/specialized-services/real-estate/real-estate.queries'
 
 import { serviceRequestsApi } from '../api/service-requests.api'
 import { getServiceRequestCapabilities } from '../api/service-request-capabilities'
@@ -30,6 +33,7 @@ import {
   formatBytes,
 } from '../request-intake/file-presentation.utils'
 import { IntakeMultiselectAnswer } from '../request-intake/IntakeAnswerDisplay'
+import { commercialEmptyLabel } from '../lib/commercial-source-context'
 
 function statusClass(status: string) {
   if (status === 'rejected') return 'commercial-pill-gray'
@@ -64,6 +68,26 @@ function normalizeAttachmentText(value: string | null | undefined) {
   return value?.trim().toLowerCase() ?? ''
 }
 
+function settlementModeLabel(mode: string) {
+  if (mode === 'reservation') return 'Reservation'
+  if (mode === 'installment') return 'Installment plan'
+  if (mode === 'full_payment') return 'Full payment'
+  return mode.replaceAll('_', ' ') || 'Full payment'
+}
+
+function feeTimingLabel(timing: string) {
+  if (timing === 'upfront') return 'Due upfront'
+  if (timing === 'deferred') return 'Deferred'
+  if (timing === 'deposit_based') return 'Deposit based'
+  return timing.replaceAll('_', ' ')
+}
+
+function assetTypeLabel(assetType: string) {
+  if (assetType === 'brokerage_listing') return 'Brokerage listing'
+  if (assetType === 'property') return 'Property'
+  return assetType.replaceAll('_', ' ')
+}
+
 export function ServiceRequestDetailWorkspace({
   request,
   choices,
@@ -96,6 +120,9 @@ export function ServiceRequestDetailWorkspace({
   const [pendingAttachment, setPendingAttachment] = useState<PendingAttachmentUpload | null>(null)
   const [previewDocument, setPreviewDocument] = useState<PreviewDocument | null>(null)
   const uploadControllerRef = useRef<AbortController | null>(null)
+  const realEstateContextQuery = useQuery(realEstateQueries.commercialContext(request.id))
+  const realEstateContext = realEstateContextQuery.data
+  const hasRealEstateAssets = Boolean(realEstateContext?.assets.length)
 
   const controlForm = useForm({
     defaultValues: {
@@ -247,6 +274,12 @@ export function ServiceRequestDetailWorkspace({
           item.value === request.status,
       )
     : choices.statuses
+  const controlPanelReadOnly =
+    !capabilities.canEditControlPanel ||
+    (capabilities.controlPanelLocked && !capabilities.mobilisationReady)
+  const statusPriorityReadOnly =
+    !capabilities.canEditControlPanel || capabilities.controlPanelLocked
+  const canSaveControlPanel = capabilities.canEditControlPanel && !controlPanelReadOnly
 
   const openDocumentPreview = (document: PreviewDocument) => {
     setPreviewDocument(document)
@@ -285,108 +318,223 @@ export function ServiceRequestDetailWorkspace({
 
   return (
     <>
-      <div className="commercial-modal-backdrop" role="presentation" onMouseDown={onClose}>
+      <div
+        className="commercial-modal-backdrop"
+        role="presentation"
+        onMouseDown={(event) => {
+          if (event.target === event.currentTarget) onClose()
+        }}
+      >
         <section
           className="commercial-modal commercial-modal--xl commercial-request360"
           role="dialog"
           aria-modal="true"
+          aria-label={`Request ${request.requestNumber}`}
           onMouseDown={(event) => event.stopPropagation()}
         >
           <header className="commercial-modal-header">
             <div>
-              <h2>Request 360 File — {request.requestNumber}</h2>
-              <p>Backend record #{request.id}</p>
+              <h2>{request.requestNumber}</h2>
+              <p>
+                {request.clientName} · {request.serviceName}
+                {request.branchName ? ` · ${request.branchName}` : ''} ·{' '}
+                {new Date(request.createdAt).toLocaleString('en-GB')}
+              </p>
             </div>
-            <button
-              type="button"
-              className="commercial-modal-close"
-              onClick={onClose}
-              aria-label="Close"
-            >
-              <IconX size={16} />
-            </button>
+            <div className="commercial-modal-header-meta">
+              <span className={`commercial-pill ${statusClass(request.status)}`}>
+                {request.statusDisplay}
+              </span>
+              <button
+                type="button"
+                className="commercial-modal-close"
+                onClick={onClose}
+                aria-label="Close"
+              >
+                <IconX size={16} />
+              </button>
+            </div>
           </header>
 
           <div className="commercial-modal-body">
-            <div className="commercial-g21">
-              <div className="commercial-g21-main">
-                <section className="commercial-card commercial-request360-card">
-                  <div className="commercial-card-header">
+            <div className="commercial-quote-detail-layout">
+              <div className="commercial-quote-detail-main">
+                <section className="commercial-form-section">
+                  <div className="commercial-form-section-heading">
                     <div>
-                      <h2>{request.clientName}</h2>
-                      <p>
-                        {request.serviceName} · {request.branchName || 'No branch'} ·{' '}
-                        {new Date(request.createdAt).toLocaleString('en-GB')}
-                      </p>
-                    </div>
-                    <span className={`commercial-pill ${statusClass(request.status)}`}>
-                      {request.statusDisplay}
-                    </span>
-                  </div>
-                </section>
-
-                <section className="commercial-card commercial-request360-card">
-                  <div className="commercial-card-header">
-                    <div>
-                      <h2>Request Information</h2>
-                      <p>Request-form snapshot v{request.requestFormVersion}</p>
+                      <h3>Request overview</h3>
+                      <p>Contact, ownership, and commercial snapshot · form v{request.requestFormVersion}</p>
                     </div>
                   </div>
                   <div className="commercial-info-grid">
                     <div>
                       <div className="commercial-kl">Contact</div>
-                      <b>{request.contactName}</b>
+                      <b>{commercialEmptyLabel(request.contactName, '—')}</b>
                     </div>
                     <div>
                       <div className="commercial-kl">Phone</div>
-                      <b>{request.contactPhone || '—'}</b>
+                      <b>{commercialEmptyLabel(request.contactPhone, '—')}</b>
                     </div>
                     <div>
                       <div className="commercial-kl">Email</div>
-                      <b>{request.contactEmail || '—'}</b>
+                      <b>{commercialEmptyLabel(request.contactEmail, '—')}</b>
                     </div>
                     <div>
                       <div className="commercial-kl">Customer type</div>
-                      <b>{request.customerType}</b>
+                      <b>{commercialEmptyLabel(request.customerType, '—')}</b>
                     </div>
                     <div>
                       <div className="commercial-kl">Source</div>
                       <b>
-                        {request.source}
+                        {commercialEmptyLabel(request.source, '—')}
                         {request.sourceReference ? ` · ${request.sourceReference}` : ''}
                       </b>
                     </div>
                     <div>
                       <div className="commercial-kl">Owner</div>
-                      <b>{request.ownerName || 'Unassigned'}</b>
+                      <b>{commercialEmptyLabel(request.ownerName, 'Unassigned')}</b>
                     </div>
                     <div>
-                      <div className="commercial-kl">Budget</div>
-                      <b>{request.budget == null ? '—' : formatCurrency(request.budget)}</b>
+                      <div className="commercial-kl">Priority</div>
+                      <b>
+                        {choices.priorities.find((item) => item.value === request.priority)?.label ||
+                          request.priority}
+                      </b>
                     </div>
                     <div>
-                      <div className="commercial-kl">Estimate</div>
-                      <b>{formatCurrency(request.estimatedValue)}</b>
+                      <div className="commercial-kl">Linked quote</div>
+                      <b>{commercialEmptyLabel(request.quoteNumber, 'No quote linked')}</b>
                     </div>
+                    {!hasRealEstateAssets ? (
+                      <>
+                        <div>
+                          <div className="commercial-kl">Budget</div>
+                          <b>{request.budget == null ? '—' : formatCurrency(request.budget)}</b>
+                        </div>
+                        <div>
+                          <div className="commercial-kl">Estimate</div>
+                          <b>{formatCurrency(request.estimatedValue)}</b>
+                        </div>
+                      </>
+                    ) : null}
                     <div className="commercial-info-full">
                       <div className="commercial-kl">Scope</div>
-                      <p>{request.scopeSummary || '—'}</p>
+                      <p>{commercialEmptyLabel(request.scopeSummary, 'No scope recorded')}</p>
                     </div>
                   </div>
                 </section>
 
-                <section className="commercial-card commercial-request360-card">
-                  <div className="commercial-card-header">
+                {hasRealEstateAssets && realEstateContext ? (
+                  <section className="commercial-form-section">
+                    <div className="commercial-form-section-heading">
+                      <div>
+                        <h3>Sale package</h3>
+                        <p>
+                          Property price, additional fees, and how this request will be settled
+                        </p>
+                      </div>
+                    </div>
+                    <div className="commercial-request360-sale-stack">
+                      {realEstateContext.assets.map((asset) => {
+                        const quoteLines = realEstateContext.suggestedQuoteItems.filter(
+                          (item) =>
+                            item.assetId === asset.assetId && item.assetType === asset.assetType,
+                        )
+                        const propertyLine =
+                          quoteLines.find((item) => item.kind === 'primary') ??
+                          quoteLines.find((item) => item.sourceContext.role === 'asset')
+                        const feeLines = quoteLines.filter(
+                          (item) =>
+                            item.sourceContext.role === 'fee' ||
+                            (item.kind === 'additional_charge' && item !== propertyLine),
+                        )
+                        const agreedFromPlan = Number(asset.paymentPlan.agreed_price)
+                        const propertyPrice =
+                          propertyLine?.unitPrice ??
+                          (Number.isFinite(agreedFromPlan) && agreedFromPlan > 0
+                            ? agreedFromPlan
+                            : asset.price)
+                        const feesTotal = feeLines.reduce(
+                          (sum, item) => sum + item.quantity * item.unitPrice,
+                          0,
+                        )
+                        const packageTotal = propertyPrice + feesTotal
+                        const settlement = settlementModeLabel(asset.settlementMode)
+
+                        return (
+                          <div className="commercial-request360-sale-card" key={asset.id}>
+                            <div className="commercial-request360-sale-header">
+                              <div>
+                                <b>{asset.assetName}</b>
+                                <small>
+                                  {assetTypeLabel(asset.assetType)} · {asset.assetStatus}
+                                </small>
+                              </div>
+                              <span className="commercial-pill commercial-pill-blue">
+                                {settlement}
+                              </span>
+                            </div>
+
+                            <div className="commercial-quote-breakdown commercial-quote-breakdown--compact">
+                              <div>
+                                <span>Property price</span>
+                                <b>{formatCurrency(propertyPrice)}</b>
+                              </div>
+                              {feeLines.length === 0 ? (
+                                <div>
+                                  <span>Additional fees</span>
+                                  <b>None</b>
+                                </div>
+                              ) : (
+                                feeLines.map((fee) => (
+                                  <div key={`${fee.sortOrder}-${fee.description}`}>
+                                    <span>
+                                      {fee.description.includes('—')
+                                        ? fee.description.split('—').slice(1).join('—').trim()
+                                        : fee.description}
+                                      <small className="commercial-request360-fee-timing">
+                                        {feeTimingLabel(fee.paymentTiming)}
+                                      </small>
+                                    </span>
+                                    <b>{formatCurrency(fee.quantity * fee.unitPrice)}</b>
+                                  </div>
+                                ))
+                              )}
+                              <div className="commercial-quote-breakdown-total">
+                                <span>Package total</span>
+                                <b>{formatCurrency(packageTotal)}</b>
+                              </div>
+                            </div>
+
+                            <p className="commercial-form-note">
+                              {asset.settlementMode === 'reservation'
+                                ? 'Settlement mode: reservation hold. Estate reservation rules apply when payment starts.'
+                                : asset.settlementMode === 'installment'
+                                  ? 'Settlement mode: installment plan. Down payment and schedule follow estate policy at quotation.'
+                                  : 'Settlement mode: full payment. Ownership transfers after confirmed settlement.'}
+                              {asset.claimExpiresAt
+                                ? ` Soft claim expires ${new Date(asset.claimExpiresAt).toLocaleString()}.`
+                                : ''}
+                            </p>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </section>
+                ) : null}
+
+                <section className="commercial-form-section">
+                  <div className="commercial-form-section-heading">
                     <div>
-                      <h2>Intake Responses</h2>
-                      <p>Stored against the request snapshot</p>
+                      <h3>Intake responses</h3>
+                      <p>Answers stored against the request snapshot</p>
                     </div>
                   </div>
-                  <div className="commercial-info-grid">
-                    {request.answers.length === 0 ? (
-                      <div className="commercial-empty">No intake answers recorded.</div>
-                    ) : (
-                      [...request.answers]
+                  {request.answers.length === 0 ? (
+                    <p className="commercial-form-note">No intake answers recorded.</p>
+                  ) : (
+                    <div className="commercial-info-grid">
+                      {[...request.answers]
                         .sort((a, b) => a.sortOrder - b.sortOrder)
                         .map((answer) => {
                           const fileUrls = collectFileAnswerUrls(answer.value, answer.fieldType)
@@ -401,16 +549,158 @@ export function ServiceRequestDetailWorkspace({
                               {renderAnswerContent(answer)}
                             </div>
                           )
-                        })
-                    )}
-                  </div>
+                        })}
+                    </div>
+                  )}
                 </section>
+              </div>
 
-                <section className="commercial-card commercial-request360-card commercial-request360-journal">
-                  <div className="commercial-card-header">
+              <aside className="commercial-quote-detail-side">
+                <form
+                  id="request-360-control-form"
+                  className="commercial-form-section commercial-form-section--compact"
+                  onSubmit={(event) => {
+                    event.preventDefault()
+                    if (!canSaveControlPanel) return
+                    void controlForm.handleSubmit()
+                  }}
+                >
+                  <h3>Control panel</h3>
+
+                  {capabilities.controlPanelNotice ? (
+                    <div className="commercial-notice commercial-notice-blue">
+                      {capabilities.controlPanelNotice}
+                    </div>
+                  ) : null}
+
+                  <div className="commercial-form-grid">
+                    <controlForm.Field name="status">
+                      {(field) => (
+                        <DropdownSelect
+                          label="Status"
+                          fieldClassName="commercial-field"
+                          disabled={statusPriorityReadOnly}
+                          options={mapDropdownOptions(statusOptions)}
+                          value={field.state.value}
+                          onChange={(value) => field.handleChange(value as typeof field.state.value)}
+                        />
+                      )}
+                    </controlForm.Field>
+
+                    <controlForm.Field name="priority">
+                      {(field) => (
+                        <DropdownSelect
+                          label="Priority"
+                          fieldClassName="commercial-field"
+                          disabled={statusPriorityReadOnly}
+                          options={mapDropdownOptions(choices.priorities)}
+                          value={field.state.value}
+                          onChange={(value) => field.handleChange(value as typeof field.state.value)}
+                        />
+                      )}
+                    </controlForm.Field>
+                  </div>
+
+                  <controlForm.Field name="ownerId">
+                    {(field) =>
+                      employees.length === 0 ? (
+                        <label className="commercial-field">
+                          <span>Owner</span>
+                          <input value={request.ownerName || 'Unassigned'} disabled />
+                        </label>
+                      ) : (
+                        <DropdownSelect
+                          label="Owner"
+                          fullWidth
+                          fieldClassName="commercial-field"
+                          disabled={controlPanelReadOnly}
+                          options={[
+                            { value: '0', label: 'Unassigned' },
+                            ...employees.map((employee) => ({
+                              value: String(employee.id),
+                              label: employee.name,
+                            })),
+                          ]}
+                          value={String(field.state.value || 0)}
+                          onChange={(value) => field.handleChange(Number(value))}
+                        />
+                      )
+                    }
+                  </controlForm.Field>
+
+                  {!hasRealEstateAssets ? (
+                    <div className="commercial-form-grid">
+                      <controlForm.Field name="budget">
+                        {(field) => (
+                          <label className="commercial-field">
+                            <span>Budget</span>
+                            <input
+                              type="number"
+                              min="0"
+                              disabled={controlPanelReadOnly}
+                              value={formatNumberFieldValue(field.state.value)}
+                              onChange={(event) =>
+                                field.handleChange(parseNumberFieldValue(event.target.value))
+                              }
+                            />
+                          </label>
+                        )}
+                      </controlForm.Field>
+
+                      <controlForm.Field name="estimatedValue">
+                        {(field) => (
+                          <label className="commercial-field">
+                            <span>Estimated value</span>
+                            <input
+                              type="number"
+                              min="0"
+                              disabled={controlPanelReadOnly}
+                              value={formatNumberFieldValue(field.state.value)}
+                              onChange={(event) =>
+                                field.handleChange(parseNumberFieldValue(event.target.value))
+                              }
+                            />
+                          </label>
+                        )}
+                      </controlForm.Field>
+                    </div>
+                  ) : null}
+
+                  <controlForm.Field name="nextAction">
+                    {(field) => (
+                      <label className="commercial-field">
+                        <span>Next action</span>
+                        <input
+                          disabled={controlPanelReadOnly}
+                          value={field.state.value}
+                          onChange={(event) => field.handleChange(event.target.value)}
+                        />
+                      </label>
+                    )}
+                  </controlForm.Field>
+
+                  <controlForm.Field name="scopeSummary">
+                    {(field) => (
+                      <label className="commercial-field">
+                        <span>Scope summary</span>
+                        <textarea
+                          rows={4}
+                          disabled={controlPanelReadOnly}
+                          value={field.state.value}
+                          onChange={(event) => field.handleChange(event.target.value)}
+                        />
+                      </label>
+                    )}
+                  </controlForm.Field>
+                </form>
+              </aside>
+
+              <div className="commercial-quote-detail-meta-row">
+                <section className="commercial-form-section commercial-form-section--compact commercial-request360-journal">
+                  <div className="commercial-form-section-heading">
                     <div>
-                      <h2>Activity & Communication Journal</h2>
-                      <p>Backend activity history</p>
+                      <h3>Activity journal</h3>
+                      <p>Communication and commercial history</p>
                     </div>
                     <button
                       type="button"
@@ -420,11 +710,11 @@ export function ServiceRequestDetailWorkspace({
                       Add Activity
                     </button>
                   </div>
-                  <div className="commercial-timeline-list commercial-timeline-list--peek-4">
-                    {request.activities.length === 0 ? (
-                      <div className="commercial-empty">No activity recorded.</div>
-                    ) : (
-                      [...request.activities]
+                  {request.activities.length === 0 ? (
+                    <p className="commercial-form-note">No activity recorded yet.</p>
+                  ) : (
+                    <div className="commercial-timeline-list commercial-timeline-list--peek-4">
+                      {[...request.activities]
                         .sort(
                           (left, right) =>
                             new Date(right.createdAt).getTime() -
@@ -440,15 +730,15 @@ export function ServiceRequestDetailWorkspace({
                             </p>
                             <time>{new Date(activity.createdAt).toLocaleString('en-GB')}</time>
                           </article>
-                        ))
-                    )}
-                  </div>
+                        ))}
+                    </div>
+                  )}
                 </section>
 
-                <section className="commercial-card commercial-request360-card">
-                  <div className="commercial-card-header">
+                <section className="commercial-form-section commercial-form-section--compact">
+                  <div className="commercial-form-section-heading">
                     <div>
-                      <h2>Attachments</h2>
+                      <h3>Attachments</h3>
                       <p>Request documents and references</p>
                     </div>
                     <button
@@ -460,7 +750,7 @@ export function ServiceRequestDetailWorkspace({
                     </button>
                   </div>
                   {request.attachments.length === 0 ? (
-                    <div className="commercial-empty">No attachments recorded.</div>
+                    <p className="commercial-form-note">No attachments recorded.</p>
                   ) : (
                     <div className="commercial-attachment-list">
                       {request.attachments.map((attachment) => {
@@ -495,196 +785,6 @@ export function ServiceRequestDetailWorkspace({
                   )}
                 </section>
               </div>
-
-              <aside className="commercial-g21-side">
-                <form
-                  className="commercial-card commercial-request360-card"
-                  onSubmit={(event) => {
-                    event.preventDefault()
-                    void controlForm.handleSubmit()
-                  }}
-                >
-                  <div className="commercial-card-header">
-                    <div className="commercial-card-title-only">Control Panel</div>
-                  </div>
-
-                  {capabilities.controlPanelNotice ? (
-                    <div className="commercial-notice commercial-notice-blue">
-                      {capabilities.controlPanelNotice}
-                    </div>
-                  ) : null}
-
-                  <controlForm.Field name="status">
-                    {(field) => (
-                      <label className="commercial-field">
-                        <span>Status</span>
-                        <select
-                          value={field.state.value}
-                          disabled={!capabilities.canEditControlPanel}
-                          onChange={(event) =>
-                            field.handleChange(event.target.value as typeof field.state.value)
-                          }
-                        >
-                          {statusOptions.map((item) => (
-                            <option key={item.value} value={item.value}>
-                              {item.label}
-                            </option>
-                          ))}
-                        </select>
-                      </label>
-                    )}
-                  </controlForm.Field>
-
-                  <controlForm.Field name="priority">
-                    {(field) => (
-                      <label className="commercial-field">
-                        <span>Priority</span>
-                        <select
-                          value={field.state.value}
-                          onChange={(event) =>
-                            field.handleChange(event.target.value as typeof field.state.value)
-                          }
-                        >
-                          {choices.priorities.map((item) => (
-                            <option key={item.value} value={item.value}>
-                              {item.label}
-                            </option>
-                          ))}
-                        </select>
-                      </label>
-                    )}
-                  </controlForm.Field>
-
-                  <controlForm.Field name="ownerId">
-                    {(field) => (
-                      <label className="commercial-field">
-                        <span>Owner</span>
-                        {employees.length === 0 ? (
-                          <input value={request.ownerName || 'Unassigned'} readOnly />
-                        ) : (
-                          <select
-                            value={field.state.value}
-                            onChange={(event) => field.handleChange(Number(event.target.value))}
-                          >
-                            <option value={0}>Unassigned</option>
-                            {employees.map((employee) => (
-                              <option key={employee.id} value={employee.id}>
-                                {employee.name}
-                                {employee.roleName ? ` — ${employee.roleName}` : ''}
-                              </option>
-                            ))}
-                          </select>
-                        )}
-                      </label>
-                    )}
-                  </controlForm.Field>
-
-                  <controlForm.Field name="dueDate">
-                    {(field) => (
-                      <label className="commercial-field">
-                        <span>Due date</span>
-                        <input
-                          type="date"
-                          value={field.state.value}
-                          onChange={(event) => field.handleChange(event.target.value)}
-                        />
-                      </label>
-                    )}
-                  </controlForm.Field>
-
-                  <controlForm.Field name="budget">
-                    {(field) => (
-                      <label className="commercial-field">
-                        <span>Budget</span>
-                        <input
-                          type="number"
-                          min="0"
-                          value={formatNumberFieldValue(field.state.value)}
-                          onChange={(event) =>
-                            field.handleChange(parseNumberFieldValue(event.target.value))
-                          }
-                        />
-                      </label>
-                    )}
-                  </controlForm.Field>
-
-                  <controlForm.Field name="estimatedValue">
-                    {(field) => (
-                      <label className="commercial-field">
-                        <span>Estimated value</span>
-                        <input
-                          type="number"
-                          min="0"
-                          value={formatNumberFieldValue(field.state.value)}
-                          onChange={(event) =>
-                            field.handleChange(parseNumberFieldValue(event.target.value))
-                          }
-                        />
-                      </label>
-                    )}
-                  </controlForm.Field>
-
-                  <controlForm.Field name="nextAction">
-                    {(field) => (
-                      <label className="commercial-field">
-                        <span>Next action</span>
-                        <input
-                          value={field.state.value}
-                          onChange={(event) => field.handleChange(event.target.value)}
-                        />
-                      </label>
-                    )}
-                  </controlForm.Field>
-
-                  <controlForm.Field name="scopeSummary">
-                    {(field) => (
-                      <label className="commercial-field">
-                        <span>Scope summary</span>
-                        <textarea
-                          rows={4}
-                          value={field.state.value}
-                          onChange={(event) => field.handleChange(event.target.value)}
-                        />
-                      </label>
-                    )}
-                  </controlForm.Field>
-
-                  <button
-                    type="submit"
-                    className="commercial-btn commercial-btn-primary commercial-btn-block"
-                    disabled={saving}
-                  >
-                    {saving ? 'Saving...' : 'Save Update'}
-                  </button>
-                </form>
-
-                <section className="commercial-card commercial-request360-card">
-                  <div className="commercial-card-header">
-                    <div className="commercial-card-title-only">Commercial Actions</div>
-                  </div>
-                  <button
-                    type="button"
-                    className="commercial-btn commercial-btn-block"
-                    disabled={!capabilities.canPrepareQuotation}
-                    onClick={onPrepareQuotation}
-                  >
-                    Prepare Quotation
-                  </button>
-                  <button
-                    type="button"
-                    className="commercial-btn commercial-btn-block"
-                    disabled={!capabilities.canScheduleAssessment || saving}
-                    onClick={() =>
-                      onUpdate({
-                        status: 'site_assessment',
-                        nextAction: 'Attend assessment and record findings',
-                      })
-                    }
-                  >
-                    Schedule Assessment
-                  </button>
-                </section>
-              </aside>
             </div>
           </div>
 
@@ -692,6 +792,42 @@ export function ServiceRequestDetailWorkspace({
             <button type="button" className="commercial-btn" onClick={onClose}>
               Close
             </button>
+            <div className="commercial-modal-footer-actions">
+              {capabilities.canScheduleAssessment &&
+              !capabilities.canPrepareQuotation &&
+              request.status !== 'site_assessment' ? (
+                <button
+                  type="button"
+                  className="commercial-btn"
+                  disabled={saving}
+                  onClick={() =>
+                    onUpdate({
+                      status: 'site_assessment',
+                      nextAction: 'Attend assessment and record findings',
+                    })
+                  }
+                >
+                  Schedule Assessment
+                </button>
+              ) : null}
+              <button
+                type="submit"
+                form="request-360-control-form"
+                className="commercial-btn"
+                disabled={saving || !canSaveControlPanel}
+              >
+                {saving ? 'Saving...' : 'Save Update'}
+              </button>
+              {capabilities.canPrepareQuotation ? (
+                <button
+                  type="button"
+                  className="commercial-btn commercial-btn-primary"
+                  onClick={onPrepareQuotation}
+                >
+                  Prepare Quotation
+                </button>
+              ) : null}
+            </div>
           </footer>
         </section>
       </div>
@@ -724,37 +860,27 @@ export function ServiceRequestDetailWorkspace({
               <div className="commercial-form-grid">
                 <activityForm.Field name="activityType">
                   {(field) => (
-                    <label className="commercial-field">
-                      <span>Type</span>
-                      <select
-                        value={field.state.value}
-                        onChange={(event) => field.handleChange(event.target.value)}
-                      >
-                        {choices.activityTypes.map((item) => (
-                          <option key={item.value} value={item.value}>
-                            {item.label}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
+                    <DropdownSelect
+                      label="Type"
+                      fullWidth
+                      fieldClassName="commercial-field"
+                      options={mapDropdownOptions(choices.activityTypes)}
+                      value={field.state.value}
+                      onChange={(value) => field.handleChange(value)}
+                    />
                   )}
                 </activityForm.Field>
 
                 <activityForm.Field name="outcome">
                   {(field) => (
-                    <label className="commercial-field">
-                      <span>Outcome</span>
-                      <select
-                        value={field.state.value}
-                        onChange={(event) => field.handleChange(event.target.value)}
-                      >
-                        {choices.activityOutcomes.map((item) => (
-                          <option key={item.value} value={item.value}>
-                            {item.label}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
+                    <DropdownSelect
+                      label="Outcome"
+                      fullWidth
+                      fieldClassName="commercial-field"
+                      options={mapDropdownOptions(choices.activityOutcomes)}
+                      value={field.state.value}
+                      onChange={(value) => field.handleChange(value)}
+                    />
                   )}
                 </activityForm.Field>
 
