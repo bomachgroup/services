@@ -1,7 +1,7 @@
 import { queryOptions } from '@tanstack/react-query'
 
 import { mapFieldTypeDto, mapRequestFormDto } from '../mappers/request-form.mapper'
-import { mapPricingConfigDto } from '../mappers/pricing-config.mapper'
+import { mapCalculatorDto } from '../mappers/calculator.mapper'
 import { mapWorkflowDto } from '../mappers/workflow.mapper'
 import { mapBranchActivationDto, mapBranchDto } from '../mappers/branch-activation.mapper'
 import {
@@ -84,21 +84,10 @@ export const serviceAdministrationQueries = {
         { hydrateDetails },
       ] as const,
       queryFn: async () => {
-        const summaries = (
-          await serviceAdministrationBackendApi.listPricingConfigs({ limit: 100, offset: 0 })
-        ).items
-
-        if (!hydrateDetails) {
-          return summaries.map(mapPricingConfigDto)
-        }
-
-        const detailed = await Promise.all(
-          summaries.map((config) =>
-            serviceAdministrationBackendApi.getPricingConfig(config.service_id, config.id),
-          ),
-        )
-
-        return detailed.map(mapPricingConfigDto)
+        // hydrateDetails is unused: calculator rows are complete from /calculator/list.
+        void hydrateDetails
+        const items = await serviceAdministrationBackendApi.listCalculators()
+        return items.map((item) => mapCalculatorDto(item))
       },
       staleTime: 30_000,
     }),

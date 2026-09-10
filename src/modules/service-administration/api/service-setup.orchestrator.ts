@@ -30,17 +30,6 @@ function fulfillmentMode(value: string): string {
   return map[value.trim().toLowerCase()] ?? value
 }
 
-function pricingType(value: string): string {
-  const map: Record<string, string> = {
-    fixed: 'fixed',
-    'unit rate': 'unit_rate',
-    'area rate': 'area_rate',
-    percentage: 'percentage',
-    'custom formula': 'formula',
-  }
-  return map[value.trim().toLowerCase()] ?? 'fixed'
-}
-
 function allowed(stage: ServiceSetupStageId, access: CreateServiceStageAccess): boolean {
   if (stage === 'service-core') return true
   if (stage === 'pricing') return access.pricing
@@ -132,17 +121,10 @@ export async function runLiveServiceSetup(
 
     try {
       if (stage === 'pricing') {
-        await serviceAdministrationBackendApi.createPricingConfig(serviceId, {
-          name: `${input.name} Pricing`,
-          version: 1,
-          pricing_type: pricingType(input.pricing.method),
-          formula: '',
-          tax_rate: input.pricing.taxPercent,
-          deposit_percent: input.pricing.depositPercent,
-          discount_approval_threshold_percent: input.pricing.discountApprovalPercent,
-          status: nestedStatus,
-          is_active: activeNested,
-          fields: [],
+        // Legacy ServicePricingConfig create was removed. Persist estimate on the service;
+        // attach a PricingCalculator separately when needed.
+        await serviceAdministrationBackendApi.updateService(serviceId, {
+          base_price: input.pricing.rate,
         })
       } else if (stage === 'request-form') {
         await serviceAdministrationBackendApi.createRequestForm(serviceId, {
@@ -197,7 +179,7 @@ export async function runLiveServiceSetup(
   }
 
   if (runnable.includes('publish')) {
-    const requiredPublishStages = ['pricing', 'request-form', 'branches'] as ServiceSetupStageId[]
+    const requiredPublishStages = ['request-form', 'branches'] as ServiceSetupStageId[]
     const blockers = requiredPublishStages.filter((stage) => {
       if (failed.has(stage)) return true
       if (stage === 'branches' && input.status === 'active') {
@@ -222,9 +204,6 @@ export async function runLiveServiceSetup(
             client_visibility: input.clientVisibility ?? 'visible',
             ...(detail.active_request_form_id
               ? { request_form_id: detail.active_request_form_id }
-              : {}),
-            ...(detail.active_pricing_config_id
-              ? { pricing_config_id: detail.active_pricing_config_id }
               : {}),
             ...(detail.active_workflow_id ? { workflow_id: detail.active_workflow_id } : {}),
           })

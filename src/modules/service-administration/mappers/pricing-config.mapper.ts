@@ -11,6 +11,8 @@ import type {
   SaveCalculatorInput,
 } from '../types/service-administration.types'
 
+export { mapCalculatorDto } from './calculator.mapper'
+
 function numberValue(value: string | number): number {
   return Number(value) || 0
 }

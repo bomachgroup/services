@@ -39,6 +39,7 @@ import { buildStagesForService, cloneStages } from '../components/workflow-desig
 import {
   SPECIALIZED_DOMAIN_OPTIONS,
   readSpecializedRequestContext,
+  specializedWorkflowVariantOptions,
 } from '../api/specialized-service.utils'
 
 function labelsToRequestFields(labels: string[]): RequestFormField[] {
@@ -165,12 +166,14 @@ function Field({
   full = false,
   required = false,
   error,
+  hint,
 }: {
   label: string
   children: React.ReactNode
   full?: boolean
   required?: boolean
   error?: string | undefined
+  hint?: string | undefined
 }) {
   const labelId = useId()
 
@@ -185,6 +188,7 @@ function Field({
         {required ? <em className="service-admin-required">*</em> : null}
       </span>
       {children}
+      {hint ? <small className="service-admin-field-hint">{hint}</small> : null}
       {error ? <small className="service-admin-field-error">{error}</small> : null}
     </div>
   )
@@ -641,16 +645,26 @@ export function CreateServiceWizard({
               </Field>
             </div>
             {specializedDomain ? (
-              <Field label="Request context" full error={fieldErrors.specializedRequestContext}>
-                <input
-                  ref={(node) => {
+              <Field
+                label="Workflow variant"
+                full
+                error={fieldErrors.specializedRequestContext}
+                hint="Optional tag that distinguishes this service within the specialized domain. Pick a preset or keep a saved custom value."
+              >
+                <DropdownSelect
+                  placeholder="Select workflow variant (optional)"
+                  searchable
+                  options={specializedWorkflowVariantOptions(
+                    specializedDomain,
+                    specializedRequestContext,
+                  )}
+                  value={specializedRequestContext}
+                  containerRef={(node) => {
                     registerFieldRef(fieldRefs, 'specializedRequestContext', node)
                   }}
-                  value={specializedRequestContext}
-                  placeholder="e.g. property_sale, estate_management"
-                  onChange={(event) => {
+                  onChange={(value) => {
                     clearFieldError('specializedRequestContext')
-                    setSpecializedRequestContext(event.target.value)
+                    setSpecializedRequestContext(value)
                   }}
                 />
               </Field>
@@ -1346,16 +1360,26 @@ export function ConfigureServiceWorkspace({
                 </Field>
               </div>
               {specializedDomain ? (
-                <Field label="Request context" full error={fieldErrors.specializedRequestContext}>
-                  <input
-                    ref={(node) => {
+                <Field
+                  label="Workflow variant"
+                  full
+                  error={fieldErrors.specializedRequestContext}
+                  hint="Optional tag that distinguishes this service within the specialized domain. Pick a preset or keep a saved custom value."
+                >
+                  <DropdownSelect
+                    placeholder="Select workflow variant (optional)"
+                    searchable
+                    options={specializedWorkflowVariantOptions(
+                      specializedDomain,
+                      specializedRequestContext,
+                    )}
+                    value={specializedRequestContext}
+                    containerRef={(node) => {
                       registerFieldRef(fieldRefs, 'specializedRequestContext', node)
                     }}
-                    value={specializedRequestContext}
-                    placeholder="e.g. property_sale, estate_management"
-                    onChange={(event) => {
+                    onChange={(value) => {
                       clearFieldError('specializedRequestContext')
-                      setSpecializedRequestContext(event.target.value)
+                      setSpecializedRequestContext(value)
                     }}
                   />
                 </Field>

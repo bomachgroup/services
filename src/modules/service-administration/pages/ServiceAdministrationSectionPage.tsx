@@ -79,7 +79,7 @@ const metadata: Record<
   'calculator-library': {
     title: 'Calculator Library',
     breadcrumb: 'Services / Pricing engine',
-    description: 'Create and manage reusable service pricing calculators.',
+    description: 'Browse server-managed pricing calculators and attach them to services.',
   },
   'request-form-builder': {
     title: 'Request Form Builder',
@@ -448,6 +448,7 @@ export function ServiceAdministrationSectionPage({
         code: input.code || null,
         description: input.description,
         status: input.status,
+        base_price: input.pricing.rate,
         ...(ownerRole ? { owner_role_id: ownerRole.id } : {}),
         default_sla_days: input.slaDays,
         fulfillment_mode:
@@ -459,61 +460,26 @@ export function ServiceAdministrationSectionPage({
         ),
       })
 
-      await saveLivePricingConfig({
-        ...(selectedCalculator ? { id: selectedCalculator.id } : {}),
-        name: selectedCalculator?.name ?? `${input.name} Pricing`,
-        code: selectedCalculator?.code ?? `${input.code || input.name}-pricing`,
-        serviceId: input.id,
-        description: selectedCalculator?.description ?? `Pricing for ${input.name}`,
-        pricingType: pricingTypeMap[input.pricing.method.trim().toLowerCase()] ?? 'fixed',
-        status:
-          input.status === 'inactive' ? 'inactive' : input.status === 'active' ? 'active' : 'draft',
-        variables: selectedCalculator?.variables ?? [],
-        charges: [
-          {
-            id:
-              selectedCalculator?.charges.find((charge) => charge.label === 'Formula')?.id ??
-              'formula',
-            label: 'Formula',
-            kind:
-              (pricingTypeMap[input.pricing.method.trim().toLowerCase()] ?? 'fixed') === 'formula'
-                ? 'formula'
-                : 'fixed',
-            value:
-              (pricingTypeMap[input.pricing.method.trim().toLowerCase()] ?? 'fixed') === 'formula'
-                ? 'quantity * unit_rate + logistics'
-                : input.pricing.rate,
-          },
-          {
-            id:
-              selectedCalculator?.charges.find((charge) =>
-                charge.label.toLowerCase().includes('deposit'),
-              )?.id ?? 'deposit',
-            label: 'Deposit',
-            kind: 'percentage',
-            value: input.pricing.depositPercent,
-          },
-          {
-            id:
-              selectedCalculator?.charges.find((charge) =>
-                charge.label.toLowerCase().includes('tax'),
-              )?.id ?? 'tax',
-            label: 'Tax',
-            kind: 'percentage',
-            value: input.pricing.taxPercent,
-          },
-          {
-            id:
-              selectedCalculator?.charges.find((charge) =>
-                charge.label.toLowerCase().includes('approval'),
-              )?.id ?? 'approval',
-            label: 'Discount approval',
-            kind: 'percentage',
-            value: input.pricing.discountApprovalPercent,
-          },
-        ],
-        sampleTotal: input.pricing.rate,
-      })
+      // Attach only when the service already has a live PricingCalculator code.
+      // Formula pricing-config CRUD was removed; base_price is the pre-quote estimate.
+      if (selectedCalculator?.code) {
+        await saveLivePricingConfig({
+          name: selectedCalculator.name,
+          code: selectedCalculator.code,
+          serviceId: input.id,
+          description: selectedCalculator.description,
+          pricingType: pricingTypeMap[input.pricing.method.trim().toLowerCase()] ?? 'fixed',
+          status:
+            input.status === 'inactive'
+              ? 'inactive'
+              : input.status === 'active'
+                ? 'active'
+                : 'draft',
+          variables: selectedCalculator.variables,
+          charges: selectedCalculator.charges,
+          sampleTotal: input.pricing.rate,
+        })
+      }
 
       await saveLiveRequestForm(
         {
@@ -785,13 +751,8 @@ export function ServiceAdministrationSectionPage({
           <CalculatorLibraryScreen
             calculators={pricingQuery.data ?? []}
             hasServices={(catalogue?.items.length ?? 0) > 0}
-            onCreate={
-              capabilities.canCreatePricingConfig ? () => setCalculatorEditor('new') : undefined
-            }
-            createDisabled={
-              !capabilities.canCreatePricingConfig || (catalogue?.items.length ?? 0) === 0
-            }
-            createLocked={!capabilities.canCreatePricingConfig}
+            createDisabled
+            createLocked
           />
         ) : null}
 
@@ -855,7 +816,7 @@ export function ServiceAdministrationSectionPage({
                 <div>
                   <div className="service-admin-card-title">Publish readiness</div>
                   <div className="service-admin-card-subtitle">
-                    Backend readiness: request form + pricing config + active branch.
+                    Backend readiness: request form + active branch (calculator optional).
                   </div>
                 </div>
                 <button
@@ -870,7 +831,7 @@ export function ServiceAdministrationSectionPage({
                     !capabilities.canPublishService
                       ? 'You do not have permission to publish services'
                       : selectedService.readiness < 100
-                        ? 'Complete request form, pricing, and branch activation before publishing'
+                        ? 'Complete request form and branch activation before publishing'
                         : undefined
                   }
                   onClick={() => publishService.mutate(Number(selectedService.id))}

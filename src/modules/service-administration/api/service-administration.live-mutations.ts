@@ -1,7 +1,7 @@
 import { mapRequestFormFieldsToBackend } from '../mappers/request-form.mapper'
 import { mapServiceCatalogueDetail } from '../mappers/service-catalogue.mapper'
 import { mapSaveRequestFormInput } from '../mappers/request-form.mapper'
-import { mapPricingConfigDto, mapSaveCalculatorInput } from '../mappers/pricing-config.mapper'
+import { mapCalculatorDto } from '../mappers/calculator.mapper'
 import { mapSaveWorkflowInput, mapWorkflowDto } from '../mappers/workflow.mapper'
 import type {
   CreateServiceWizardInput,
@@ -14,7 +14,7 @@ import type {
   ServiceWorkflow,
 } from '../types/service-administration.types'
 import { mapRequestFormDto } from '../mappers/request-form.mapper'
-import type { PricingConfigInputDto, WorkflowInputDto } from './service-administration.contracts'
+import type { WorkflowInputDto } from './service-administration.contracts'
 import { readSpecializedRequestContext, specializedPayload } from './specialized-service.utils'
 import { serviceAdministrationBackendApi } from './service-administration.backend-api'
 
@@ -143,25 +143,16 @@ export async function saveLivePricingConfig(
     throw new Error('Select a service before saving this calculator.')
   }
 
-  const payload = mapSaveCalculatorInput(input)
-  const dto = input.id
-    ? await serviceAdministrationBackendApi.updatePricingConfig(
-        serviceId,
-        Number(input.id),
-        payload,
-      )
-    : await serviceAdministrationBackendApi.createPricingConfig(
-        serviceId,
-        payload as PricingConfigInputDto,
-      )
-
-  if (input.status === 'active' && !dto.is_active) {
-    return mapPricingConfigDto(
-      await serviceAdministrationBackendApi.activatePricingConfig(serviceId, dto.id),
+  // Formula pricing-config CRUD was removed. Attach a seeded PricingCalculator by code.
+  const calculatorCode = input.code?.trim()
+  if (!calculatorCode) {
+    throw new Error(
+      'Calculators are server-managed. Attach an existing calculator code (e.g. BOUNDARY-SURVEY) from the service catalogue.',
     )
   }
 
-  return mapPricingConfigDto(dto)
+  const dto = await serviceAdministrationBackendApi.attachCalculator(serviceId, calculatorCode)
+  return mapCalculatorDto(dto, { id: serviceId, name: input.name })
 }
 
 export async function saveLiveWorkflow(
