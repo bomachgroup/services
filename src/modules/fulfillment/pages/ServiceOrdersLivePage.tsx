@@ -15,6 +15,7 @@ import { presentError } from '@/shared/errors'
 import { formatCurrency } from '@/shared/lib/formatters'
 import { withOptionalSearchValue, withoutSearchKeys } from '@/shared/navigation/search-state'
 import { ErrorState, useToast } from '@/shared/ui'
+import { DropdownSelect, mapDropdownOptions } from '@/shared/ui/dropdown-select'
 import { EmptyState } from '@/shared/ui/empty-state'
 import {
   CompactActionButton,
@@ -447,15 +448,18 @@ export function ServiceOrdersLivePage({ recordSearch }: { recordSearch: AppSecti
                 placeholder="Search order, client or service"
               />
             </label>
-            <select
+            <DropdownSelect
+              compact
+              placeholder="All payment statuses"
+              options={[
+                { value: '', label: 'All payment statuses' },
+                { value: 'unpaid', label: 'Unpaid' },
+                { value: 'partial', label: 'Partial' },
+                { value: 'paid', label: 'Paid' },
+              ]}
               value={recordSearch.paymentStatus ?? ''}
-              onChange={(event) => setSearchValue('paymentStatus', event.target.value)}
-            >
-              <option value="">All payment statuses</option>
-              <option value="unpaid">Unpaid</option>
-              <option value="partial">Partial</option>
-              <option value="paid">Paid</option>
-            </select>
+              onChange={(value) => setSearchValue('paymentStatus', value)}
+            />
           </div>
 
           <div className="fulfillment-kanban" id="orderBoard">
@@ -552,17 +556,16 @@ export function ServiceOrdersLivePage({ recordSearch }: { recordSearch: AppSecti
           </header>
 
           <div className="commercial-filters">
-            <select
+            <DropdownSelect
+              compact
+              placeholder="All order statuses"
+              options={[
+                { value: '', label: 'All order statuses' },
+                ...mapDropdownOptions(allOrderStatuses),
+              ]}
               value={recordSearch.status ?? ''}
-              onChange={(event) => setSearchValue('status', event.target.value)}
-            >
-              <option value="">All order statuses</option>
-              {allOrderStatuses.map((status) => (
-                <option key={status.value} value={status.value}>
-                  {status.label}
-                </option>
-              ))}
-            </select>
+              onChange={(value) => setSearchValue('status', value)}
+            />
             {hasActiveFilters ? (
               <button
                 type="button"
@@ -846,6 +849,26 @@ export function ServiceOrdersLivePage({ recordSearch }: { recordSearch: AppSecti
               to: '/app/$section',
               params: { section: 'deliverables' },
               search: { order: String(detailQuery.data.id) },
+            })
+          }
+          onOpenTask={(taskId) =>
+            void navigate({
+              to: '/app/$section',
+              params: { section: 'execution-tasks' },
+              search: {
+                order: String(detailQuery.data.id),
+                task: String(taskId),
+              },
+            })
+          }
+          onOpenDeliverable={(deliverableId) =>
+            void navigate({
+              to: '/app/$section',
+              params: { section: 'deliverables' },
+              search: {
+                order: String(detailQuery.data.id),
+                deliverable: String(deliverableId),
+              },
             })
           }
         />

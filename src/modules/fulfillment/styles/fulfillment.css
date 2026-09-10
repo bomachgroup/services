@@ -307,47 +307,71 @@
 }
 
 .fulfillment-task-modal .commercial-modal-body {
-  padding: 10px;
+  padding: 14px 16px;
 }
 
 .fulfillment-task-modal .commercial-form-section {
-  margin-bottom: 10px;
-  padding: 11px;
-  border-radius: 11px;
+  margin-bottom: 12px;
+  padding: 13px;
+  border-radius: 12px;
+}
+
+.fulfillment-task-modal .commercial-form-section > h3 {
+  margin: 0 0 10px;
+  font-size: 12px;
+  font-weight: 800;
+  color: #15172d;
 }
 
 .fulfillment-task-modal .commercial-form-section-heading {
-  margin-bottom: 8px;
+  margin-bottom: 10px;
 }
 
 .fulfillment-task-modal .commercial-form-section-heading h3 {
-  font-size: 11px;
+  font-size: 12px;
 }
 
 .fulfillment-task-modal .commercial-form-section-heading p,
 .fulfillment-task-modal .commercial-form-note {
-  font-size: 8px;
+  font-size: 8.5px;
+}
+
+.fulfillment-task-modal .commercial-info-grid {
+  margin-top: 2px;
+}
+
+.fulfillment-task-modal .commercial-form-grid + .commercial-info-grid {
+  margin-top: 12px;
 }
 
 .fulfillment-task-modal .commercial-field {
-  gap: 4px;
-  font-size: 9px;
+  gap: 5px;
+  font-size: 10px;
 }
 
 .fulfillment-task-modal .commercial-field input,
 .fulfillment-task-modal .commercial-field select,
 .fulfillment-task-modal .commercial-field textarea {
-  padding: 8px 9px;
-  border-radius: 7px;
-  font-size: 10px;
+  padding: 9px 10px;
+  border-radius: 8px;
+  font-size: 11px;
 }
 
 .fulfillment-task-modal .commercial-field textarea {
-  min-height: 72px;
+  min-height: 88px;
+  resize: vertical;
 }
 
 .fulfillment-task-modal .commercial-modal-footer {
-  padding-top: 0;
+  padding: 10px 15px;
+}
+
+.commercial-task-create-modal .commercial-assignee-picker {
+  gap: 8px;
+}
+
+.commercial-task-create-modal .commercial-check {
+  margin-top: 4px;
 }
 
 .fulfillment-deliverable-modal .commercial-modal-body {
@@ -429,13 +453,29 @@
 }
 
 .fulfillment-deliverable-modal .commercial-form-section-heading h3 {
-  font-size: 11.5px;
-  font-weight: 700;
+  font-size: 12px;
+  font-weight: 800;
 }
 
 .fulfillment-deliverable-modal .commercial-form-section-heading p {
   font-size: 8.5px;
   font-weight: 500;
+}
+
+.fulfillment-deliverable-modal .commercial-form-section > h3 {
+  margin: 0 0 10px;
+  font-size: 12px;
+  font-weight: 800;
+  color: #15172d;
+}
+
+.fulfillment-deliverable-modal .commercial-form-grid + .commercial-info-grid,
+.fulfillment-deliverable-modal .commercial-info-grid {
+  margin-top: 2px;
+}
+
+.fulfillment-deliverable-modal .commercial-form-grid + .commercial-info-grid {
+  margin-top: 12px;
 }
 
 .fulfillment-deliverable-modal .commercial-btn {
@@ -446,13 +486,43 @@
   align-items: flex-start;
 }
 
-.fulfillment-deliverable-modal .commercial-check b {
-  font-size: 9px;
+.commercial-deliverable-create-modal .commercial-modal-body {
+  padding: 14px 16px;
 }
 
-.fulfillment-deliverable-modal .commercial-check small {
-  font-size: 7.5px;
-  font-weight: 600;
+.commercial-deliverable-create-modal .commercial-form-section {
+  margin-bottom: 12px;
+  padding: 13px;
+}
+
+.commercial-deliverable-create-modal .commercial-field textarea {
+  min-height: 78px;
+  resize: vertical;
+}
+
+.commercial-order-create-modal .commercial-modal-body {
+  padding: 14px 16px;
+}
+
+.commercial-order-create-modal .commercial-form-section {
+  margin-bottom: 12px;
+  padding: 13px;
+}
+
+.commercial-order-create-modal .commercial-form-section > h3 {
+  margin: 0 0 10px;
+  font-size: 12px;
+  font-weight: 800;
+  color: #15172d;
+}
+
+.commercial-order-create-modal .commercial-form-grid + .commercial-info-grid {
+  margin-top: 12px;
+}
+
+.commercial-order-create-modal .commercial-field textarea {
+  min-height: 78px;
+  resize: vertical;
 }
 
 .fulfillment-order-summary-card {
@@ -491,11 +561,15 @@
   font-weight: 600;
 }
 
+.fulfillment-order-room-modal .commercial-modal-body {
+  padding-top: 14px;
+}
+
 .fulfillment-order-room-layout {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 280px;
-  gap: 12px;
-  margin-top: 14px;
+  grid-template-columns: minmax(0, 1.55fr) minmax(260px, 0.85fr);
+  gap: 16px;
+  align-items: start;
 }
 
 .fulfillment-task-detail-layout {
@@ -509,7 +583,48 @@
 .fulfillment-order-room-aside {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 16px;
+  min-width: 0;
+}
+
+.fulfillment-order-progress-block {
+  margin-top: 12px;
+  display: grid;
+  gap: 6px;
+}
+
+.fulfillment-order-progress-meta {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.fulfillment-order-progress-meta b {
+  color: #15172d;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.fulfillment-order-description {
+  margin: 12px 0 0;
+  color: #566075;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.45;
+}
+
+.fulfillment-stage-current {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.fulfillment-stage-current b {
+  color: #15172d;
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1.3;
 }
 
 .fulfillment-task-detail-main,
@@ -525,9 +640,184 @@
 }
 
 .fulfillment-order-activity-list {
-  max-height: 260px;
+  max-height: 320px;
   overflow: auto;
   padding-right: 4px;
+}
+
+.fulfillment-status-badge-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.fulfillment-metric-strip {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.fulfillment-metric {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 4px;
+  min-width: 0;
+  min-height: 54px;
+  padding: 10px 12px;
+  background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+  border: 1px solid #dbe4f2;
+  border-radius: 10px;
+  box-shadow: 0 1px 2px rgb(20 32 64 / 4%);
+}
+
+.fulfillment-metric b {
+  display: block;
+  color: #15172d;
+  font-size: 16px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+  line-height: 1;
+}
+
+.fulfillment-metric-label {
+  display: block;
+  color: #8c95a8;
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  line-height: 1.2;
+  text-transform: uppercase;
+}
+
+.fulfillment-metric--blue,
+.fulfillment-metric--yellow,
+.fulfillment-metric--green,
+.fulfillment-metric--red {
+  padding-top: 12px;
+}
+
+.fulfillment-metric--blue::before,
+.fulfillment-metric--yellow::before,
+.fulfillment-metric--green::before,
+.fulfillment-metric--red::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 10px;
+  right: 10px;
+  height: 2px;
+  border-radius: 0 0 2px 2px;
+}
+
+.fulfillment-metric--blue::before {
+  background: #3b82f6;
+}
+
+.fulfillment-metric--yellow::before {
+  background: #d97706;
+}
+
+.fulfillment-metric--green::before {
+  background: #059669;
+}
+
+.fulfillment-metric--red::before {
+  background: #dc2626;
+}
+
+.fulfillment-metric--blue b {
+  color: #1e40af;
+}
+
+.fulfillment-metric--yellow b {
+  color: #92400e;
+}
+
+.fulfillment-metric--green b {
+  color: #065f46;
+}
+
+.fulfillment-metric--red b {
+  color: #991b1b;
+}
+
+.fulfillment-metric--muted b {
+  color: #94a3b8;
+}
+
+@media (max-width: 720px) {
+  .fulfillment-metric-strip {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.fulfillment-linked-list {
+  display: grid;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.fulfillment-linked-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  width: 100%;
+  padding: 9px 10px;
+  text-align: left;
+  background: #f8fafc;
+  border: 1px solid #dbe4f2;
+  border-radius: 10px;
+  cursor: pointer;
+  transition:
+    background 0.15s ease,
+    border-color 0.15s ease;
+}
+
+.fulfillment-linked-row:hover {
+  background: #eef4ff;
+  border-color: #b8cdf3;
+}
+
+.fulfillment-linked-row-main {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.fulfillment-linked-row-main b {
+  color: #15172d;
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 1.3;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.fulfillment-linked-row-main span {
+  color: #8c95a8;
+  font-size: 8.5px;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.fulfillment-linked-row .commercial-pill {
+  flex: 0 0 auto;
+}
+
+.fulfillment-order-room-modal .fulfillment-stage-controls {
+  margin-top: 14px;
+}
+
+.fulfillment-order-room-modal .fulfillment-lifecycle {
+  margin-top: 4px;
 }
 
 .fulfillment-order-key-grid {
@@ -645,11 +935,22 @@
   white-space: nowrap;
 }
 
+.fulfillment-task-aside-actions {
+  display: grid;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.fulfillment-task-aside-actions .commercial-btn {
+  width: 100%;
+  justify-content: center;
+}
+
 .fulfillment-task-control-layout {
   display: grid;
-  grid-template-columns: minmax(0, 1.4fr) minmax(240px, 0.9fr);
-  gap: 10px;
-  margin-top: 10px;
+  grid-template-columns: minmax(0, 1.55fr) minmax(260px, 0.85fr);
+  gap: 16px;
+  align-items: start;
 }
 
 .fulfillment-task-people-grid {
@@ -715,14 +1016,6 @@
 
 .fulfillment-task-modal .commercial-check {
   align-items: flex-start;
-}
-
-.fulfillment-task-modal .commercial-check span {
-  font-size: 9px;
-}
-
-.fulfillment-task-modal .commercial-check small {
-  font-size: 8px;
 }
 
 .fulfillment-task-summary-note {

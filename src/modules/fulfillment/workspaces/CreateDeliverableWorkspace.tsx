@@ -1,6 +1,9 @@
 import { IconX } from '@tabler/icons-react'
 import { useForm } from '@tanstack/react-form'
 import { useState } from 'react'
+
+import { DropdownSelect } from '@/shared/ui/dropdown-select'
+
 import type { CreateDeliverableInput } from '../types/fulfillment.types'
 
 export function CreateDeliverableWorkspace({
@@ -75,21 +78,22 @@ export function CreateDeliverableWorkspace({
             </form.Field>
             <form.Field name="type">
               {(f) => (
-                <label className="fulfillment-field">
-                  <span>Type</span>
-                  <select
-                    value={f.state.value}
-                    onChange={(e) => f.handleChange(e.target.value as typeof f.state.value)}
-                  >
-                    <option>Report</option>
-                    <option>Drawing</option>
-                    <option>Survey Plan</option>
-                    <option>Certificate</option>
-                    <option>Legal Document</option>
-                    <option>Progress Evidence</option>
-                    <option>Handover File</option>
-                  </select>
-                </label>
+                <DropdownSelect
+                  label="Type"
+                  fullWidth
+                  fieldClassName="fulfillment-field"
+                  options={[
+                    'Report',
+                    'Drawing',
+                    'Survey Plan',
+                    'Certificate',
+                    'Legal Document',
+                    'Progress Evidence',
+                    'Handover File',
+                  ].map((type) => ({ value: type, label: type }))}
+                  value={f.state.value}
+                  onChange={(value) => f.handleChange(value as typeof f.state.value)}
+                />
               )}
             </form.Field>
             <form.Field name="version">
@@ -102,31 +106,33 @@ export function CreateDeliverableWorkspace({
             </form.Field>
             <form.Field name="clientVisible">
               {(f) => (
-                <label className="fulfillment-field">
-                  <span>Client visibility</span>
-                  <select
-                    value={f.state.value ? 'Visible to client' : 'Internal only'}
-                    onChange={(e) => f.handleChange(e.target.value === 'Visible to client')}
-                  >
-                    <option>Visible to client</option>
-                    <option>Internal only</option>
-                  </select>
-                </label>
+                <DropdownSelect
+                  label="Client visibility"
+                  fullWidth
+                  fieldClassName="fulfillment-field"
+                  options={[
+                    { value: 'Visible to client', label: 'Visible to client' },
+                    { value: 'Internal only', label: 'Internal only' },
+                  ]}
+                  value={f.state.value ? 'Visible to client' : 'Internal only'}
+                  onChange={(value) => f.handleChange(value === 'Visible to client')}
+                />
               )}
             </form.Field>
             <form.Field name="approvalMode">
               {(f) => (
-                <label className="fulfillment-field">
-                  <span>Approval</span>
-                  <select
-                    value={f.state.value}
-                    onChange={(e) => f.handleChange(e.target.value as typeof f.state.value)}
-                  >
-                    <option>Supervisor approval</option>
-                    <option>Client approval</option>
-                    <option>No approval</option>
-                  </select>
-                </label>
+                <DropdownSelect
+                  label="Approval"
+                  fullWidth
+                  fieldClassName="fulfillment-field"
+                  options={[
+                    { value: 'Supervisor approval', label: 'Supervisor approval' },
+                    { value: 'Client approval', label: 'Client approval' },
+                    { value: 'No approval', label: 'No approval' },
+                  ]}
+                  value={f.state.value}
+                  onChange={(value) => f.handleChange(value as typeof f.state.value)}
+                />
               )}
             </form.Field>
             <form.Field name="fileName">

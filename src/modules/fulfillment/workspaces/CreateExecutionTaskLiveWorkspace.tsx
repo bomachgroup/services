@@ -1,11 +1,10 @@
 import { useForm } from '@tanstack/react-form'
 import { useEffect, useState } from 'react'
 
-import type {
-  EmployeeOption,
-  ServiceOrder,
-  ServiceOrderMilestone,
-} from '../service-orders/service-order.types'
+import { DatePicker } from '@/shared/ui/date-picker'
+import { DropdownSelect, mapDropdownOptions } from '@/shared/ui/dropdown-select'
+
+import type { EmployeeOption, ServiceOrder } from '../service-orders/service-order.types'
 import type {
   CreateExecutionTaskInput,
   ExecutionTaskPriority,
@@ -35,6 +34,10 @@ function getDefaultMilestoneId(order: ServiceOrder | null) {
 
 function assigneeLabel(employee: EmployeeOption) {
   return `${employee.name}${employee.designation ? ` · ${employee.designation}` : ''}`
+}
+
+function statusLabel(value: string) {
+  return value.replaceAll('_', ' ')
 }
 
 export function CreateExecutionTaskLiveWorkspace({
@@ -76,7 +79,7 @@ export function CreateExecutionTaskLiveWorkspace({
     defaultValues,
     onSubmit: ({ value }) => {
       if (!activeOrder) {
-        setError('Select a Service Order before creating a Task.')
+        setError('Select a service order before creating a task.')
         return
       }
 
@@ -107,9 +110,6 @@ export function CreateExecutionTaskLiveWorkspace({
   }, [activeOrder, form])
 
   const selectedAssigneeIds = form.state.values.assigneeIds
-  const milestoneOptions: ServiceOrderMilestone[] = [...(activeOrder?.milestones ?? [])].sort(
-    (left, right) => left.sortOrder - right.sortOrder || left.id - right.id,
-  )
   const availableAssignees = employees.filter(
     (employee) => !selectedAssigneeIds.includes(employee.id),
   )
@@ -118,11 +118,11 @@ export function CreateExecutionTaskLiveWorkspace({
     <TaskModalShell
       as="form"
       ariaLabel="Create Execution Task"
-      title="Create Execution Task"
+      title="Create task"
       subtitle={
         activeOrder
           ? `${activeOrder.orderNumber} · ${activeOrder.serviceName}`
-          : 'Select a Service Order to continue'
+          : 'Select a service order to continue'
       }
       className="commercial-task-create-modal"
       bodyClassName="commercial-task-create-body"
@@ -137,124 +137,72 @@ export function CreateExecutionTaskLiveWorkspace({
             Cancel
           </button>
           <button type="submit" className="commercial-btn commercial-btn-primary" disabled={saving}>
-            {saving ? 'Creating...' : 'Create Task'}
+            {saving ? 'Creating...' : 'Create task'}
           </button>
         </>
       }
     >
-      <section className="commercial-form-section commercial-task-context">
-        <div className="commercial-form-section-heading commercial-task-context-heading">
-          <div>
-            <h3>Task Context</h3>
-            <p>Choose the service order first when needed. Milestones stay optional.</p>
+      <section className="commercial-form-section">
+        <h3>Service order</h3>
+        {!order ? (
+          <div className="commercial-form-grid">
+            <DropdownSelect
+              label="Service order"
+              required
+              fullWidth
+              fieldClassName="commercial-field commercial-field--full"
+              placeholder="Select a service order"
+              options={mapDropdownOptions(
+                [...orders]
+                  .sort((left, right) => left.orderNumber.localeCompare(right.orderNumber))
+                  .map((item) => ({
+                    value: String(item.id),
+                    label: `${item.orderNumber} · ${item.serviceName}`,
+                  })),
+              )}
+              value={selectedOrderId ? String(selectedOrderId) : ''}
+              onChange={(value) => setSelectedOrderId(Number(value))}
+            />
           </div>
-        </div>
+        ) : null}
 
         {activeOrder ? (
-          <div className="fulfillment-order-key-grid commercial-task-context-grid">
-            <div className="fulfillment-order-key-card">
-              <span className="commercial-field-label">Service Order</span>
+          <div className="commercial-info-grid">
+            <div>
+              <div className="commercial-kl">Order</div>
               <b>{activeOrder.orderNumber}</b>
             </div>
-            <div className="fulfillment-order-key-card">
-              <span className="commercial-field-label">Service</span>
+            <div>
+              <div className="commercial-kl">Service</div>
               <b>{activeOrder.serviceName}</b>
             </div>
+            <div>
+              <div className="commercial-kl">Stage</div>
+              <b>{activeOrder.stage || '—'}</b>
+            </div>
+            <div>
+              <div className="commercial-kl">Status</div>
+              <b>{statusLabel(activeOrder.orderStatus)}</b>
+            </div>
           </div>
-        ) : (
-          <div className="commercial-form-grid commercial-task-context-picker">
-            <label className="commercial-field commercial-field--full">
-              <span>Service Order *</span>
-              <select
-                autoFocus
-                required
-                value={selectedOrderId}
-                onChange={(event) => {
-                  const nextOrderId = Number(event.target.value)
-                  setSelectedOrderId(nextOrderId)
-                }}
-              >
-                <option value={0}>Select a Service Order</option>
-                {[...orders]
-                  .sort((left, right) => left.orderNumber.localeCompare(right.orderNumber))
-                  .map((item) => (
-                    <option key={item.id} value={item.id}>
-                      {item.orderNumber} · {item.serviceName}
-                    </option>
-                  ))}
-              </select>
-            </label>
-          </div>
-        )}
+        ) : null}
       </section>
 
       {error ? <div className="commercial-notice commercial-notice-red">{error}</div> : null}
 
       <section className="commercial-form-section">
+        <h3>Task details</h3>
         <div className="commercial-form-grid">
           <form.Field name="title">
             {(field) => (
               <label className="commercial-field commercial-field--full">
-                <span>Task title *</span>
+                <span>
+                  Task title <em>*</em>
+                </span>
                 <input
-                  autoFocus={Boolean(order)}
-                  required
                   value={field.state.value}
                   onChange={(event) => field.handleChange(event.target.value)}
-                  placeholder="e.g. Capture field coordinates"
-                />
-              </label>
-            )}
-          </form.Field>
-
-          <form.Field name="ownerId">
-            {(field) => (
-              <label className="commercial-field">
-                <span>Owner</span>
-                <select
-                  value={field.state.value}
-                  onChange={(event) => field.handleChange(Number(event.target.value))}
-                >
-                  <option value={0}>Unassigned</option>
-                  {employees.map((employee) => (
-                    <option key={employee.id} value={employee.id}>
-                      {employee.name}
-                      {employee.designation ? ` · ${employee.designation}` : ''}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            )}
-          </form.Field>
-
-          <form.Field name="milestoneId">
-            {(field) => (
-              <label className="commercial-field">
-                <span>Milestone</span>
-                <select
-                  value={field.state.value}
-                  onChange={(event) => field.handleChange(Number(event.target.value))}
-                  disabled={!activeOrder}
-                >
-                  <option value={0}>No milestone</option>
-                  {milestoneOptions.map((milestone) => (
-                    <option key={milestone.id} value={milestone.id}>
-                      {milestone.name} · {milestone.status.replaceAll('_', ' ')}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            )}
-          </form.Field>
-
-          <form.Field name="dueDate">
-            {(field) => (
-              <label className="commercial-field">
-                <span>Due date</span>
-                <input
-                  type="date"
-                  value={field.state.value}
-                  onChange={(event) => field.handleChange(event.target.value)}
+                  placeholder="Short title for the work"
                 />
               </label>
             )}
@@ -262,50 +210,99 @@ export function CreateExecutionTaskLiveWorkspace({
 
           <form.Field name="priority">
             {(field) => (
-              <label className="commercial-field">
-                <span>Priority</span>
-                <select
-                  value={field.state.value}
-                  onChange={(event) =>
-                    field.handleChange(event.target.value as typeof field.state.value)
-                  }
-                >
-                  {executionTaskPriorities.map((priority) => (
-                    <option key={priority.value} value={priority.value}>
-                      {priority.label}
-                    </option>
-                  ))}
-                </select>
-              </label>
+              <DropdownSelect
+                label="Priority"
+                fieldClassName="commercial-field"
+                options={mapDropdownOptions(executionTaskPriorities)}
+                value={field.state.value}
+                onChange={(value) => field.handleChange(value as typeof field.state.value)}
+              />
+            )}
+          </form.Field>
+
+          <form.Field name="dueDate">
+            {(field) => (
+              <DatePicker
+                label="Due date"
+                value={field.state.value}
+                fieldClassName="commercial-field"
+                onChange={(value) => field.handleChange(value)}
+              />
+            )}
+          </form.Field>
+
+          <form.Field name="milestoneId">
+            {(field) => (
+              <DropdownSelect
+                label="Milestone"
+                fieldClassName="commercial-field"
+                disabled={!activeOrder}
+                placeholder="Optional"
+                options={[
+                  { value: '0', label: 'No milestone' },
+                  ...mapDropdownOptions(
+                    [...(activeOrder?.milestones ?? [])]
+                      .sort((left, right) => left.sortOrder - right.sortOrder)
+                      .map((milestone) => ({
+                        value: String(milestone.id),
+                        label: `${milestone.name} · ${statusLabel(milestone.status)}`,
+                      })),
+                  ),
+                ]}
+                value={String(field.state.value)}
+                onChange={(value) => field.handleChange(Number(value))}
+              />
+            )}
+          </form.Field>
+
+          <form.Field name="ownerId">
+            {(field) => (
+              <DropdownSelect
+                label="Owner"
+                fieldClassName="commercial-field"
+                placeholder="Unassigned"
+                options={[
+                  { value: '0', label: 'Unassigned' },
+                  ...mapDropdownOptions(
+                    employees.map((employee) => ({
+                      value: String(employee.id),
+                      label: assigneeLabel(employee),
+                    })),
+                  ),
+                ]}
+                value={String(field.state.value)}
+                onChange={(value) => field.handleChange(Number(value))}
+              />
             )}
           </form.Field>
 
           <form.Field name="assigneeIds">
             {(field) => (
-              <label className="commercial-field commercial-field--full">
+              <div className="commercial-field commercial-field--full">
                 <span>Assignees</span>
                 <div className="commercial-assignee-picker">
-                  <select
-                    value={pendingAssigneeId}
-                    onChange={(event) => {
-                      const nextId = Number(event.target.value)
+                  <DropdownSelect
+                    fullWidth
+                    placeholder={
+                      availableAssignees.length > 0
+                        ? 'Add a team member'
+                        : 'No more team members available'
+                    }
+                    disabled={availableAssignees.length === 0}
+                    options={mapDropdownOptions(
+                      availableAssignees.map((employee) => ({
+                        value: String(employee.id),
+                        label: assigneeLabel(employee),
+                      })),
+                    )}
+                    value={pendingAssigneeId ? String(pendingAssigneeId) : ''}
+                    onChange={(value) => {
+                      const nextId = Number(value)
                       if (!nextId || field.state.value.includes(nextId)) return
                       field.handleChange([...field.state.value, nextId])
                       setPendingAssigneeId(0)
                     }}
-                    disabled={availableAssignees.length === 0}
-                  >
-                    <option value={0}>
-                      {availableAssignees.length > 0
-                        ? 'Add a team member'
-                        : 'No more team members available'}
-                    </option>
-                    {availableAssignees.map((employee) => (
-                      <option key={employee.id} value={employee.id}>
-                        {assigneeLabel(employee)}
-                      </option>
-                    ))}
-                  </select>
+                  />
 
                   {field.state.value.length > 0 ? (
                     <div className="commercial-assignee-chips">
@@ -331,19 +328,23 @@ export function CreateExecutionTaskLiveWorkspace({
                         )
                       })}
                     </div>
-                  ) : (
-                    <small>Pick team members one at a time. Selected people appear below.</small>
-                  )}
+                  ) : null}
                 </div>
-              </label>
+              </div>
             )}
           </form.Field>
+        </div>
+      </section>
 
+      <section className="commercial-form-section">
+        <h3>Scope</h3>
+        <div className="commercial-form-grid">
           <form.Field name="description">
             {(field) => (
-              <label className="commercial-field commercial-field--full">
+              <label className="commercial-field">
                 <span>Description</span>
                 <textarea
+                  rows={4}
                   value={field.state.value}
                   onChange={(event) => field.handleChange(event.target.value)}
                   placeholder="What work does this task cover?"
@@ -354,12 +355,13 @@ export function CreateExecutionTaskLiveWorkspace({
 
           <form.Field name="instructions">
             {(field) => (
-              <label className="commercial-field commercial-field--full">
+              <label className="commercial-field">
                 <span>Instructions</span>
                 <textarea
+                  rows={4}
                   value={field.state.value}
                   onChange={(event) => field.handleChange(event.target.value)}
-                  placeholder="Execution instructions for the assigned team."
+                  placeholder="How should the team execute it?"
                 />
               </label>
             )}
@@ -370,6 +372,7 @@ export function CreateExecutionTaskLiveWorkspace({
               <label className="commercial-field commercial-field--full">
                 <span>Acceptance criteria</span>
                 <textarea
+                  rows={3}
                   value={field.state.value}
                   onChange={(event) => field.handleChange(event.target.value)}
                   placeholder="What must be true before the task can be accepted?"
@@ -380,7 +383,7 @@ export function CreateExecutionTaskLiveWorkspace({
 
           <form.Field name="evidenceRequired">
             {(field) => (
-              <label className="commercial-check">
+              <label className="commercial-check commercial-field--full">
                 <input
                   type="checkbox"
                   checked={field.state.value}
@@ -388,7 +391,7 @@ export function CreateExecutionTaskLiveWorkspace({
                 />
                 <span>
                   <b>Evidence required</b>
-                  <small>Optional. Saves with the task record.</small>
+                  <small>Require proof of completion before this task can be closed.</small>
                 </span>
               </label>
             )}

@@ -11,6 +11,7 @@ import type { AppSectionSearch } from '@/routes/app/$section'
 import { presentError } from '@/shared/errors'
 import { withOptionalSearchValue, withoutSearchKeys } from '@/shared/navigation/search-state'
 import { ErrorState, useToast } from '@/shared/ui'
+import { DropdownSelect, mapDropdownOptions } from '@/shared/ui/dropdown-select'
 import { ConfirmDialog } from '@/shared/ui/confirm-dialog'
 import { EmptyState } from '@/shared/ui/empty-state'
 import {
@@ -392,11 +393,22 @@ export function DeliverablesLivePage({ recordSearch }: { recordSearch: AppSectio
           </header>
 
           <div className="commercial-filters">
-            <select
-              value={selectedOrderId ?? ''}
+            <DropdownSelect
+              compact
+              className="ui-dropdown--service-filter"
+              placeholder="Select Service Order"
               disabled={!canListOrders || ordersQuery.isPending}
-              onChange={(event) => {
-                const orderId = event.target.value
+              options={[
+                { value: '', label: 'Select Service Order' },
+                ...mapDropdownOptions(
+                  orderOptions.map((order) => ({
+                    value: String(order.id),
+                    label: `${order.orderNumber} · ${order.serviceName}`,
+                  })),
+                ),
+              ]}
+              value={selectedOrderId ? String(selectedOrderId) : ''}
+              onChange={(orderId) => {
                 setCreateOpen(false)
                 void navigate({
                   to: '/app/$section',
@@ -407,14 +419,7 @@ export function DeliverablesLivePage({ recordSearch }: { recordSearch: AppSectio
                   }),
                 })
               }}
-            >
-              <option value="">Select Service Order</option>
-              {orderOptions.map((order) => (
-                <option key={order.id} value={order.id}>
-                  {order.orderNumber} · {order.serviceName}
-                </option>
-              ))}
-            </select>
+            />
 
             <label className="commercial-search">
               <IconSearch size={14} />
@@ -426,41 +431,39 @@ export function DeliverablesLivePage({ recordSearch }: { recordSearch: AppSectio
               />
             </label>
 
-            <select
+            <DropdownSelect
+              compact
+              placeholder="All types"
+              disabled={!selectedOrderId}
+              options={[{ value: '', label: 'All types' }, ...mapDropdownOptions(deliverableTypes)]}
               value={recordSearch.deliverableType ?? ''}
-              disabled={!selectedOrderId}
-              onChange={(event) => setSearchValue('deliverableType', event.target.value)}
-            >
-              <option value="">All types</option>
-              {deliverableTypes.map((type) => (
-                <option key={type.value} value={type.value}>
-                  {type.label}
-                </option>
-              ))}
-            </select>
+              onChange={(value) => setSearchValue('deliverableType', value)}
+            />
 
-            <select
+            <DropdownSelect
+              compact
+              placeholder="All statuses"
+              disabled={!selectedOrderId}
+              options={[
+                { value: '', label: 'All statuses' },
+                ...mapDropdownOptions(deliverableStatuses),
+              ]}
               value={recordSearch.status ?? ''}
-              disabled={!selectedOrderId}
-              onChange={(event) => setSearchValue('status', event.target.value)}
-            >
-              <option value="">All statuses</option>
-              {deliverableStatuses.map((status) => (
-                <option key={status.value} value={status.value}>
-                  {status.label}
-                </option>
-              ))}
-            </select>
+              onChange={(value) => setSearchValue('status', value)}
+            />
 
-            <select
-              value={recordSearch.clientVisible ?? ''}
+            <DropdownSelect
+              compact
+              placeholder="All visibility"
               disabled={!selectedOrderId}
-              onChange={(event) => setSearchValue('clientVisible', event.target.value)}
-            >
-              <option value="">All visibility</option>
-              <option value="true">Client Visible</option>
-              <option value="false">Internal Only</option>
-            </select>
+              options={[
+                { value: '', label: 'All visibility' },
+                { value: 'true', label: 'Client Visible' },
+                { value: 'false', label: 'Internal Only' },
+              ]}
+              value={recordSearch.clientVisible ?? ''}
+              onChange={(value) => setSearchValue('clientVisible', value)}
+            />
 
             {hasFilters ? (
               <button

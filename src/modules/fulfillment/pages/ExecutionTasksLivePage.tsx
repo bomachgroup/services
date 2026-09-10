@@ -11,6 +11,7 @@ import { presentError } from '@/shared/errors'
 import { withOptionalSearchValue, withoutSearchKeys } from '@/shared/navigation/search-state'
 import { ConfirmDialog } from '@/shared/ui/confirm-dialog'
 import { ErrorState, useToast } from '@/shared/ui'
+import { DropdownSelect, mapDropdownOptions } from '@/shared/ui/dropdown-select'
 import { EmptyState } from '@/shared/ui/empty-state'
 import {
   CompactActionButton,
@@ -368,11 +369,22 @@ export function ExecutionTasksLivePage({ recordSearch }: { recordSearch: AppSect
           </header>
 
           <div className="commercial-filters">
-            <select
-              value={selectedOrderId ?? ''}
+            <DropdownSelect
+              compact
+              className="ui-dropdown--service-filter"
+              placeholder="Select Service Order"
               disabled={!canListOrders || ordersQuery.isPending}
-              onChange={(event) => {
-                const orderId = event.target.value
+              options={[
+                { value: '', label: 'Select Service Order' },
+                ...mapDropdownOptions(
+                  orderOptions.map((order) => ({
+                    value: String(order.id),
+                    label: `${order.orderNumber} · ${order.serviceName}`,
+                  })),
+                ),
+              ]}
+              value={selectedOrderId ? String(selectedOrderId) : ''}
+              onChange={(orderId) => {
                 setCreateOpen(false)
                 void navigate({
                   to: '/app/$section',
@@ -383,14 +395,7 @@ export function ExecutionTasksLivePage({ recordSearch }: { recordSearch: AppSect
                   }),
                 })
               }}
-            >
-              <option value="">Select Service Order</option>
-              {orderOptions.map((order) => (
-                <option key={order.id} value={order.id}>
-                  {order.orderNumber} · {order.serviceName}
-                </option>
-              ))}
-            </select>
+            />
 
             <label className="commercial-search">
               <IconSearch size={14} />
@@ -402,27 +407,29 @@ export function ExecutionTasksLivePage({ recordSearch }: { recordSearch: AppSect
               />
             </label>
 
-            <select
+            <DropdownSelect
+              compact
+              placeholder="All priorities"
+              disabled={!selectedOrderId}
+              options={[
+                { value: '', label: 'All priorities' },
+                ...mapDropdownOptions(executionTaskPriorities),
+              ]}
               value={recordSearch.priority ?? ''}
-              disabled={!selectedOrderId}
-              onChange={(event) => setSearchValue('priority', event.target.value)}
-            >
-              <option value="">All priorities</option>
-              {executionTaskPriorities.map((priority) => (
-                <option key={priority.value} value={priority.value}>
-                  {priority.label}
-                </option>
-              ))}
-            </select>
+              onChange={(value) => setSearchValue('priority', value)}
+            />
 
-            <select
-              value={recordSearch.status ?? ''}
+            <DropdownSelect
+              compact
+              placeholder="Active board"
               disabled={!selectedOrderId}
-              onChange={(event) => setSearchValue('status', event.target.value)}
-            >
-              <option value="">Active board</option>
-              <option value="cancelled">Cancelled tasks</option>
-            </select>
+              options={[
+                { value: '', label: 'Active board' },
+                { value: 'cancelled', label: 'Cancelled tasks' },
+              ]}
+              value={recordSearch.status ?? ''}
+              onChange={(value) => setSearchValue('status', value)}
+            />
           </div>
 
           {!selectedOrderId ? (

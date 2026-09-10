@@ -1,7 +1,9 @@
+import { IconX } from '@tabler/icons-react'
 import { useForm } from '@tanstack/react-form'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 
-import { CompactActionButton } from '@/shared/ui/module-controls'
+import { DatePicker } from '@/shared/ui/date-picker'
+import { DropdownSelect, mapDropdownOptions } from '@/shared/ui/dropdown-select'
 
 import type {
   ExecutionTask,
@@ -17,24 +19,32 @@ function label(value: string) {
 }
 
 function statusClass(status: ExecutionTask['status']) {
-  if (status === 'done') return 'fulfillment-pill-green'
-  if (status === 'review') return 'fulfillment-pill-purple'
-  if (status === 'in_progress') return 'fulfillment-pill-blue'
-  if (status === 'cancelled') return 'fulfillment-pill-gray'
-  return 'fulfillment-pill-yellow'
+  if (status === 'done') return 'commercial-pill-green'
+  if (status === 'review') return 'commercial-pill-yellow'
+  if (status === 'in_progress') return 'commercial-pill-blue'
+  if (status === 'cancelled') return 'commercial-pill-gray'
+  return 'commercial-pill-blue'
 }
 
 function priorityClass(priority: ExecutionTask['priority']) {
-  if (priority === 'critical') return 'fulfillment-pill-red'
-  if (priority === 'high') return 'fulfillment-pill-yellow'
-  return 'fulfillment-pill-gray'
+  if (priority === 'critical') return 'commercial-pill-red'
+  if (priority === 'high') return 'commercial-pill-yellow'
+  return 'commercial-pill-gray'
 }
 
 function lifecycleLabel(status: ExecutionTask['status']) {
-  if (status === 'to_do') return 'Start Task'
-  if (status === 'in_progress') return 'Submit for Review'
-  if (status === 'review') return 'Complete Task'
+  if (status === 'to_do') return 'Start task'
+  if (status === 'in_progress') return 'Submit for review'
+  if (status === 'review') return 'Complete task'
   return ''
+}
+
+function assigneeLabel(employee: EmployeeOption) {
+  return `${employee.name}${employee.designation ? ` · ${employee.designation}` : ''}`
+}
+
+function emptyText(value: string) {
+  return value.trim() ? value : '—'
 }
 
 export function ExecutionTaskDetailLiveWorkspace({
@@ -61,6 +71,7 @@ export function ExecutionTaskDetailLiveWorkspace({
   onDelete: () => void
 }) {
   const [editing, setEditing] = useState(false)
+  const [pendingAssigneeId, setPendingAssigneeId] = useState(0)
   const [error, setError] = useState('')
   const milestone = order.milestones.find((item) => item.id === task.milestoneId) ?? null
   const employeeNames = new Map(employees.map((employee) => [employee.id, employee.name]))
@@ -68,6 +79,8 @@ export function ExecutionTaskDetailLiveWorkspace({
     ? (employeeNames.get(task.ownerId) ?? `Employee #${task.ownerId}`)
     : 'Unassigned'
   const assigneeNames = task.assigneeIds.map((id) => employeeNames.get(id) ?? `Employee #${id}`)
+  const canEditTask = canUpdate && task.status !== 'done'
+  const nextLifecycle = lifecycleLabel(task.status)
 
   const form = useForm({
     defaultValues: {
@@ -105,377 +118,490 @@ export function ExecutionTaskDetailLiveWorkspace({
     },
   })
 
-  const headerMeta = (
-    <span className={`fulfillment-pill ${statusClass(task.status)}`}>{label(task.status)}</span>
-  )
-  const canEditTask = canUpdate && task.status !== 'done'
+  useEffect(() => {
+    form.setFieldValue('milestoneId', task.milestoneId ?? 0)
+    form.setFieldValue('title', task.title)
+    form.setFieldValue('description', task.description)
+    form.setFieldValue('instructions', task.instructions)
+    form.setFieldValue('acceptanceCriteria', task.acceptanceCriteria)
+    form.setFieldValue('ownerId', task.ownerId ?? 0)
+    form.setFieldValue('assigneeIds', task.assigneeIds)
+    form.setFieldValue('dueDate', task.dueDate ?? '')
+    form.setFieldValue('priority', task.priority)
+    form.setFieldValue('evidenceRequired', task.evidenceRequired)
+    queueMicrotask(() => {
+      setError('')
+    })
+  }, [form, task])
 
-  const footer = !editing ? (
-    <CompactActionButton type="button" onClick={onClose}>
-      Close
-    </CompactActionButton>
-  ) : null
+  const selectedAssigneeIds = form.state.values.assigneeIds
+  const availableAssignees = employees.filter(
+    (employee) => !selectedAssigneeIds.includes(employee.id),
+  )
 
   return (
-    <TaskModalShell
-      ariaLabel={`Execution Task ${task.taskNumber}`}
-      title={`Execution Task — ${task.taskNumber}`}
-      subtitle={`${order.orderNumber} · ${order.serviceName}${milestone ? ` · ${milestone.name}` : ''}`}
-      headerMeta={headerMeta}
-      onClose={onClose}
-      footer={footer}
-    >
-      <section className="commercial-form-section">
-        <div className="fulfillment-order-summary-card fulfillment-task-hero-card">
-          <div className="fulfillment-task-summary-header fulfillment-task-hero-header">
-            <div className="min-w-0">
-              <div className="fulfillment-task-hero-kicker">Execution task</div>
-              <h3>{task.title}</h3>
-              <p>
-                {order.orderNumber} · {order.serviceName}
-                {milestone ? ` · ${milestone.name}` : ''}
-              </p>
-            </div>
-            <div className="fulfillment-task-summary-badges">
-              <span className={`fulfillment-pill ${statusClass(task.status)}`}>
-                {label(task.status)}
-              </span>
-              <span className={`fulfillment-pill ${priorityClass(task.priority)}`}>
-                {label(task.priority)}
-              </span>
-            </div>
-          </div>
-          <div className="fulfillment-task-hero-grid">
-            <div className="fulfillment-task-meta-card">
-              <span>Order</span>
-              <b>{order.orderNumber}</b>
-            </div>
-            <div className="fulfillment-task-meta-card">
-              <span>Milestone</span>
-              <b>{milestone?.name ?? 'No milestone'}</b>
-            </div>
-            <div className="fulfillment-task-meta-card">
-              <span>Owner</span>
-              <b>{ownerName}</b>
-            </div>
-            <div className="fulfillment-task-meta-card">
-              <span>Due</span>
-              <b>{task.dueDate || 'Not set'}</b>
-            </div>
-            <div className="fulfillment-task-meta-card">
-              <span>Priority</span>
-              <b>{label(task.priority)}</b>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {error ? <div className="commercial-notice commercial-notice-red">{error}</div> : null}
-
-      {editing ? (
-        <form
-          onSubmit={(event) => {
-            event.preventDefault()
-            void form.handleSubmit()
-          }}
-        >
-          <section className="commercial-form-section fulfillment-task-panel">
-            <div className="commercial-form-section-heading">
-              <div>
-                <h3>Edit Task</h3>
-                <p>Status is intentionally excluded. Use the lifecycle action to advance work.</p>
-              </div>
-            </div>
-
-            <div className="commercial-form-grid">
-              <form.Field name="title">
-                {(field) => (
-                  <label className="commercial-field commercial-field--full">
-                    <span>Task title *</span>
-                    <input
-                      value={field.state.value}
-                      onChange={(event) => field.handleChange(event.target.value)}
-                    />
-                  </label>
-                )}
-              </form.Field>
-
-              <form.Field name="milestoneId">
-                {(field) => (
-                  <label className="commercial-field">
-                    <span>Milestone</span>
-                    <select
-                      value={field.state.value}
-                      onChange={(event) => field.handleChange(Number(event.target.value))}
-                    >
-                      <option value={0}>No milestone</option>
-                      {[...order.milestones]
-                        .sort(
-                          (left, right) => left.sortOrder - right.sortOrder || left.id - right.id,
-                        )
-                        .map((item) => (
-                          <option key={item.id} value={item.id}>
-                            {item.name} · {label(item.status)}
-                          </option>
-                        ))}
-                    </select>
-                  </label>
-                )}
-              </form.Field>
-
-              <form.Field name="ownerId">
-                {(field) => (
-                  <label className="commercial-field">
-                    <span>Owner</span>
-                    <select
-                      value={field.state.value}
-                      onChange={(event) => field.handleChange(Number(event.target.value))}
-                    >
-                      <option value={0}>Unassigned</option>
-                      {employees.map((employee) => (
-                        <option key={employee.id} value={employee.id}>
-                          {employee.name}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                )}
-              </form.Field>
-
-              <form.Field name="dueDate">
-                {(field) => (
-                  <label className="commercial-field">
-                    <span>Due date</span>
-                    <input
-                      type="date"
-                      value={field.state.value}
-                      onChange={(event) => field.handleChange(event.target.value)}
-                    />
-                  </label>
-                )}
-              </form.Field>
-
-              <form.Field name="priority">
-                {(field) => (
-                  <label className="commercial-field">
-                    <span>Priority</span>
-                    <select
-                      value={field.state.value}
-                      onChange={(event) =>
-                        field.handleChange(event.target.value as typeof field.state.value)
-                      }
-                    >
-                      {executionTaskPriorities.map((priority) => (
-                        <option key={priority.value} value={priority.value}>
-                          {priority.label}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                )}
-              </form.Field>
-
-              <label className="commercial-field commercial-field--full">
-                <span>Assignees</span>
-                <div className="fulfillment-task-assignee-list">
-                  {assigneeNames.length ? (
-                    assigneeNames.map((name) => (
-                      <span key={name} className="fulfillment-task-assignee-chip">
-                        {name}
-                      </span>
-                    ))
-                  ) : (
-                    <b>No assignees</b>
-                  )}
-                </div>
-              </label>
-
-              <form.Field name="description">
-                {(field) => (
-                  <label className="commercial-field commercial-field--full">
-                    <span>Description</span>
-                    <textarea
-                      value={field.state.value}
-                      onChange={(event) => field.handleChange(event.target.value)}
-                    />
-                  </label>
-                )}
-              </form.Field>
-
-              <form.Field name="instructions">
-                {(field) => (
-                  <label className="commercial-field commercial-field--full">
-                    <span>Instructions</span>
-                    <textarea
-                      value={field.state.value}
-                      onChange={(event) => field.handleChange(event.target.value)}
-                    />
-                  </label>
-                )}
-              </form.Field>
-
-              <form.Field name="acceptanceCriteria">
-                {(field) => (
-                  <label className="commercial-field commercial-field--full">
-                    <span>Acceptance criteria</span>
-                    <textarea
-                      value={field.state.value}
-                      onChange={(event) => field.handleChange(event.target.value)}
-                    />
-                  </label>
-                )}
-              </form.Field>
-            </div>
-          </section>
-
-          <div className="commercial-modal-footer">
-            <button
-              type="button"
-              className="commercial-btn"
-              disabled={saving}
-              onClick={() => setEditing(false)}
-            >
-              Cancel Edit
+    <>
+      <TaskModalShell
+        ariaLabel={`Execution Task ${task.taskNumber}`}
+        title={task.taskNumber}
+        subtitle={`${task.title} · ${order.orderNumber} · ${order.serviceName}`}
+        headerMeta={
+          <span className={`commercial-pill ${statusClass(task.status)}`}>
+            {label(task.status)}
+          </span>
+        }
+        onClose={onClose}
+        footer={
+          <>
+            <button type="button" className="commercial-btn" onClick={onClose}>
+              Close
             </button>
-            <button
-              type="submit"
-              className="commercial-btn commercial-btn-primary"
-              disabled={saving}
-            >
-              {saving ? 'Saving...' : 'Save Task'}
-            </button>
-          </div>
-        </form>
-      ) : (
-        <div className="fulfillment-task-control-layout">
-          <div className="fulfillment-task-detail-main">
-            <section className="commercial-form-section fulfillment-task-panel">
-              <div className="commercial-form-section-heading">
+            <div className="commercial-modal-footer-actions">
+              {canUpdate && nextLifecycle ? (
+                <button
+                  type="button"
+                  className="commercial-btn commercial-btn-primary"
+                  disabled={saving}
+                  onClick={onAdvance}
+                >
+                  {saving ? 'Updating...' : nextLifecycle}
+                </button>
+              ) : null}
+            </div>
+          </>
+        }
+      >
+        <div className="fulfillment-order-room-layout">
+          <div className="fulfillment-order-room-main">
+            <section className="commercial-form-section">
+              <h3>Overview</h3>
+              <div className="commercial-info-grid">
                 <div>
-                  <h3>Execution Scope</h3>
-                  <p>Work definition, instructions and acceptance checks.</p>
+                  <div className="commercial-kl">Order</div>
+                  <b>{order.orderNumber}</b>
                 </div>
-              </div>
-
-              <div className="fulfillment-order-detail-stack fulfillment-order-detail-stack--compact">
-                <div className="fulfillment-order-detail-row fulfillment-task-detail-row">
-                  <span className="commercial-field-label">Description</span>
-                  <p>{task.description || 'Not provided.'}</p>
+                <div>
+                  <div className="commercial-kl">Service</div>
+                  <b>{order.serviceName}</b>
                 </div>
-                <div className="fulfillment-order-detail-row fulfillment-task-detail-row">
-                  <span className="commercial-field-label">Instructions</span>
-                  <p>{task.instructions || 'Not provided.'}</p>
+                <div>
+                  <div className="commercial-kl">Milestone</div>
+                  <b>{milestone?.name ?? '—'}</b>
                 </div>
-                <div className="fulfillment-order-detail-row fulfillment-task-detail-row">
-                  <span className="commercial-field-label">Acceptance criteria</span>
-                  <p>{task.acceptanceCriteria || 'Not provided.'}</p>
+                <div>
+                  <div className="commercial-kl">Owner</div>
+                  <b>{ownerName}</b>
+                </div>
+                <div>
+                  <div className="commercial-kl">Due date</div>
+                  <b>{task.dueDate || '—'}</b>
+                </div>
+                <div>
+                  <div className="commercial-kl">Priority</div>
+                  <b>
+                    <span className={`commercial-pill ${priorityClass(task.priority)}`}>
+                      {label(task.priority)}
+                    </span>
+                  </b>
+                </div>
+                <div>
+                  <div className="commercial-kl">Evidence</div>
+                  <b>{task.evidenceRequired ? 'Required' : 'Not required'}</b>
+                </div>
+                <div>
+                  <div className="commercial-kl">Status</div>
+                  <b>{label(task.status)}</b>
                 </div>
               </div>
             </section>
 
-            <section className="commercial-form-section fulfillment-task-panel">
-              <div className="commercial-form-section-heading">
-                <div>
-                  <h3>Assignment</h3>
-                  <p>Owner and assigned execution team.</p>
+            <section className="commercial-form-section">
+              <h3>Scope</h3>
+              <div className="commercial-info-grid">
+                <div className="commercial-info-full">
+                  <div className="commercial-kl">Description</div>
+                  <p>{emptyText(task.description)}</p>
+                </div>
+                <div className="commercial-info-full">
+                  <div className="commercial-kl">Instructions</div>
+                  <p>{emptyText(task.instructions)}</p>
+                </div>
+                <div className="commercial-info-full">
+                  <div className="commercial-kl">Acceptance criteria</div>
+                  <p>{emptyText(task.acceptanceCriteria)}</p>
                 </div>
               </div>
+            </section>
 
-              <div className="fulfillment-task-people-grid">
-                <div className="fulfillment-task-meta-card">
-                  <span>Owner</span>
+            <section className="commercial-form-section">
+              <h3>Assignment</h3>
+              <div className="commercial-info-grid">
+                <div>
+                  <div className="commercial-kl">Owner</div>
                   <b>{ownerName}</b>
                 </div>
-                <div className="fulfillment-task-meta-card fulfillment-task-meta-card--wide">
-                  <span>Assignees</span>
+                <div className="commercial-info-full">
+                  <div className="commercial-kl">Assignees</div>
                   {assigneeNames.length ? (
-                    <div className="fulfillment-task-assignee-list">
+                    <div className="fulfillment-status-badge-row">
                       {assigneeNames.map((name) => (
-                        <span key={name} className="fulfillment-task-assignee-chip">
+                        <span key={name} className="commercial-pill commercial-pill-gray">
                           {name}
                         </span>
                       ))}
                     </div>
                   ) : (
-                    <b>No assignees</b>
+                    <b>—</b>
                   )}
                 </div>
               </div>
             </section>
           </div>
 
-          <aside className="fulfillment-task-detail-aside">
-            <section className="commercial-form-section fulfillment-task-panel">
-              <div className="commercial-form-section-heading">
-                <div>
-                  <h3>Lifecycle</h3>
-                  <p>Server-driven status transitions.</p>
-                </div>
-              </div>
-
-              <div className="fulfillment-order-detail-stack fulfillment-order-detail-stack--compact">
-                <div className="fulfillment-order-detail-row fulfillment-task-detail-row">
-                  <span className="commercial-field-label">Current status</span>
+          <aside className="fulfillment-order-room-aside">
+            <section className="commercial-form-section commercial-form-section--compact">
+              <h3>Lifecycle</h3>
+              <div className="commercial-info-grid">
+                <div className="commercial-info-full">
+                  <div className="commercial-kl">Current status</div>
                   <b>{label(task.status)}</b>
                 </div>
-                <div className="fulfillment-order-detail-row fulfillment-task-detail-row">
-                  <span className="commercial-field-label">Milestone</span>
-                  <b>{milestone?.name ?? 'Not linked'}</b>
+                <div className="commercial-info-full">
+                  <div className="commercial-kl">Milestone</div>
+                  <b>{milestone?.name ?? '—'}</b>
                 </div>
               </div>
 
               {canUpdate ? (
-                <div className="fulfillment-task-detail-actions fulfillment-top-gap">
-                  {lifecycleLabel(task.status) ? (
-                    <CompactActionButton
+                <div className="fulfillment-task-aside-actions">
+                  {nextLifecycle ? (
+                    <button
                       type="button"
-                      tone="primary"
+                      className="commercial-btn commercial-btn-primary"
                       disabled={saving}
                       onClick={onAdvance}
                     >
-                      {saving ? 'Updating...' : lifecycleLabel(task.status)}
-                    </CompactActionButton>
+                      {saving ? 'Updating...' : nextLifecycle}
+                    </button>
                   ) : null}
                   {!['done', 'cancelled'].includes(task.status) ? (
-                    <CompactActionButton type="button" disabled={saving} onClick={onCancel}>
-                      Cancel Task
-                    </CompactActionButton>
+                    <button
+                      type="button"
+                      className="commercial-btn"
+                      disabled={saving}
+                      onClick={onCancel}
+                    >
+                      Cancel task
+                    </button>
                   ) : null}
                 </div>
               ) : null}
             </section>
 
-            <section className="commercial-form-section fulfillment-task-panel">
+            <section className="commercial-form-section commercial-form-section--compact">
               <div className="commercial-form-section-heading">
-                <div>
-                  <h3>Task Controls</h3>
-                  <p>Metadata changes stay separate from lifecycle transitions.</p>
-                </div>
+                <h3>Task controls</h3>
               </div>
-
               {canUpdate ? (
-                <div className="fulfillment-task-detail-actions">
-                  <CompactActionButton
+                <div className="fulfillment-task-aside-actions">
+                  <button
                     type="button"
-                    tone="secondary"
+                    className="commercial-btn"
                     disabled={saving || !canEditTask}
-                    onClick={() => setEditing(true)}
+                    onClick={() => {
+                      setError('')
+                      setEditing(true)
+                    }}
                   >
-                    Edit Task
-                  </CompactActionButton>
-                  <CompactActionButton type="button" disabled={saving} onClick={onDelete}>
-                    Delete Task
-                  </CompactActionButton>
+                    Edit task
+                  </button>
+                  <button
+                    type="button"
+                    className="commercial-btn"
+                    disabled={saving}
+                    onClick={onDelete}
+                  >
+                    Delete task
+                  </button>
                 </div>
               ) : (
                 <div className="commercial-notice commercial-notice-blue">
-                  You have read-only access to this Service Order.
+                  You have read-only access to this task.
                 </div>
               )}
             </section>
           </aside>
         </div>
-      )}
-    </TaskModalShell>
+      </TaskModalShell>
+
+      {editing ? (
+        <div
+          className="commercial-modal-backdrop commercial-modal-backdrop--nested"
+          role="presentation"
+          onMouseDown={() => setEditing(false)}
+        >
+          <form
+            className="commercial-modal commercial-order-controls-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Edit execution task"
+            onMouseDown={(event) => event.stopPropagation()}
+            onSubmit={(event) => {
+              event.preventDefault()
+              void form.handleSubmit()
+            }}
+          >
+            <header className="commercial-modal-header">
+              <div>
+                <h2>Edit task</h2>
+                <p>{task.taskNumber}</p>
+              </div>
+              <div className="commercial-modal-header-meta">
+                <button
+                  type="button"
+                  className="commercial-modal-close"
+                  onClick={() => setEditing(false)}
+                  aria-label="Close"
+                >
+                  <IconX size={16} />
+                </button>
+              </div>
+            </header>
+
+            <div className="commercial-modal-body">
+              {error ? <div className="commercial-notice commercial-notice-red">{error}</div> : null}
+
+              <section className="commercial-form-section">
+                <h3>Task details</h3>
+                <div className="commercial-form-grid">
+                  <form.Field name="title">
+                    {(field) => (
+                      <label className="commercial-field commercial-field--full">
+                        <span>
+                          Task title <em>*</em>
+                        </span>
+                        <input
+                          value={field.state.value}
+                          onChange={(event) => field.handleChange(event.target.value)}
+                        />
+                      </label>
+                    )}
+                  </form.Field>
+
+                  <form.Field name="priority">
+                    {(field) => (
+                      <DropdownSelect
+                        label="Priority"
+                        fieldClassName="commercial-field"
+                        options={mapDropdownOptions(executionTaskPriorities)}
+                        value={field.state.value}
+                        onChange={(value) =>
+                          field.handleChange(value as typeof field.state.value)
+                        }
+                      />
+                    )}
+                  </form.Field>
+
+                  <form.Field name="dueDate">
+                    {(field) => (
+                      <DatePicker
+                        label="Due date"
+                        clearable
+                        value={field.state.value}
+                        fieldClassName="commercial-field"
+                        onChange={(value) => field.handleChange(value)}
+                      />
+                    )}
+                  </form.Field>
+
+                  <form.Field name="milestoneId">
+                    {(field) => (
+                      <DropdownSelect
+                        label="Milestone"
+                        fieldClassName="commercial-field"
+                        options={[
+                          { value: '0', label: 'No milestone' },
+                          ...mapDropdownOptions(
+                            [...order.milestones]
+                              .sort(
+                                (left, right) =>
+                                  left.sortOrder - right.sortOrder || left.id - right.id,
+                              )
+                              .map((item) => ({
+                                value: String(item.id),
+                                label: `${item.name} · ${label(item.status)}`,
+                              })),
+                          ),
+                        ]}
+                        value={String(field.state.value)}
+                        onChange={(value) => field.handleChange(Number(value))}
+                      />
+                    )}
+                  </form.Field>
+
+                  <form.Field name="ownerId">
+                    {(field) => (
+                      <DropdownSelect
+                        label="Owner"
+                        fieldClassName="commercial-field"
+                        options={[
+                          { value: '0', label: 'Unassigned' },
+                          ...mapDropdownOptions(
+                            employees.map((employee) => ({
+                              value: String(employee.id),
+                              label: assigneeLabel(employee),
+                            })),
+                          ),
+                        ]}
+                        value={String(field.state.value)}
+                        onChange={(value) => field.handleChange(Number(value))}
+                      />
+                    )}
+                  </form.Field>
+
+                  <form.Field name="assigneeIds">
+                    {(field) => (
+                      <div className="commercial-field commercial-field--full">
+                        <span>Assignees</span>
+                        <div className="commercial-assignee-picker">
+                          <DropdownSelect
+                            fullWidth
+                            placeholder={
+                              availableAssignees.length > 0
+                                ? 'Add a team member'
+                                : 'No more team members available'
+                            }
+                            disabled={availableAssignees.length === 0}
+                            options={mapDropdownOptions(
+                              availableAssignees.map((employee) => ({
+                                value: String(employee.id),
+                                label: assigneeLabel(employee),
+                              })),
+                            )}
+                            value={pendingAssigneeId ? String(pendingAssigneeId) : ''}
+                            onChange={(value) => {
+                              const nextId = Number(value)
+                              if (!nextId || field.state.value.includes(nextId)) return
+                              field.handleChange([...field.state.value, nextId])
+                              setPendingAssigneeId(0)
+                            }}
+                          />
+
+                          {field.state.value.length > 0 ? (
+                            <div className="commercial-assignee-chips">
+                              {field.state.value.map((employeeId) => {
+                                const employee = employees.find((item) => item.id === employeeId)
+                                if (!employee) return null
+                                return (
+                                  <span key={employee.id} className="commercial-assignee-chip">
+                                    <b>{employee.name}</b>
+                                    <small>{employee.designation || 'Team member'}</small>
+                                    <button
+                                      type="button"
+                                      onClick={() =>
+                                        field.handleChange(
+                                          field.state.value.filter((id) => id !== employee.id),
+                                        )
+                                      }
+                                      aria-label={`Remove ${employee.name}`}
+                                    >
+                                      ×
+                                    </button>
+                                  </span>
+                                )
+                              })}
+                            </div>
+                          ) : null}
+                        </div>
+                      </div>
+                    )}
+                  </form.Field>
+                </div>
+              </section>
+
+              <section className="commercial-form-section">
+                <h3>Scope</h3>
+                <div className="commercial-form-grid">
+                  <form.Field name="description">
+                    {(field) => (
+                      <label className="commercial-field commercial-field--full">
+                        <span>Description</span>
+                        <textarea
+                          rows={3}
+                          value={field.state.value}
+                          onChange={(event) => field.handleChange(event.target.value)}
+                        />
+                      </label>
+                    )}
+                  </form.Field>
+
+                  <form.Field name="instructions">
+                    {(field) => (
+                      <label className="commercial-field commercial-field--full">
+                        <span>Instructions</span>
+                        <textarea
+                          rows={3}
+                          value={field.state.value}
+                          onChange={(event) => field.handleChange(event.target.value)}
+                        />
+                      </label>
+                    )}
+                  </form.Field>
+
+                  <form.Field name="acceptanceCriteria">
+                    {(field) => (
+                      <label className="commercial-field commercial-field--full">
+                        <span>Acceptance criteria</span>
+                        <textarea
+                          rows={3}
+                          value={field.state.value}
+                          onChange={(event) => field.handleChange(event.target.value)}
+                        />
+                      </label>
+                    )}
+                  </form.Field>
+
+                  <form.Field name="evidenceRequired">
+                    {(field) => (
+                      <label className="commercial-check commercial-field--full">
+                        <input
+                          type="checkbox"
+                          checked={field.state.value}
+                          onChange={(event) => field.handleChange(event.target.checked)}
+                        />
+                        <span>
+                          <b>Evidence required</b>
+                          <small>Require proof of completion before closing this task.</small>
+                        </span>
+                      </label>
+                    )}
+                  </form.Field>
+                </div>
+              </section>
+            </div>
+
+            <footer className="commercial-modal-footer">
+              <button
+                type="button"
+                className="commercial-btn"
+                disabled={saving}
+                onClick={() => setEditing(false)}
+              >
+                Cancel
+              </button>
+              <div className="commercial-modal-footer-actions">
+                <button
+                  type="submit"
+                  className="commercial-btn commercial-btn-primary"
+                  disabled={saving}
+                >
+                  {saving ? 'Saving...' : 'Save'}
+                </button>
+              </div>
+            </footer>
+          </form>
+        </div>
+      ) : null}
+    </>
   )
 }

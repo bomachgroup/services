@@ -4,6 +4,7 @@ import { useState } from 'react'
 
 import { formatCurrency } from '@/shared/lib/formatters'
 import { formatNumberFieldValue, parseNumberFieldValue } from '@/shared/lib/number-input'
+import { DropdownSelect } from '@/shared/ui/dropdown-select'
 
 import type {
   AddMilestoneInput,
@@ -276,27 +277,24 @@ export function OrderControlRoomWorkspace({
 
                     <form.Field name="status">
                       {(field) => (
-                        <label className="fulfillment-field">
-                          <span>Status</span>
-                          <select
-                            value={field.state.value}
-                            onChange={(event) =>
-                              field.handleChange(event.target.value as typeof field.state.value)
-                            }
-                          >
-                            {[
-                              'Pending Mobilisation',
-                              'Active',
-                              'Quality Review',
-                              'Awaiting Client',
-                              'Completed',
-                              'On Hold',
-                              'Cancelled',
-                            ].map((status) => (
-                              <option key={status}>{status}</option>
-                            ))}
-                          </select>
-                        </label>
+                        <DropdownSelect
+                          label="Status"
+                          fullWidth
+                          fieldClassName="fulfillment-field"
+                          options={[
+                            'Pending Mobilisation',
+                            'Active',
+                            'Quality Review',
+                            'Awaiting Client',
+                            'Completed',
+                            'On Hold',
+                            'Cancelled',
+                          ].map((status) => ({ value: status, label: status }))}
+                          value={field.state.value}
+                          onChange={(value) =>
+                            field.handleChange(value as typeof field.state.value)
+                          }
+                        />
                       )}
                     </form.Field>
 

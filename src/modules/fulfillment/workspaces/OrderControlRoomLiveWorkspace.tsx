@@ -1,9 +1,16 @@
 import { IconX } from '@tabler/icons-react'
+import { useQuery } from '@tanstack/react-query'
 import { useForm } from '@tanstack/react-form'
 import { useEffect, useRef, useState } from 'react'
 
 import { formatCurrency } from '@/shared/lib/formatters'
+import { DatePicker } from '@/shared/ui/date-picker'
+import { DropdownSelect, mapDropdownOptions } from '@/shared/ui/dropdown-select'
 
+import { deliverableQueries } from '../deliverables/deliverable.queries'
+import type { Deliverable } from '../deliverables/deliverable.types'
+import { executionTaskQueries } from '../execution-tasks/execution-task.queries'
+import type { ExecutionTask } from '../execution-tasks/execution-task.types'
 import type {
   AddOrderActivityInput,
   AddOrderMilestoneInput,
@@ -33,10 +40,25 @@ function statusClass(status: ServiceOrder['orderStatus']) {
   return 'commercial-pill-blue'
 }
 
+function taskStatusClass(status: ExecutionTask['status']) {
+  if (status === 'done') return 'commercial-pill-green'
+  if (status === 'review') return 'commercial-pill-yellow'
+  if (status === 'in_progress') return 'commercial-pill-blue'
+  if (status === 'cancelled') return 'commercial-pill-gray'
+  return 'commercial-pill-blue'
+}
+
+function deliverableStatusClass(status: Deliverable['status']) {
+  if (status === 'approved') return 'commercial-pill-green'
+  if (status === 'under_review') return 'commercial-pill-yellow'
+  if (status === 'rejected') return 'commercial-pill-red'
+  return 'commercial-pill-gray'
+}
+
 const activityTypes = [
-  ['progress_update', 'Progress Update'],
-  ['client_communication', 'Client Communication'],
-  ['delay_blocker', 'Delay / Blocker'],
+  ['progress_update', 'Progress update'],
+  ['client_communication', 'Client communication'],
+  ['delay_blocker', 'Delay / blocker'],
   ['inspection', 'Inspection'],
   ['decision', 'Decision'],
 ] as const
@@ -56,6 +78,8 @@ export function OrderControlRoomLiveWorkspace({
   onAddMilestone,
   onOpenTasks,
   onOpenDeliverables,
+  onOpenTask,
+  onOpenDeliverable,
 }: {
   order: ServiceOrder
   clientName: string
@@ -71,6 +95,8 @@ export function OrderControlRoomLiveWorkspace({
   onAddMilestone: (input: AddOrderMilestoneInput) => void
   onOpenTasks: () => void
   onOpenDeliverables: () => void
+  onOpenTask: (taskId: number) => void
+  onOpenDeliverable: (deliverableId: number) => void
 }) {
   const [editing, setEditing] = useState(false)
   const [addingUpdate, setAddingUpdate] = useState(false)
@@ -78,6 +104,15 @@ export function OrderControlRoomLiveWorkspace({
   const [activityError, setActivityError] = useState('')
   const [milestoneError, setMilestoneError] = useState('')
   const activeMilestoneRef = useRef<HTMLElement | null>(null)
+
+  const tasksQuery = useQuery({
+    ...executionTaskQueries.list(order.id, { page: 1, limit: 100 }),
+  })
+  const deliverablesQuery = useQuery({
+    ...deliverableQueries.list(order.id, { page: 1, limit: 100 }),
+  })
+  const tasks = tasksQuery.data?.items ?? []
+  const deliverables = deliverablesQuery.data?.items ?? []
 
   const editForm = useForm({
     defaultValues: {
@@ -157,13 +192,9 @@ export function OrderControlRoomLiveWorkspace({
     0,
   )
   const dueSummary = order.dueDate ?? order.validUntil ?? '—'
-  const subtitle = [clientName, order.serviceName, assignedEmployeeName]
-    .filter((value) => value && value !== 'Unassigned')
-    .join(' · ')
 
   useEffect(() => {
     if (!activeMilestoneRef.current) return
-
     activeMilestoneRef.current.scrollIntoView({
       block: 'center',
       inline: 'nearest',
@@ -171,10 +202,17 @@ export function OrderControlRoomLiveWorkspace({
     activeMilestoneRef.current.focus({ preventScroll: true })
   }, [activeMilestone?.id, order.id, order.updatedAt])
 
+  useEffect(() => {
+    editForm.setFieldValue('assignedToId', order.assignedToId ?? 0)
+    editForm.setFieldValue('dueDate', order.dueDate ?? '')
+    editForm.setFieldValue('description', order.description)
+    editForm.setFieldValue('nextAction', order.nextAction)
+  }, [editForm, order.assignedToId, order.description, order.dueDate, order.nextAction, order.id])
+
   return (
     <div className="commercial-modal-backdrop" role="presentation" onMouseDown={onClose}>
       <section
-        className="commercial-modal commercial-modal--xl"
+        className="commercial-modal commercial-modal--xl fulfillment-order-room-modal"
         role="dialog"
         aria-modal="true"
         aria-label={`Order ${order.orderNumber}`}
@@ -182,8 +220,10 @@ export function OrderControlRoomLiveWorkspace({
       >
         <header className="commercial-modal-header">
           <div>
-            <h2>Order Control Room — {order.orderNumber}</h2>
-            <p>{subtitle || `${clientName} · ${order.serviceName}`}</p>
+            <h2>{order.orderNumber}</h2>
+            <p>
+              {clientName} · {order.serviceName}
+            </p>
           </div>
           <div className="commercial-modal-header-meta">
             <span className={`commercial-pill ${statusClass(order.orderStatus)}`}>
@@ -201,43 +241,60 @@ export function OrderControlRoomLiveWorkspace({
         </header>
 
         <div className="commercial-modal-body">
-          <section className="commercial-form-section">
-            <div className="fulfillment-order-summary-card">
-              <div className="fulfillment-order-summary-header">
-                <div>
-                  <h3>{clientName}</h3>
-                  <p>
-                    {order.serviceName} · Service order · {assignedEmployeeName}
-                  </p>
-                </div>
-                <span className={`commercial-pill ${statusClass(order.orderStatus)}`}>
-                  {statusLabel(order.orderStatus)}
-                </span>
-              </div>
-              <div className="fulfillment-progress">
-                <i style={{ width: `${order.progress}%` }} />
-              </div>
-              <div className="fulfillment-order-summary-note">
-                {order.progress}% complete · {order.stage || 'Order Setup'} · Due {dueSummary}
-              </div>
-            </div>
-          </section>
-
           <div className="fulfillment-order-room-layout">
             <div className="fulfillment-order-room-main">
               <section className="commercial-form-section">
-                <div className="commercial-form-section-heading">
+                <h3>Overview</h3>
+                <div className="commercial-info-grid">
                   <div>
-                    <h3>Milestones & Client Checkpoints</h3>
-                    <p>Evidence, review and acceptance are retained across the order lifecycle.</p>
+                    <div className="commercial-kl">Client</div>
+                    <b>{clientName || '—'}</b>
                   </div>
+                  <div>
+                    <div className="commercial-kl">Service</div>
+                    <b>{order.serviceName}</b>
+                  </div>
+                  <div>
+                    <div className="commercial-kl">Assigned to</div>
+                    <b>{assignedEmployeeName}</b>
+                  </div>
+                  <div>
+                    <div className="commercial-kl">Due date</div>
+                    <b>{dueSummary}</b>
+                  </div>
+                  <div>
+                    <div className="commercial-kl">Current stage</div>
+                    <b>{order.stage || '—'}</b>
+                  </div>
+                  <div>
+                    <div className="commercial-kl">Next action</div>
+                    <b>{order.nextAction || '—'}</b>
+                  </div>
+                </div>
+                <div className="fulfillment-order-progress-block">
+                  <div className="fulfillment-order-progress-meta">
+                    <span className="commercial-kl">Progress</span>
+                    <b>{order.progress}%</b>
+                  </div>
+                  <div className="fulfillment-progress" aria-hidden="true">
+                    <i style={{ width: `${order.progress}%` }} />
+                  </div>
+                </div>
+                {order.description ? (
+                  <p className="fulfillment-order-description">{order.description}</p>
+                ) : null}
+              </section>
+
+              <section className="commercial-form-section">
+                <div className="commercial-form-section-heading">
+                  <h3>Milestones</h3>
                   {canAddMilestone ? (
                     <button
                       type="button"
                       className="commercial-btn commercial-btn-small"
                       onClick={() => setAddingMilestone(true)}
                     >
-                      Add Milestone
+                      Add milestone
                     </button>
                   ) : null}
                 </div>
@@ -272,11 +329,11 @@ export function OrderControlRoomLiveWorkspace({
                     </article>
                   ))}
                 </div>
+
                 <div className="fulfillment-stage-controls">
                   {activeMilestones.length > 1 ? (
                     <div className="commercial-notice commercial-notice-blue">
-                      Multiple milestones are currently active. Review the workflow before
-                      continuing.
+                      Multiple milestones are active. Review the workflow before continuing.
                     </div>
                   ) : activeMilestones.length === 0 &&
                     !['completed', 'cancelled'].includes(order.orderStatus) ? (
@@ -284,19 +341,12 @@ export function OrderControlRoomLiveWorkspace({
                       No active milestone is available for this order.
                     </div>
                   ) : activeMilestone ? (
-                    <div>
-                      <p className="commercial-form-note">
-                        Current milestone: <b>{activeMilestone.name}</b>
-                      </p>
-                      {order.orderStatus === 'on_hold' ? (
-                        <p className="commercial-form-note">
-                          Stage advancement is unavailable while this order is on hold.
-                        </p>
-                      ) : null}
+                    <div className="fulfillment-stage-current">
+                      <span className="commercial-kl">Current milestone</span>
+                      <b>{activeMilestone.name}</b>
                     </div>
                   ) : null}
-                </div>
-                <div className="fulfillment-stage-advance">
+
                   {canShowAdvanceStage ? (
                     <button
                       type="button"
@@ -316,141 +366,174 @@ export function OrderControlRoomLiveWorkspace({
                               : undefined
                       }
                     >
-                      {saving ? 'Advancing...' : 'Advance Stage'}
+                      {saving ? 'Advancing...' : 'Advance stage'}
                     </button>
                   ) : null}
                 </div>
               </section>
 
-              <section className="commercial-form-section">
+              <section className="commercial-form-section commercial-form-section--compact">
                 <div className="commercial-form-section-heading">
-                  <div>
-                    <h3>Execution Tasks</h3>
-                    <p>Tasks linked to this order's delivery workflow.</p>
-                  </div>
+                  <h3>Execution tasks</h3>
                   <button
                     type="button"
                     className="commercial-btn commercial-btn-small"
                     onClick={onOpenTasks}
                   >
-                    New Task
+                    New task
                   </button>
                 </div>
-                <div className="fulfillment-table-wrap">
-                  <table className="fulfillment-table fulfillment-order-room-table">
-                    <thead>
-                      <tr>
-                        <th>Task</th>
-                        <th>Status</th>
-                        <th>Total</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {taskTotal > 0 ? (
-                        <>
-                          <tr>
-                            <td>
-                              <b>All execution tasks</b>
-                            </td>
-                            <td>All statuses</td>
-                            <td>{taskTotal}</td>
-                          </tr>
-                          <tr>
-                            <td>
-                              <b>Tasks in progress</b>
-                            </td>
-                            <td>In Progress</td>
-                            <td>{order.taskCounts.in_progress ?? 0}</td>
-                          </tr>
-                          <tr>
-                            <td>
-                              <b>Tasks in review</b>
-                            </td>
-                            <td>Review</td>
-                            <td>{order.taskCounts.review ?? 0}</td>
-                          </tr>
-                        </>
-                      ) : (
-                        <tr>
-                          <td colSpan={3}>No tasks yet</td>
-                        </tr>
-                      )}
-                    </tbody>
-                  </table>
+                <div className="fulfillment-metric-strip" aria-label="Execution task counts">
+                  <div className="fulfillment-metric">
+                    <b>{taskTotal}</b>
+                    <span className="fulfillment-metric-label">Total</span>
+                  </div>
+                  <div
+                    className={`fulfillment-metric fulfillment-metric--blue${
+                      (order.taskCounts.in_progress ?? 0) === 0 ? ' fulfillment-metric--muted' : ''
+                    }`}
+                  >
+                    <b>{order.taskCounts.in_progress ?? 0}</b>
+                    <span className="fulfillment-metric-label">In progress</span>
+                  </div>
+                  <div
+                    className={`fulfillment-metric fulfillment-metric--yellow${
+                      (order.taskCounts.review ?? 0) === 0 ? ' fulfillment-metric--muted' : ''
+                    }`}
+                  >
+                    <b>{order.taskCounts.review ?? 0}</b>
+                    <span className="fulfillment-metric-label">In review</span>
+                  </div>
+                  <div
+                    className={`fulfillment-metric fulfillment-metric--green${
+                      (order.taskCounts.done ?? order.taskCounts.completed ?? 0) === 0
+                        ? ' fulfillment-metric--muted'
+                        : ''
+                    }`}
+                  >
+                    <b>{order.taskCounts.done ?? order.taskCounts.completed ?? 0}</b>
+                    <span className="fulfillment-metric-label">Done</span>
+                  </div>
                 </div>
+
+                {tasksQuery.isPending ? (
+                  <div className="commercial-empty">Loading tasks…</div>
+                ) : tasks.length === 0 ? (
+                  <div className="commercial-empty">No execution tasks for this order yet.</div>
+                ) : (
+                  <div className="fulfillment-linked-list">
+                    {tasks.map((task) => (
+                      <button
+                        key={task.id}
+                        type="button"
+                        className="fulfillment-linked-row"
+                        onClick={() => onOpenTask(task.id)}
+                      >
+                        <div className="fulfillment-linked-row-main">
+                          <b>{task.title}</b>
+                          <span>
+                            {task.taskNumber}
+                            {task.dueDate ? ` · Due ${task.dueDate}` : ''}
+                          </span>
+                        </div>
+                        <span className={`commercial-pill ${taskStatusClass(task.status)}`}>
+                          {statusLabel(task.status)}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                )}
               </section>
 
-              <section className="commercial-form-section">
+              <section className="commercial-form-section commercial-form-section--compact">
                 <div className="commercial-form-section-heading">
-                  <div>
-                    <h3>Deliverables</h3>
-                    <p>Documents, reports and outputs attached to this order.</p>
-                  </div>
+                  <h3>Deliverables</h3>
                   <button
                     type="button"
                     className="commercial-btn commercial-btn-small"
                     onClick={onOpenDeliverables}
                   >
-                    Add Deliverable
+                    Add deliverable
                   </button>
                 </div>
-                <div className="fulfillment-table-wrap">
-                  <table className="fulfillment-table fulfillment-order-room-table">
-                    <thead>
-                      <tr>
-                        <th>Deliverable</th>
-                        <th>Status</th>
-                        <th>Total</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {deliverableTotal > 0 ? (
-                        <>
-                          <tr>
-                            <td>
-                              <b>All deliverables</b>
-                            </td>
-                            <td>All statuses</td>
-                            <td>{deliverableTotal}</td>
-                          </tr>
-                          <tr>
-                            <td>
-                              <b>Deliverables under review</b>
-                            </td>
-                            <td>Under Review</td>
-                            <td>{order.deliverableCounts.under_review ?? 0}</td>
-                          </tr>
-                          <tr>
-                            <td>
-                              <b>Approved deliverables</b>
-                            </td>
-                            <td>Approved</td>
-                            <td>{order.deliverableCounts.approved ?? 0}</td>
-                          </tr>
-                        </>
-                      ) : (
-                        <tr>
-                          <td colSpan={3}>No deliverables yet</td>
-                        </tr>
-                      )}
-                    </tbody>
-                  </table>
+                <div className="fulfillment-metric-strip" aria-label="Deliverable counts">
+                  <div className="fulfillment-metric">
+                    <b>{deliverableTotal}</b>
+                    <span className="fulfillment-metric-label">Total</span>
+                  </div>
+                  <div
+                    className={`fulfillment-metric fulfillment-metric--yellow${
+                      (order.deliverableCounts.under_review ?? 0) === 0
+                        ? ' fulfillment-metric--muted'
+                        : ''
+                    }`}
+                  >
+                    <b>{order.deliverableCounts.under_review ?? 0}</b>
+                    <span className="fulfillment-metric-label">Under review</span>
+                  </div>
+                  <div
+                    className={`fulfillment-metric fulfillment-metric--green${
+                      (order.deliverableCounts.approved ?? 0) === 0
+                        ? ' fulfillment-metric--muted'
+                        : ''
+                    }`}
+                  >
+                    <b>{order.deliverableCounts.approved ?? 0}</b>
+                    <span className="fulfillment-metric-label">Approved</span>
+                  </div>
+                  <div
+                    className={`fulfillment-metric fulfillment-metric--red${
+                      (order.deliverableCounts.rejected ?? 0) === 0
+                        ? ' fulfillment-metric--muted'
+                        : ''
+                    }`}
+                  >
+                    <b>{order.deliverableCounts.rejected ?? 0}</b>
+                    <span className="fulfillment-metric-label">Rejected</span>
+                  </div>
                 </div>
+
+                {deliverablesQuery.isPending ? (
+                  <div className="commercial-empty">Loading deliverables…</div>
+                ) : deliverables.length === 0 ? (
+                  <div className="commercial-empty">No deliverables for this order yet.</div>
+                ) : (
+                  <div className="fulfillment-linked-list">
+                    {deliverables.map((deliverable) => (
+                      <button
+                        key={deliverable.id}
+                        type="button"
+                        className="fulfillment-linked-row"
+                        onClick={() => onOpenDeliverable(deliverable.id)}
+                      >
+                        <div className="fulfillment-linked-row-main">
+                          <b>{deliverable.title}</b>
+                          <span>
+                            {deliverable.deliverableNumber} · {statusLabel(deliverable.deliverableType)}{' '}
+                            · {deliverable.version}
+                          </span>
+                        </div>
+                        <span
+                          className={`commercial-pill ${deliverableStatusClass(deliverable.status)}`}
+                        >
+                          {statusLabel(deliverable.status)}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                )}
               </section>
 
               <section className="commercial-form-section">
                 <div className="commercial-form-section-heading">
-                  <div>
-                    <h3>Order Activity Log</h3>
-                    <p>Operational and client-facing history retained against this order.</p>
-                  </div>
+                  <h3>Activity</h3>
                   {canUpdate ? (
                     <button
                       type="button"
                       className="commercial-btn commercial-btn-small"
                       onClick={() => setAddingUpdate((value) => !value)}
                     >
-                      Add Update
+                      {addingUpdate ? 'Close' : 'Add update'}
                     </button>
                   ) : null}
                 </div>
@@ -465,44 +548,42 @@ export function OrderControlRoomLiveWorkspace({
                   >
                     <activityForm.Field name="activityType">
                       {(field) => (
-                        <label className="commercial-field">
-                          <span>Update type</span>
-                          <select
-                            value={field.state.value}
-                            onChange={(event) => field.handleChange(event.target.value)}
-                          >
-                            {activityTypes.map(([value, label]) => (
-                              <option key={value} value={value}>
-                                {label}
-                              </option>
-                            ))}
-                          </select>
-                        </label>
+                        <DropdownSelect
+                          label="Update type"
+                          fieldClassName="commercial-field"
+                          options={mapDropdownOptions(
+                            activityTypes.map(([value, label]) => ({ value, label })),
+                          )}
+                          value={field.state.value}
+                          onChange={(value) => field.handleChange(value)}
+                        />
                       )}
                     </activityForm.Field>
                     <activityForm.Field name="visibility">
                       {(field) => (
-                        <label className="commercial-field">
-                          <span>Visibility</span>
-                          <select
-                            value={field.state.value}
-                            onChange={(event) =>
-                              field.handleChange(event.target.value as typeof field.state.value)
-                            }
-                          >
-                            <option value="internal_client">Internal and client</option>
-                            <option value="internal">Internal only</option>
-                            <option value="management">Management only</option>
-                          </select>
-                        </label>
+                        <DropdownSelect
+                          label="Visibility"
+                          fieldClassName="commercial-field"
+                          options={[
+                            { value: 'internal_client', label: 'Internal and client' },
+                            { value: 'internal', label: 'Internal only' },
+                            { value: 'management', label: 'Management only' },
+                          ]}
+                          value={field.state.value}
+                          onChange={(value) =>
+                            field.handleChange(value as typeof field.state.value)
+                          }
+                        />
                       )}
                     </activityForm.Field>
                     <activityForm.Field name="note">
                       {(field) => (
                         <label className="commercial-field commercial-field--full">
-                          <span>Detailed update *</span>
+                          <span>
+                            Update <em>*</em>
+                          </span>
                           <textarea
-                            rows={4}
+                            rows={3}
                             value={field.state.value}
                             onChange={(event) => {
                               setActivityError('')
@@ -526,7 +607,7 @@ export function OrderControlRoomLiveWorkspace({
                         </label>
                       )}
                     </activityForm.Field>
-                    <div className="commercial-modal-footer-actions">
+                    <div className="commercial-modal-footer-actions commercial-field--full">
                       <button
                         type="button"
                         className="commercial-btn"
@@ -539,14 +620,14 @@ export function OrderControlRoomLiveWorkspace({
                         className="commercial-btn commercial-btn-primary"
                         disabled={saving}
                       >
-                        Save Update
+                        Save update
                       </button>
                     </div>
                   </form>
                 ) : null}
 
                 {order.activities.length === 0 ? (
-                  <div className="commercial-empty">No order activity has been recorded yet.</div>
+                  <div className="commercial-empty">No activity recorded yet.</div>
                 ) : (
                   <div className="commercial-timeline-list fulfillment-order-activity-list">
                     {[...order.activities].reverse().map((activity) => (
@@ -570,87 +651,69 @@ export function OrderControlRoomLiveWorkspace({
             </div>
 
             <aside className="fulfillment-order-room-aside">
-              <section className="commercial-form-section">
+              <section className="commercial-form-section commercial-form-section--compact">
                 <div className="commercial-form-section-heading">
-                  <div>
-                    <h3>Order Controls</h3>
-                    <p>Assignment, delivery notes and next-step ownership for this order.</p>
-                  </div>
-                </div>
-                <div className="fulfillment-order-key-grid fulfillment-order-key-grid--compact">
-                  <div className="fulfillment-order-key-card">
-                    <div className="commercial-kl">Status</div>
-                    <b>{statusLabel(order.orderStatus)}</b>
-                  </div>
-                  <div className="fulfillment-order-key-card">
-                    <div className="commercial-kl">Progress</div>
-                    <b>{order.progress}%</b>
-                  </div>
-                  <div className="fulfillment-order-key-card">
-                    <div className="commercial-kl">Current stage</div>
-                    <b>{order.stage || '—'}</b>
-                  </div>
-                  <div className="fulfillment-order-key-card">
-                    <div className="commercial-kl">Due date</div>
-                    <b>{dueSummary}</b>
-                  </div>
-                </div>
-                <div className="fulfillment-order-detail-stack fulfillment-order-detail-stack--compact">
-                  <div className="fulfillment-order-detail-row">
-                    <span className="commercial-kl">Assigned to</span>
-                    <b>{assignedEmployeeName}</b>
-                  </div>
-                  <div className="fulfillment-order-detail-row">
-                    <span className="commercial-kl">Next action</span>
-                    <b>{order.nextAction || '—'}</b>
-                  </div>
-                  {order.description ? (
-                    <div className="fulfillment-order-detail-row">
-                      <span className="commercial-kl">Description</span>
-                      <p>{order.description}</p>
-                    </div>
-                  ) : null}
-                </div>
-                {canUpdate ? (
-                  <div className="fulfillment-order-controls-actions">
+                  <h3>Order controls</h3>
+                  {canUpdate ? (
                     <button
                       type="button"
-                      className="commercial-btn commercial-btn-primary fulfillment-order-primary-action"
+                      className="commercial-btn commercial-btn-small"
                       disabled={saving}
                       onClick={() => setEditing(true)}
                     >
-                      Edit Order Controls
+                      Edit
                     </button>
-                  </div>
-                ) : null}
-              </section>
-
-              <section className="commercial-form-section">
-                <div className="commercial-form-section-heading">
+                  ) : null}
+                </div>
+                <div className="commercial-info-grid">
                   <div>
-                    <h3>Financial & Source Record</h3>
-                    <p>Linked commercial references and delivery ownership.</p>
+                    <div className="commercial-kl">Status</div>
+                    <b>{statusLabel(order.orderStatus)}</b>
+                  </div>
+                  <div>
+                    <div className="commercial-kl">Progress</div>
+                    <b>{order.progress}%</b>
+                  </div>
+                  <div>
+                    <div className="commercial-kl">Stage</div>
+                    <b>{order.stage || '—'}</b>
+                  </div>
+                  <div>
+                    <div className="commercial-kl">Due</div>
+                    <b>{dueSummary}</b>
+                  </div>
+                  <div className="commercial-info-full">
+                    <div className="commercial-kl">Assigned to</div>
+                    <b>{assignedEmployeeName}</b>
+                  </div>
+                  <div className="commercial-info-full">
+                    <div className="commercial-kl">Next action</div>
+                    <b>{order.nextAction || '—'}</b>
                   </div>
                 </div>
-                <div className="fulfillment-order-financial-grid">
-                  <div className="fulfillment-order-key-card">
-                    <span className="commercial-kl">Order value</span>
+              </section>
+
+              <section className="commercial-form-section commercial-form-section--compact">
+                <h3>Commercial</h3>
+                <div className="commercial-info-grid">
+                  <div>
+                    <div className="commercial-kl">Order value</div>
                     <b>{formatCurrency(order.amount)}</b>
                   </div>
-                  <div className="fulfillment-order-key-card">
-                    <span className="commercial-kl">Payment status</span>
+                  <div>
+                    <div className="commercial-kl">Payment</div>
                     <b>{statusLabel(order.paymentStatus)}</b>
                   </div>
-                  <div className="fulfillment-order-key-card">
-                    <span className="commercial-kl">Invoice</span>
+                  <div className="commercial-info-full">
+                    <div className="commercial-kl">Invoice</div>
                     <b>{invoiceNumber || (order.invoiceId ? `#${order.invoiceId}` : '—')}</b>
                   </div>
-                  <div className="fulfillment-order-key-card">
-                    <span className="commercial-kl">Quote</span>
+                  <div className="commercial-info-full">
+                    <div className="commercial-kl">Quote</div>
                     <b>{order.quoteNumber || (order.quoteId ? `#${order.quoteId}` : '—')}</b>
                   </div>
-                  <div className="fulfillment-order-key-card">
-                    <span className="commercial-kl">Service request</span>
+                  <div className="commercial-info-full">
+                    <div className="commercial-kl">Service request</div>
                     <b>{order.serviceRequestId ? `#${order.serviceRequestId}` : '—'}</b>
                   </div>
                 </div>
@@ -659,24 +722,44 @@ export function OrderControlRoomLiveWorkspace({
           </div>
         </div>
 
-        {editing ? (
-          <div
-            className="commercial-modal-backdrop commercial-modal-backdrop--nested"
-            role="presentation"
-            onMouseDown={() => setEditing(false)}
+        <footer className="commercial-modal-footer">
+          <button type="button" className="commercial-btn" onClick={onClose}>
+            Close
+          </button>
+          <div className="commercial-modal-footer-actions">
+            <button type="button" className="commercial-btn" onClick={onOpenTasks}>
+              Tasks
+            </button>
+            <button type="button" className="commercial-btn" onClick={onOpenDeliverables}>
+              Deliverables
+            </button>
+          </div>
+        </footer>
+      </section>
+
+      {editing ? (
+        <div
+          className="commercial-modal-backdrop commercial-modal-backdrop--nested"
+          role="presentation"
+          onMouseDown={() => setEditing(false)}
+        >
+          <form
+            className="commercial-modal commercial-order-controls-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Edit order controls"
+            onMouseDown={(event) => event.stopPropagation()}
+            onSubmit={(event) => {
+              event.preventDefault()
+              void editForm.handleSubmit()
+            }}
           >
-            <section
-              className="commercial-modal commercial-order-controls-modal"
-              role="dialog"
-              aria-modal="true"
-              aria-label="Edit Order Controls"
-              onMouseDown={(event) => event.stopPropagation()}
-            >
-              <header className="commercial-modal-header">
-                <div>
-                  <h2>Edit Order Controls</h2>
-                  <p>Assignment, delivery notes and next-step ownership for this order.</p>
-                </div>
+            <header className="commercial-modal-header">
+              <div>
+                <h2>Edit order controls</h2>
+                <p>{order.orderNumber}</p>
+              </div>
+              <div className="commercial-modal-header-meta">
                 <button
                   type="button"
                   className="commercial-modal-close"
@@ -685,116 +768,112 @@ export function OrderControlRoomLiveWorkspace({
                 >
                   <IconX size={16} />
                 </button>
-              </header>
+              </div>
+            </header>
 
-              <form
-                onSubmit={(event) => {
-                  event.preventDefault()
-                  void editForm.handleSubmit()
-                }}
+            <div className="commercial-modal-body">
+              <div className="commercial-form-grid">
+                <editForm.Field name="assignedToId">
+                  {(field) => (
+                    <DropdownSelect
+                      label="Assigned employee"
+                      fieldClassName="commercial-field"
+                      options={[
+                        { value: '0', label: 'Unassigned' },
+                        ...mapDropdownOptions(
+                          employees.map((employee) => ({
+                            value: String(employee.id),
+                            label: `${employee.name}${employee.designation ? ` · ${employee.designation}` : ''}`,
+                          })),
+                        ),
+                      ]}
+                      value={String(field.state.value)}
+                      onChange={(value) => field.handleChange(Number(value))}
+                    />
+                  )}
+                </editForm.Field>
+                <editForm.Field name="dueDate">
+                  {(field) => (
+                    <DatePicker
+                      label="Due date"
+                      clearable
+                      value={field.state.value}
+                      onChange={(value) => field.handleChange(value)}
+                      fieldClassName="commercial-field"
+                    />
+                  )}
+                </editForm.Field>
+                <editForm.Field name="nextAction">
+                  {(field) => (
+                    <label className="commercial-field commercial-field--full">
+                      <span>Next action</span>
+                      <input
+                        value={field.state.value}
+                        onChange={(event) => field.handleChange(event.target.value)}
+                      />
+                    </label>
+                  )}
+                </editForm.Field>
+                <editForm.Field name="description">
+                  {(field) => (
+                    <label className="commercial-field commercial-field--full">
+                      <span>Description</span>
+                      <textarea
+                        rows={3}
+                        value={field.state.value}
+                        onChange={(event) => field.handleChange(event.target.value)}
+                      />
+                    </label>
+                  )}
+                </editForm.Field>
+              </div>
+            </div>
+
+            <footer className="commercial-modal-footer">
+              <button
+                type="button"
+                className="commercial-btn"
+                onClick={() => setEditing(false)}
               >
-                <div className="commercial-modal-body">
-                  <div className="commercial-form-grid commercial-form-grid--compact">
-                    <editForm.Field name="assignedToId">
-                      {(field) => (
-                        <label className="commercial-field">
-                          <span>Assigned employee</span>
-                          <select
-                            value={field.state.value}
-                            onChange={(event) => field.handleChange(Number(event.target.value))}
-                          >
-                            <option value={0}>Unassigned</option>
-                            {employees.map((employee) => (
-                              <option key={employee.id} value={employee.id}>
-                                {employee.name}
-                                {employee.designation ? ` — ${employee.designation}` : ''}
-                              </option>
-                            ))}
-                          </select>
-                        </label>
-                      )}
-                    </editForm.Field>
-                    <editForm.Field name="dueDate">
-                      {(field) => (
-                        <label className="commercial-field">
-                          <span>Due date</span>
-                          <input
-                            type="date"
-                            value={field.state.value}
-                            onChange={(event) => field.handleChange(event.target.value)}
-                          />
-                        </label>
-                      )}
-                    </editForm.Field>
-                    <editForm.Field name="description">
-                      {(field) => (
-                        <label className="commercial-field commercial-field--full">
-                          <span>Description</span>
-                          <textarea
-                            rows={3}
-                            value={field.state.value}
-                            onChange={(event) => field.handleChange(event.target.value)}
-                          />
-                        </label>
-                      )}
-                    </editForm.Field>
-                    <editForm.Field name="nextAction">
-                      {(field) => (
-                        <label className="commercial-field commercial-field--full">
-                          <span>Next action</span>
-                          <input
-                            value={field.state.value}
-                            onChange={(event) => field.handleChange(event.target.value)}
-                          />
-                        </label>
-                      )}
-                    </editForm.Field>
-                  </div>
-                </div>
-                <footer className="commercial-modal-footer">
-                  <div className="commercial-modal-footer-start">
-                    <span className="commercial-kl">Order controls update</span>
-                  </div>
-                  <div className="commercial-modal-footer-actions">
-                    <button
-                      type="button"
-                      className="commercial-btn"
-                      onClick={() => setEditing(false)}
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      type="submit"
-                      className="commercial-btn commercial-btn-primary"
-                      disabled={saving}
-                    >
-                      Save Update
-                    </button>
-                  </div>
-                </footer>
-              </form>
-            </section>
-          </div>
-        ) : null}
+                Cancel
+              </button>
+              <div className="commercial-modal-footer-actions">
+                <button
+                  type="submit"
+                  className="commercial-btn commercial-btn-primary"
+                  disabled={saving}
+                >
+                  Save
+                </button>
+              </div>
+            </footer>
+          </form>
+        </div>
+      ) : null}
 
-        {addingMilestone ? (
-          <div
-            className="commercial-modal-backdrop commercial-modal-backdrop--nested"
-            role="presentation"
-            onMouseDown={() => setAddingMilestone(false)}
+      {addingMilestone ? (
+        <div
+          className="commercial-modal-backdrop commercial-modal-backdrop--nested"
+          role="presentation"
+          onMouseDown={() => setAddingMilestone(false)}
+        >
+          <form
+            className="commercial-modal commercial-order-controls-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Add milestone"
+            onMouseDown={(event) => event.stopPropagation()}
+            onSubmit={(event) => {
+              event.preventDefault()
+              void milestoneForm.handleSubmit()
+            }}
           >
-            <section
-              className="commercial-modal commercial-order-controls-modal"
-              role="dialog"
-              aria-modal="true"
-              aria-label="Add Milestone"
-              onMouseDown={(event) => event.stopPropagation()}
-            >
-              <header className="commercial-modal-header">
-                <div>
-                  <h2>Add Milestone</h2>
-                  <p>Keep the workflow clean by adding one checkpoint at a time.</p>
-                </div>
+            <header className="commercial-modal-header">
+              <div>
+                <h2>Add milestone</h2>
+                <p>{order.orderNumber}</p>
+              </div>
+              <div className="commercial-modal-header-meta">
                 <button
                   type="button"
                   className="commercial-modal-close"
@@ -803,95 +882,79 @@ export function OrderControlRoomLiveWorkspace({
                 >
                   <IconX size={16} />
                 </button>
-              </header>
+              </div>
+            </header>
 
-              <form
-                onSubmit={(event) => {
-                  event.preventDefault()
-                  void milestoneForm.handleSubmit()
-                }}
+            <div className="commercial-modal-body">
+              <div className="commercial-form-grid">
+                <milestoneForm.Field name="name">
+                  {(field) => (
+                    <label className="commercial-field commercial-field--full">
+                      <span>
+                        Milestone name <em>*</em>
+                      </span>
+                      <input
+                        value={field.state.value}
+                        onChange={(event) => {
+                          setMilestoneError('')
+                          field.handleChange(event.target.value)
+                        }}
+                      />
+                      {milestoneError ? (
+                        <small className="commercial-field-error">{milestoneError}</small>
+                      ) : null}
+                    </label>
+                  )}
+                </milestoneForm.Field>
+                <milestoneForm.Field name="dueDate">
+                  {(field) => (
+                    <DatePicker
+                      label="Due date"
+                      clearable
+                      value={field.state.value}
+                      onChange={(value) => field.handleChange(value)}
+                      fieldClassName="commercial-field"
+                    />
+                  )}
+                </milestoneForm.Field>
+                <milestoneForm.Field name="clientVisible">
+                  {(field) => (
+                    <DropdownSelect
+                      label="Visibility"
+                      fieldClassName="commercial-field"
+                      options={[
+                        { value: 'client', label: 'Internal and client' },
+                        { value: 'internal', label: 'Internal only' },
+                      ]}
+                      value={field.state.value ? 'client' : 'internal'}
+                      onChange={(value) => field.handleChange(value === 'client')}
+                    />
+                  )}
+                </milestoneForm.Field>
+              </div>
+            </div>
+
+            <footer className="commercial-modal-footer">
+              <button
+                type="button"
+                className="commercial-btn"
+                onClick={() => setAddingMilestone(false)}
               >
-                <div className="commercial-modal-body">
-                  <div className="commercial-form-grid commercial-form-grid--compact">
-                    <milestoneForm.Field name="name">
-                      {(field) => (
-                        <label className="commercial-field commercial-field--full">
-                          <span>Milestone name *</span>
-                          <input
-                            value={field.state.value}
-                            onChange={(event) => {
-                              setMilestoneError('')
-                              field.handleChange(event.target.value)
-                            }}
-                          />
-                          {milestoneError ? (
-                            <small className="commercial-field-error">{milestoneError}</small>
-                          ) : null}
-                        </label>
-                      )}
-                    </milestoneForm.Field>
-                    <milestoneForm.Field name="dueDate">
-                      {(field) => (
-                        <label className="commercial-field">
-                          <span>Due date</span>
-                          <input
-                            type="date"
-                            value={field.state.value}
-                            onChange={(event) => field.handleChange(event.target.value)}
-                          />
-                        </label>
-                      )}
-                    </milestoneForm.Field>
-                    <milestoneForm.Field name="clientVisible">
-                      {(field) => (
-                        <label className="commercial-field">
-                          <span>Visibility</span>
-                          <select
-                            value={field.state.value ? 'client' : 'internal'}
-                            onChange={(event) =>
-                              field.handleChange(event.target.value === 'client')
-                            }
-                          >
-                            <option value="client">Internal and client</option>
-                            <option value="internal">Internal only</option>
-                          </select>
-                        </label>
-                      )}
-                    </milestoneForm.Field>
-                  </div>
-                </div>
-                <footer className="commercial-modal-footer">
-                  <div className="commercial-modal-footer-start">
-                    <span className="commercial-kl">Milestone checkpoint</span>
-                  </div>
-                  <div className="commercial-modal-footer-actions">
-                    <button
-                      type="button"
-                      className="commercial-btn"
-                      onClick={() => setAddingMilestone(false)}
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      type="submit"
-                      className="commercial-btn commercial-btn-primary"
-                      disabled={saving}
-                    >
-                      Add Milestone
-                    </button>
-                  </div>
-                </footer>
-              </form>
-            </section>
-          </div>
-        ) : null}
-
-        <footer className="commercial-modal-footer">
-          <button type="button" className="commercial-btn" onClick={onClose}>
-            Close
-          </button>
-        </footer>
-      </section>
+                Cancel
+              </button>
+              <div className="commercial-modal-footer-actions">
+                <button
+                  type="submit"
+                  className="commercial-btn commercial-btn-primary"
+                  disabled={saving}
+                >
+                  Add milestone
+                </button>
+              </div>
+            </footer>
+          </form>
+        </div>
+      ) : null}
     </div>
   )
 }

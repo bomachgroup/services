@@ -2,6 +2,7 @@ import { IconExternalLink, IconX } from '@tabler/icons-react'
 import { useForm } from '@tanstack/react-form'
 import { useState } from 'react'
 
+import { DropdownSelect, mapDropdownOptions } from '@/shared/ui/dropdown-select'
 import { CompactActionButton } from '@/shared/ui/module-controls'
 
 import {
@@ -395,77 +396,76 @@ export function DeliverableDetailLiveWorkspace({
                   </form.Field>
                   <form.Field name="milestoneId">
                     {(field) => (
-                      <label className="commercial-field">
-                        <span>Milestone</span>
-                        <select
-                          value={field.state.value}
-                          onChange={(event) => field.handleChange(Number(event.target.value))}
-                        >
-                          <option value={0}>No milestone</option>
-                          {[...order.milestones]
-                            .sort((a, b) => a.sortOrder - b.sortOrder || a.id - b.id)
-                            .map((item) => (
-                              <option key={item.id} value={item.id}>
-                                {item.name} · {label(item.status)}
-                              </option>
-                            ))}
-                        </select>
-                      </label>
+                      <DropdownSelect
+                        label="Milestone"
+                        fullWidth
+                        fieldClassName="commercial-field"
+                        options={[
+                          { value: '0', label: 'No milestone' },
+                          ...mapDropdownOptions(
+                            [...order.milestones]
+                              .sort((a, b) => a.sortOrder - b.sortOrder || a.id - b.id)
+                              .map((item) => ({
+                                value: String(item.id),
+                                label: `${item.name} · ${label(item.status)}`,
+                              })),
+                          ),
+                        ]}
+                        value={String(field.state.value)}
+                        onChange={(value) => field.handleChange(Number(value))}
+                      />
                     )}
                   </form.Field>
                   <form.Field name="taskId">
                     {(field) => (
-                      <label className="commercial-field">
-                        <span>Execution Task</span>
-                        <select
-                          value={field.state.value}
-                          onChange={(event) => field.handleChange(Number(event.target.value))}
-                        >
-                          <option value={0}>No task link</option>
-                          {tasks.map((item) => (
-                            <option key={item.id} value={item.id}>
-                              {item.taskNumber} · {item.title}
-                            </option>
-                          ))}
-                        </select>
-                      </label>
+                      <DropdownSelect
+                        label="Execution Task"
+                        fullWidth
+                        fieldClassName="commercial-field"
+                        options={[
+                          { value: '0', label: 'No task link' },
+                          ...mapDropdownOptions(
+                            tasks.map((item) => ({
+                              value: String(item.id),
+                              label: `${item.taskNumber} · ${item.title}`,
+                            })),
+                          ),
+                        ]}
+                        value={String(field.state.value)}
+                        onChange={(value) => field.handleChange(Number(value))}
+                      />
                     )}
                   </form.Field>
                   <form.Field name="ownerId">
                     {(field) => (
-                      <label className="commercial-field">
-                        <span>Owner</span>
-                        <select
-                          value={field.state.value}
-                          onChange={(event) => field.handleChange(Number(event.target.value))}
-                        >
-                          <option value={0}>Unassigned</option>
-                          {employees.map((employee) => (
-                            <option key={employee.id} value={employee.id}>
-                              {employee.name}
-                            </option>
-                          ))}
-                        </select>
-                      </label>
+                      <DropdownSelect
+                        label="Owner"
+                        fullWidth
+                        fieldClassName="commercial-field"
+                        options={[
+                          { value: '0', label: 'Unassigned' },
+                          ...mapDropdownOptions(
+                            employees.map((employee) => ({
+                              value: String(employee.id),
+                              label: employee.name,
+                            })),
+                          ),
+                        ]}
+                        value={String(field.state.value)}
+                        onChange={(value) => field.handleChange(Number(value))}
+                      />
                     )}
                   </form.Field>
                   <form.Field name="deliverableType">
                     {(field) => (
-                      <label className="commercial-field">
-                        <span>Type</span>
-                        <select
-                          value={field.state.value}
-                          onChange={(event) =>
-                            field.handleChange(event.target.value as DeliverableType)
-                          }
-                        >
-                          {deliverableTypes.map((type) => (
-                            <option key={type.value} value={type.value}>
-                              {type.label}
-                            </option>
-                          ))}
-                        </select>
-                      </label>
+                      <DropdownSelect
+                        label="Type"
+                        fullWidth
+                        fieldClassName="commercial-field"
+                        options={mapDropdownOptions(deliverableTypes)}
+                        value={field.state.value}
+                        onChange={(value) => field.handleChange(value as DeliverableType)}
+                      />
                     )}
                   </form.Field>
                   <form.Field name="version">

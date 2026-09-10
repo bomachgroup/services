@@ -1,15 +1,21 @@
 import { IconX } from '@tabler/icons-react'
 import { useForm } from '@tanstack/react-form'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 
-import { formatCurrency } from '@/shared/lib/formatters'
 import type { Invoice } from '@/modules/commercial/billing/billing.types'
+import { formatCurrency } from '@/shared/lib/formatters'
+import { DatePicker } from '@/shared/ui/date-picker'
+import { DropdownSelect, mapDropdownOptions } from '@/shared/ui/dropdown-select'
 
 import { validateOrderCreation } from '../service-orders/service-order.validation'
 import type {
   CreateServiceOrderFromInvoiceInput,
   EmployeeOption,
 } from '../service-orders/service-order.types'
+
+function statusLabel(value: string) {
+  return value.replaceAll('_', ' ')
+}
 
 export function CreateServiceOrderLiveWorkspace({
   invoice,
@@ -54,10 +60,16 @@ export function CreateServiceOrderLiveWorkspace({
     },
   })
 
+  useEffect(() => {
+    form.setFieldValue('dueDate', invoice.dueDate || '')
+  }, [form, invoice.dueDate, invoice.id])
+
   return (
     <div className="commercial-modal-backdrop" role="presentation" onMouseDown={onClose}>
       <form
-        className="commercial-modal commercial-modal--xl"
+        className="commercial-modal commercial-modal--xl commercial-order-create-modal"
+        role="dialog"
+        aria-modal="true"
         aria-label="Create Service Order"
         onMouseDown={(event) => event.stopPropagation()}
         onSubmit={(event) => {
@@ -68,39 +80,54 @@ export function CreateServiceOrderLiveWorkspace({
       >
         <header className="commercial-modal-header">
           <div>
-            <h2>Create Service Order</h2>
-            <p>Mobilise an eligible invoice into fulfillment</p>
+            <h2>Create service order</h2>
+            <p>
+              {invoice.invoiceNumber
+                ? `${invoice.invoiceNumber} · ${invoice.serviceName}`
+                : 'Mobilise an eligible invoice into fulfillment'}
+            </p>
           </div>
-          <button
-            type="button"
-            className="commercial-modal-close"
-            onClick={onClose}
-            aria-label="Close"
-          >
-            <IconX size={16} />
-          </button>
+          <div className="commercial-modal-header-meta">
+            <button
+              type="button"
+              className="commercial-modal-close"
+              onClick={onClose}
+              aria-label="Close"
+            >
+              <IconX size={16} />
+            </button>
+          </div>
         </header>
 
         <div className="commercial-modal-body">
           <section className="commercial-form-section">
-            <h3>Commercial source</h3>
-            <label className="commercial-field commercial-field--full">
-              <span>Invoice *</span>
-              <select
-                value={invoice.id}
-                disabled={invoiceSelectionLocked || invoiceSelectionLoading}
-                onChange={(event) => onSelectInvoice(Number(event.target.value))}
-              >
-                {eligibleInvoices.map((item) => (
-                  <option key={item.id} value={item.id}>
-                    {item.invoiceNumber} — {item.serviceName} — {formatCurrency(item.totalAmount)}
-                  </option>
-                ))}
-              </select>
-              {invoiceSelectionLoading ? <small>Loading invoice…</small> : null}
-            </label>
+            <h3>Invoice</h3>
+            {!invoiceSelectionLocked ? (
+              <div className="commercial-form-grid">
+                <DropdownSelect
+                  label="Invoice"
+                  required
+                  fullWidth
+                  fieldClassName="commercial-field commercial-field--full"
+                  disabled={invoiceSelectionLoading}
+                  helpText={invoiceSelectionLoading ? 'Loading invoice…' : undefined}
+                  options={mapDropdownOptions(
+                    eligibleInvoices.map((item) => ({
+                      value: String(item.id),
+                      label: `${item.invoiceNumber} — ${item.serviceName} — ${formatCurrency(item.totalAmount)}`,
+                    })),
+                  )}
+                  value={String(invoice.id)}
+                  onChange={(value) => onSelectInvoice(Number(value))}
+                />
+              </div>
+            ) : null}
 
             <div className="commercial-info-grid">
+              <div>
+                <div className="commercial-kl">Invoice</div>
+                <b>{invoice.invoiceNumber}</b>
+              </div>
               <div>
                 <div className="commercial-kl">Client</div>
                 <b>{invoice.clientName || `Client #${invoice.clientId}`}</b>
@@ -108,6 +135,10 @@ export function CreateServiceOrderLiveWorkspace({
               <div>
                 <div className="commercial-kl">Service</div>
                 <b>{invoice.serviceName}</b>
+              </div>
+              <div>
+                <div className="commercial-kl">Quote</div>
+                <b>{invoice.quoteNumber || '—'}</b>
               </div>
               <div>
                 <div className="commercial-kl">Order value</div>
@@ -119,11 +150,11 @@ export function CreateServiceOrderLiveWorkspace({
               </div>
               <div>
                 <div className="commercial-kl">Payment status</div>
-                <b>{invoice.status.replaceAll('_', ' ')}</b>
+                <b>{statusLabel(invoice.status)}</b>
               </div>
               <div>
                 <div className="commercial-kl">Threshold</div>
-                <b>Met</b>
+                <b>{invoice.activationThresholdMetAt ? 'Met' : 'Pending'}</b>
               </div>
             </div>
           </section>
@@ -133,33 +164,54 @@ export function CreateServiceOrderLiveWorkspace({
             <div className="commercial-form-grid">
               <form.Field name="assignedToId">
                 {(field) => (
-                  <label className="commercial-field">
-                    <span>Assigned employee</span>
-                    <select
-                      value={field.state.value}
-                      onChange={(event) => field.handleChange(Number(event.target.value))}
-                    >
-                      <option value={0}>Unassigned</option>
-                      {employees.map((employee) => (
-                        <option key={employee.id} value={employee.id}>
-                          {employee.name}
-                          {employee.designation ? ` — ${employee.designation}` : ''}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
+                  <DropdownSelect
+                    label="Assigned employee"
+                    fieldClassName="commercial-field"
+                    placeholder="Unassigned"
+                    options={[
+                      { value: '0', label: 'Unassigned' },
+                      ...mapDropdownOptions(
+                        employees.map((employee) => ({
+                          value: String(employee.id),
+                          label: `${employee.name}${employee.designation ? ` · ${employee.designation}` : ''}`,
+                        })),
+                      ),
+                    ]}
+                    value={String(field.state.value)}
+                    onChange={(value) => field.handleChange(Number(value))}
+                  />
                 )}
               </form.Field>
 
               <form.Field name="dueDate">
                 {(field) => (
-                  <label className="commercial-field">
-                    <span>Due date</span>
+                  <DatePicker
+                    label="Due date"
+                    clearable
+                    value={field.state.value}
+                    onChange={(value) => field.handleChange(value)}
+                    fieldClassName="commercial-field"
+                  />
+                )}
+              </form.Field>
+
+              <form.Field name="nextAction">
+                {(field) => (
+                  <label className="commercial-field commercial-field--full">
+                    <span>
+                      Next action <em>*</em>
+                    </span>
                     <input
-                      type="date"
                       value={field.state.value}
-                      onChange={(event) => field.handleChange(event.target.value)}
+                      onChange={(event) => {
+                        if (nextActionError) setNextActionError('')
+                        field.handleChange(event.target.value)
+                      }}
+                      placeholder="What should the team do first?"
                     />
+                    {nextActionError ? (
+                      <small className="commercial-field-error">{nextActionError}</small>
+                    ) : null}
                   </label>
                 )}
               </form.Field>
@@ -169,29 +221,11 @@ export function CreateServiceOrderLiveWorkspace({
                   <label className="commercial-field commercial-field--full">
                     <span>Fulfillment description</span>
                     <textarea
-                      rows={4}
+                      rows={3}
                       value={field.state.value}
                       onChange={(event) => field.handleChange(event.target.value)}
                       placeholder="Operational context for the delivery team"
                     />
-                  </label>
-                )}
-              </form.Field>
-
-              <form.Field name="nextAction">
-                {(field) => (
-                  <label className="commercial-field commercial-field--full">
-                    <span>Next action *</span>
-                    <input
-                      value={field.state.value}
-                      onChange={(event) => {
-                        if (nextActionError) setNextActionError('')
-                        field.handleChange(event.target.value)
-                      }}
-                    />
-                    {nextActionError ? (
-                      <small className="commercial-field-error">{nextActionError}</small>
-                    ) : null}
                   </label>
                 )}
               </form.Field>
@@ -203,13 +237,15 @@ export function CreateServiceOrderLiveWorkspace({
           <button type="button" className="commercial-btn" disabled={saving} onClick={onClose}>
             Cancel
           </button>
-          <button
-            type="submit"
-            className="commercial-btn commercial-btn-primary"
-            disabled={saving || invoiceSelectionLoading}
-          >
-            {saving ? 'Creating…' : 'Create Service Order'}
-          </button>
+          <div className="commercial-modal-footer-actions">
+            <button
+              type="submit"
+              className="commercial-btn commercial-btn-primary"
+              disabled={saving || invoiceSelectionLoading}
+            >
+              {saving ? 'Creating…' : 'Create service order'}
+            </button>
+          </div>
         </footer>
       </form>
     </div>

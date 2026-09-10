@@ -3,6 +3,7 @@ import { useForm } from '@tanstack/react-form'
 import { useState } from 'react'
 
 import { formatNumberFieldValue, parseNumberFieldValue } from '@/shared/lib/number-input'
+import { DropdownSelect } from '@/shared/ui/dropdown-select'
 
 import type { AddOrderUpdateInput, ServiceOrder } from '../types/fulfillment.types'
 
@@ -65,39 +66,39 @@ export function OrderUpdateWorkspace({
           <div className="fulfillment-form-grid">
             <form.Field name="type">
               {(field) => (
-                <label className="fulfillment-field">
-                  <span>Update type</span>
-                  <select
-                    value={field.state.value}
-                    onChange={(event) => field.handleChange(event.target.value)}
-                  >
-                    <option>Progress update</option>
-                    <option>Site report</option>
-                    <option>Client communication</option>
-                    <option>Delay / blocker</option>
-                    <option>Inspection</option>
-                    <option>Material update</option>
-                    <option>Decision</option>
-                  </select>
-                </label>
+                <DropdownSelect
+                  label="Update type"
+                  fullWidth
+                  fieldClassName="fulfillment-field"
+                  options={[
+                    'Progress update',
+                    'Site report',
+                    'Client communication',
+                    'Delay / blocker',
+                    'Inspection',
+                    'Material update',
+                    'Decision',
+                  ].map((type) => ({ value: type, label: type }))}
+                  value={field.state.value}
+                  onChange={(value) => field.handleChange(value)}
+                />
               )}
             </form.Field>
 
             <form.Field name="visibility">
               {(field) => (
-                <label className="fulfillment-field">
-                  <span>Visibility</span>
-                  <select
-                    value={field.state.value}
-                    onChange={(event) =>
-                      field.handleChange(event.target.value as typeof field.state.value)
-                    }
-                  >
-                    <option>Internal and client</option>
-                    <option>Internal only</option>
-                    <option>Management only</option>
-                  </select>
-                </label>
+                <DropdownSelect
+                  label="Visibility"
+                  fullWidth
+                  fieldClassName="fulfillment-field"
+                  options={[
+                    { value: 'Internal and client', label: 'Internal and client' },
+                    { value: 'Internal only', label: 'Internal only' },
+                    { value: 'Management only', label: 'Management only' },
+                  ]}
+                  value={field.state.value}
+                  onChange={(value) => field.handleChange(value as typeof field.state.value)}
+                />
               )}
             </form.Field>
 

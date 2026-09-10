@@ -1,5 +1,17 @@
 import type { CreateDeliverableInput, UpdateDeliverableInput } from './deliverable.types'
 
+export type DeliverableCreateField =
+  | 'title'
+  | 'version'
+  | 'fileUrl'
+  | 'fileSizeBytes'
+  | 'clientVisible'
+
+export type DeliverableFieldError = {
+  field: DeliverableCreateField
+  message: string
+}
+
 function validDocumentUrl(value: string) {
   try {
     const parsed = new URL(value)
@@ -9,17 +21,21 @@ function validDocumentUrl(value: string) {
   }
 }
 
-export function validateDeliverableCreate(input: CreateDeliverableInput) {
-  if (!input.title.trim()) return 'Deliverable title is required.'
-  if (!input.version.trim()) return 'Version is required.'
-  if (!input.fileUrl.trim()) return 'Document URL is required.'
+export function validateDeliverableCreate(input: CreateDeliverableInput): DeliverableFieldError | null {
+  if (!input.title.trim()) return { field: 'title', message: 'Deliverable title is required.' }
+  if (!input.version.trim()) return { field: 'version', message: 'Version is required.' }
+  if (!input.fileUrl.trim()) return { field: 'fileUrl', message: 'Document is required.' }
   if (!validDocumentUrl(input.fileUrl.trim()))
-    return 'Document URL must be a valid http or https URL.'
-  if ((input.fileSizeBytes ?? 0) < 0) return 'File size cannot be negative.'
+    return { field: 'fileUrl', message: 'Document must be a valid uploaded file URL.' }
+  if ((input.fileSizeBytes ?? 0) < 0)
+    return { field: 'fileSizeBytes', message: 'File size cannot be negative.' }
   if (input.approvalMode === 'client' && !input.clientVisible) {
-    return 'Client approval requires the deliverable to be visible to the client.'
+    return {
+      field: 'clientVisible',
+      message: 'Client approval requires the deliverable to be visible to the client.',
+    }
   }
-  return ''
+  return null
 }
 
 export function validateDeliverableUpdate(input: UpdateDeliverableInput) {
