@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react'
 
 import type { ClientOption, ServiceOption } from '@/modules/commercial/api/service-requests.types'
+import type { ServiceRequestDetail } from '@/modules/commercial/api/service-requests.types'
 
 export interface SpecializedRequestFormValues {
   contactName: string
@@ -48,7 +49,7 @@ export interface SpecializedRequestPlugin<TContext = unknown> {
   sectionDescription: string
   submitLabel: string
   initialContext: () => TContext
-  validateContext: (context: TContext) => string | null
+  validateContext: (context: TContext, service?: ServiceOption | null) => string | null
   buildHandoff: (input: {
     service: ServiceOption
     context: TContext
@@ -57,3 +58,8 @@ export interface SpecializedRequestPlugin<TContext = unknown> {
   }) => SpecializedRequestHandoff
   ContextFields: (props: SpecializedRequestContextFieldsProps<TContext>) => ReactNode
 }
+
+export type SpecializedRequestContinueHandler = (
+  handoff: SpecializedRequestHandoff,
+  createdRequest?: ServiceRequestDetail,
+) => Promise<unknown> | void
