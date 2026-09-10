@@ -1,18 +1,29 @@
-import { IconRefresh, IconTrash, IconUpload, IconX } from '@tabler/icons-react'
+import {
+  IconChevronDown,
+  IconDownload,
+  IconRefresh,
+  IconTrash,
+  IconUpload,
+  IconX,
+} from '@tabler/icons-react'
 import { useForm } from '@tanstack/react-form'
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
 import { presentError } from '@/shared/errors'
-import { formatNumberFieldValue, parseNumberFieldValue } from '@/shared/lib/number-input'
 import { ConfirmDialog } from '@/shared/ui/confirm-dialog'
+import { DatePicker } from '@/shared/ui/date-picker'
+import { GroupedNumberInput } from '@/shared/ui/grouped-number-input'
+import { useToast } from '@/shared/ui/toast/useToast'
 
 import { serviceRequestsApi } from '../api/service-requests.api'
 import { getInvoiceCapabilities } from '../billing/invoice-capabilities'
+import { printInvoiceAsPdf } from '../billing/invoice-print'
 import {
   paymentMethodOptions,
   type CreatePaymentSubmissionInput,
   type FinanceAccount,
   type Invoice,
+  type InvoiceScheduleLine,
   type Payment,
   type PaymentSubmission,
   type ReviewPaymentSubmissionInput,
@@ -52,6 +63,31 @@ function statusClass(status: Invoice['status']) {
     return 'commercial-pill-gray'
   }
   if (status === 'partially_paid') return 'commercial-pill-yellow'
+  return 'commercial-pill-blue'
+}
+
+function settlementModeLabel(mode: string) {
+  if (mode === 'reservation') return 'Reservation'
+  if (mode === 'installment') return 'Installment'
+  if (mode === 'full_payment') return 'Full payment'
+  return ''
+}
+
+function amountDueNow(invoice: Invoice) {
+  const due = invoice.paymentDue?.amountDueNow
+  if (Number.isFinite(due)) return Math.max(0, Number(due))
+  return Math.max(0, invoice.balance)
+}
+
+function scheduleStatusLabel(status: string) {
+  if (status === 'paid') return 'Paid'
+  if (status === 'partial') return 'Partial'
+  return 'Due'
+}
+
+function scheduleStatusClass(status: string) {
+  if (status === 'paid') return 'commercial-pill-green'
+  if (status === 'partial') return 'commercial-pill-yellow'
   return 'commercial-pill-blue'
 }
 
@@ -109,14 +145,28 @@ export function InvoiceDetailLiveWorkspace({
     input: ReviewPaymentSubmissionInput,
   ) => void
 }) {
+  const toast = useToast()
   const capabilities = getInvoiceCapabilities(invoice)
   const [editing, setEditing] = useState(false)
+  const [scheduleOpen, setScheduleOpen] = useState(false)
   const [proofModalOpen, setProofModalOpen] = useState(false)
   const [paymentProofErrors, setPaymentProofErrors] = useState<Record<string, string>>({})
   const [editErrors, setEditErrors] = useState<Record<string, string>>({})
   const [paymentProof, setPaymentProof] = useState<ProofUploadState>(null)
   const [confirmAction, setConfirmAction] = useState<InvoiceConfirmAction>(null)
   const uploadControllerRef = useRef<AbortController | null>(null)
+  const dueNowAmount = amountDueNow(invoice)
+  const paymentDue = invoice.paymentDue
+  const scheduleLines = paymentDue?.scheduleLines ?? []
+  const nextScheduleLine = scheduleLines.find((line) => line.status !== 'paid') ?? null
+  const paidScheduleLines = scheduleLines.filter((line) => line.status === 'paid').length
+
+  function lineAmountDue(line: InvoiceScheduleLine) {
+    if (line.status === 'partial' && line.amountRemaining != null) {
+      return Math.max(0, Number(line.amountRemaining))
+    }
+    return line.amount
+  }
 
   const editForm = useForm({
     defaultValues: {
@@ -147,7 +197,7 @@ export function InvoiceDetailLiveWorkspace({
   const paymentProofForm = useForm({
     defaultValues: {
       invoiceId: invoice.id,
-      amount: invoice.balance,
+      amount: amountDueNow(invoice) || invoice.balance,
       paymentMethod: 'bank_transfer' as const,
       paymentDate: new Date().toISOString().slice(0, 10),
       transactionReference: '',
@@ -202,6 +252,18 @@ export function InvoiceDetailLiveWorkspace({
       }
     },
   })
+
+  useEffect(() => {
+    paymentProofForm.setFieldValue('invoiceId', invoice.id)
+    paymentProofForm.setFieldValue('amount', dueNowAmount || invoice.balance)
+  }, [
+    paymentProofForm,
+    invoice.id,
+    invoice.amountPaid,
+    invoice.balance,
+    dueNowAmount,
+    proofModalOpen,
+  ])
 
   const resetPaymentProofUpload = () => {
     uploadControllerRef.current?.abort()
@@ -261,6 +323,19 @@ export function InvoiceDetailLiveWorkspace({
   const retryPaymentProofUpload = () => {
     if (!paymentProof?.file) return
     void uploadPaymentProofFile(paymentProof.file)
+  }
+
+  const handleDownloadPdf = () => {
+    try {
+      printInvoiceAsPdf(invoice, canViewPayments ? payments : [])
+      toast.info('Save as PDF', {
+        description: 'In the print dialog, choose “Save as PDF” to download the invoice.',
+      })
+    } catch (error) {
+      toast.error('Invoice PDF could not be opened', {
+        description: presentError(error, 'background-action').message,
+      })
+    }
   }
 
   return (
@@ -338,12 +413,20 @@ export function InvoiceDetailLiveWorkspace({
               </div>
 
               <article className="commercial-quote-value-card">
-                <div className="commercial-kpi-label">Outstanding balance</div>
-                <div className="commercial-kpi-value">{formatPreciseCurrency(invoice.balance)}</div>
+                <div className="commercial-kpi-label">Amount due now</div>
+                <div className="commercial-kpi-value">{formatPreciseCurrency(dueNowAmount)}</div>
                 <div className="commercial-kpi-note">
-                  Paid {formatPreciseCurrency(invoice.amountPaid)} of{' '}
-                  {formatPreciseCurrency(invoice.totalAmount)}
+                  {paymentDue?.label || 'Outstanding'}
+                  {paymentDue?.dueDate ? ` · due ${paymentDue.dueDate}` : ''}
+                  {invoice.realEstateSettlementMode
+                    ? ` · ${settlementModeLabel(invoice.realEstateSettlementMode)}`
+                    : ''}
                 </div>
+                {invoice.balance > dueNowAmount && dueNowAmount > 0 ? (
+                  <div className="commercial-kpi-note">
+                    Remaining balance {formatPreciseCurrency(invoice.balance)}
+                  </div>
+                ) : null}
               </article>
             </div>
           </section>
@@ -374,6 +457,116 @@ export function InvoiceDetailLiveWorkspace({
             </div>
           </section>
 
+          {scheduleLines.length > 0 ? (
+            <section className="commercial-form-section">
+              <h3>Payment schedule</h3>
+              <article
+                className={`commercial-payment-schedule-card commercial-payment-proof-card--foldable ${
+                  scheduleOpen ? 'is-expanded' : 'is-collapsed'
+                }`}
+              >
+                <button
+                  type="button"
+                  className="commercial-payment-proof-toggle"
+                  aria-expanded={scheduleOpen}
+                  onClick={() => setScheduleOpen((current) => !current)}
+                >
+                  <div className="commercial-payment-proof-header">
+                    <div>
+                      <div className="commercial-payment-proof-reference">
+                        {nextScheduleLine ? nextScheduleLine.label : 'All payments completed'}
+                      </div>
+                      <div className="commercial-payment-proof-meta">
+                        {nextScheduleLine
+                          ? `${paidScheduleLines} of ${scheduleLines.length} paid${
+                              nextScheduleLine.dueDate ? ` · Due ${nextScheduleLine.dueDate}` : ''
+                            }`
+                          : `${scheduleLines.length} of ${scheduleLines.length} paid · Nothing outstanding`}
+                      </div>
+                    </div>
+                    <div className="commercial-payment-proof-header-side">
+                      <span
+                        className={`commercial-pill ${
+                          nextScheduleLine
+                            ? scheduleStatusClass(nextScheduleLine.status)
+                            : 'commercial-pill-green'
+                        }`}
+                      >
+                        {nextScheduleLine
+                          ? nextScheduleLine.status === 'partial'
+                            ? 'Partial'
+                            : 'Next payment'
+                          : 'Settled'}
+                      </span>
+                      <strong>
+                        {formatPreciseCurrency(
+                          nextScheduleLine ? lineAmountDue(nextScheduleLine) : 0,
+                        )}
+                      </strong>
+                    </div>
+                  </div>
+                  <span className="commercial-payment-proof-toggle-icon" aria-hidden="true">
+                    <IconChevronDown size={16} stroke={2} />
+                  </span>
+                </button>
+                {scheduleOpen ? (
+                  <div className="commercial-payment-proof-body">
+                    <div className="commercial-payment-schedule">
+                      {scheduleLines.map((line) => {
+                        const remaining =
+                          line.amountRemaining == null
+                            ? line.status === 'paid'
+                              ? 0
+                              : line.amount
+                            : Math.max(0, Number(line.amountRemaining))
+                        const paidToward = Math.max(0, line.amount - remaining)
+                        const isNext = nextScheduleLine?.sequence === line.sequence
+                        return (
+                          <article
+                            key={`${line.sequence}-${line.label}`}
+                            className={
+                              isNext
+                                ? 'commercial-payment-schedule-row commercial-payment-schedule-row--next'
+                                : 'commercial-payment-schedule-row'
+                            }
+                          >
+                            <div>
+                              <b>
+                                {line.label}
+                                {isNext ? (
+                                  <span className="commercial-pill commercial-pill-blue">Next</span>
+                                ) : null}
+                                <span
+                                  className={`commercial-pill ${scheduleStatusClass(line.status)}`}
+                                >
+                                  {scheduleStatusLabel(line.status)}
+                                </span>
+                              </b>
+                              <small>
+                                {line.dueDate ? `Due ${line.dueDate}` : 'No due date'}
+                                {line.status === 'partial' && paidToward > 0
+                                  ? ` · Paid ${formatPreciseCurrency(paidToward)}`
+                                  : ''}
+                              </small>
+                            </div>
+                            <strong>
+                              {line.status === 'partial'
+                                ? formatPreciseCurrency(remaining)
+                                : formatPreciseCurrency(line.amount)}
+                            </strong>
+                          </article>
+                        )
+                      })}
+                    </div>
+                    {invoice.paymentSchedule ? (
+                      <p className="commercial-form-note">{invoice.paymentSchedule}</p>
+                    ) : null}
+                  </div>
+                ) : null}
+              </article>
+            </section>
+          ) : null}
+
           {invoice.activationThresholdMetAt ? (
             <section className="commercial-form-section">
               <div className="commercial-notice commercial-notice-blue">
@@ -399,24 +592,25 @@ export function InvoiceDetailLiveWorkspace({
               <div className="commercial-form-grid">
                 <editForm.Field name="dueDate">
                   {(field) => (
-                    <label className="commercial-field">
-                      <span>Due date *</span>
-                      <input
-                        type="date"
-                        value={field.state.value}
-                        onChange={(event) => field.handleChange(event.target.value)}
-                      />
-                      {editErrors.dueDate ? (
-                        <small className="commercial-field-error">{editErrors.dueDate}</small>
-                      ) : null}
-                    </label>
+                    <DatePicker
+                      label="Due date"
+                      required
+                      value={field.state.value}
+                      invalid={Boolean(editErrors.dueDate)}
+                      error={editErrors.dueDate}
+                      fieldClassName="commercial-field"
+                      onChange={(value) => field.handleChange(value)}
+                    />
                   )}
                 </editForm.Field>
 
                 <editForm.Field name="paymentSchedule">
                   {(field) => (
                     <label className="commercial-field">
-                      <span>Payment schedule *</span>
+                      <span>
+                        Payment schedule
+                        <em className="commercial-required">*</em>
+                      </span>
                       <input
                         value={field.state.value}
                         onChange={(event) => field.handleChange(event.target.value)}
@@ -432,7 +626,7 @@ export function InvoiceDetailLiveWorkspace({
 
                 <editForm.Field name="paymentInstructions">
                   {(field) => (
-                    <label className="commercial-field commercial-field--full">
+                    <label className="commercial-field">
                       <span>Payment instructions</span>
                       <textarea
                         rows={3}
@@ -445,7 +639,7 @@ export function InvoiceDetailLiveWorkspace({
 
                 <editForm.Field name="notes">
                   {(field) => (
-                    <label className="commercial-field commercial-field--full">
+                    <label className="commercial-field">
                       <span>Notes</span>
                       <textarea
                         rows={3}
@@ -585,6 +779,11 @@ export function InvoiceDetailLiveWorkspace({
             Close
           </button>
           <div className="commercial-modal-footer-actions">
+            <button type="button" className="commercial-btn" onClick={handleDownloadPdf}>
+              <IconDownload size={14} stroke={2} />
+              Download PDF
+            </button>
+
             {invoice.activationThresholdMetAt && !invoice.orderId && canCreateServiceOrder ? (
               <button
                 type="button"
@@ -752,7 +951,8 @@ export function InvoiceDetailLiveWorkspace({
               <div>
                 <h2>Submit Payment Proof</h2>
                 <p>
-                  Invoice {invoice.invoiceNumber} · Balance {formatPreciseCurrency(invoice.balance)}
+                  Invoice {invoice.invoiceNumber} · Due now {formatPreciseCurrency(dueNowAmount)} ·
+                  Balance {formatPreciseCurrency(invoice.balance)}
                 </p>
               </div>
               <button
@@ -797,16 +997,14 @@ export function InvoiceDetailLiveWorkspace({
                   <paymentProofForm.Field name="amount">
                     {(field) => (
                       <label className="commercial-field">
-                        <span>Payment amount *</span>
-                        <input
-                          type="number"
-                          min="0.01"
-                          step="0.01"
-                          max={invoice.balance}
-                          value={formatNumberFieldValue(field.state.value)}
-                          onChange={(event) =>
-                            field.handleChange(parseNumberFieldValue(event.target.value))
-                          }
+                        <span>
+                          Payment amount
+                          <em className="commercial-required">*</em>
+                        </span>
+                        <GroupedNumberInput
+                          value={field.state.value}
+                          onChange={(value) => field.handleChange(value)}
+                          placeholder="0.00"
                         />
                         {paymentProofErrors.amount ? (
                           <small className="commercial-field-error">
@@ -820,7 +1018,10 @@ export function InvoiceDetailLiveWorkspace({
                   <paymentProofForm.Field name="financeAccountId">
                     {(field) => (
                       <label className="commercial-field">
-                        <span>Receiving account *</span>
+                        <span>
+                          Receiving account
+                          <em className="commercial-required">*</em>
+                        </span>
                         <select
                           value={field.state.value}
                           disabled={financeAccountsLoading}
@@ -848,7 +1049,10 @@ export function InvoiceDetailLiveWorkspace({
                   <paymentProofForm.Field name="paymentMethod">
                     {(field) => (
                       <label className="commercial-field">
-                        <span>Payment method *</span>
+                        <span>
+                          Payment method
+                          <em className="commercial-required">*</em>
+                        </span>
                         <select
                           value={field.state.value}
                           onChange={(event) =>
@@ -872,26 +1076,25 @@ export function InvoiceDetailLiveWorkspace({
 
                   <paymentProofForm.Field name="paymentDate">
                     {(field) => (
-                      <label className="commercial-field">
-                        <span>Payment date *</span>
-                        <input
-                          type="date"
-                          value={field.state.value}
-                          onChange={(event) => field.handleChange(event.target.value)}
-                        />
-                        {paymentProofErrors.paymentDate ? (
-                          <small className="commercial-field-error">
-                            {paymentProofErrors.paymentDate}
-                          </small>
-                        ) : null}
-                      </label>
+                      <DatePicker
+                        label="Payment date"
+                        required
+                        value={field.state.value}
+                        invalid={Boolean(paymentProofErrors.paymentDate)}
+                        error={paymentProofErrors.paymentDate}
+                        fieldClassName="commercial-field"
+                        onChange={(value) => field.handleChange(value)}
+                      />
                     )}
                   </paymentProofForm.Field>
 
                   <paymentProofForm.Field name="transactionReference">
                     {(field) => (
                       <label className="commercial-field commercial-field--full">
-                        <span>Transaction reference *</span>
+                        <span>
+                          Transaction reference
+                          <em className="commercial-required">*</em>
+                        </span>
                         <input
                           value={field.state.value}
                           onChange={(event) => field.handleChange(event.target.value)}
@@ -907,7 +1110,10 @@ export function InvoiceDetailLiveWorkspace({
                   </paymentProofForm.Field>
 
                   <div className="commercial-field commercial-field--full">
-                    <span>Payment proof *</span>
+                    <span>
+                      Payment proof
+                      <em className="commercial-required">*</em>
+                    </span>
                     <label className="commercial-upload-dropzone">
                       <span className="commercial-upload-dropzone-icon">
                         <IconUpload size={18} />

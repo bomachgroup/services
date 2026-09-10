@@ -3,6 +3,7 @@ import { useState } from 'react'
 import { formatCurrency } from '@/shared/lib/formatters'
 import { ConfirmDialog } from '@/shared/ui/confirm-dialog'
 import { EmptyState } from '@/shared/ui/empty-state'
+import { DropdownSelect } from '@/shared/ui/dropdown-select'
 
 import {
   paymentMethodOptions,
@@ -58,15 +59,18 @@ export function PaymentSubmissionsPanel({
   return (
     <>
       <div className="commercial-filters">
-        <select
+        <DropdownSelect
+          compact
+          placeholder="All submission states"
+          options={[
+            { value: '', label: 'All submission states' },
+            { value: 'pending', label: 'Pending Review' },
+            { value: 'confirmed', label: 'Confirmed' },
+            { value: 'rejected', label: 'Rejected' },
+          ]}
           value={status}
-          onChange={(event) => onStatusChange(event.target.value as PaymentSubmissionStatus | '')}
-        >
-          <option value="">All submission states</option>
-          <option value="pending">Pending Review</option>
-          <option value="confirmed">Confirmed</option>
-          <option value="rejected">Rejected</option>
-        </select>
+          onChange={(value) => onStatusChange(value as PaymentSubmissionStatus | '')}
+        />
       </div>
 
       {submissions.length === 0 ? (
@@ -219,8 +223,8 @@ export function PaymentSubmissionsPanel({
           open
           tone="success"
           title="Record this payment?"
-          description="This confirms the submitted proof, posts the receipt against the invoice, and updates the outstanding balance."
-          impact="This action cannot be reversed from this screen once recorded."
+          description="Confirm the payment evidence and apply the receipt to this invoice."
+          impact="The invoice balance will update after the payment is recorded."
           detailsTitle="Payment summary"
           detailRows={(() => {
             const submission = submissions.find((item) => item.id === confirmingId)

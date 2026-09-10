@@ -3,6 +3,8 @@ import { useForm } from '@tanstack/react-form'
 import { useEffect, useMemo, useState, useCallback } from 'react'
 
 import { formatCurrency } from '@/shared/lib/formatters'
+import { DropdownSelect, mapDropdownOptions } from '@/shared/ui/dropdown-select'
+import { DatePicker } from '@/shared/ui/date-picker'
 
 import type { FinanceAccount } from '../billing/billing.types'
 import {
@@ -22,6 +24,19 @@ function defaultDueDate() {
 function defaultReceivingAccountId(accounts: FinanceAccount[]) {
   const bankAccount = accounts.find((account) => account.accountType === 'bank')
   return bankAccount?.id ?? accounts[0]?.id ?? 0
+}
+
+function defaultPaymentSchedule(quotation: Quotation) {
+  if (quotation.realEstateSettlementMode === 'reservation') {
+    return 'Reservation payment'
+  }
+  if (quotation.realEstateSettlementMode === 'installment') {
+    return 'Installment down payment'
+  }
+  if (quotation.realEstateSettlementMode === 'full_payment') {
+    return 'Full payment'
+  }
+  return quotation.depositPercent >= 100 ? 'Full payment' : 'Initial payment'
 }
 
 export function InvoiceBuilderLiveWorkspace({
@@ -64,7 +79,7 @@ export function InvoiceBuilderLiveWorkspace({
   const form = useForm({
     defaultValues: {
       dueDate: defaultDueDate(),
-      paymentSchedule: 'Deposit / mobilisation',
+      paymentSchedule: defaultPaymentSchedule(quotation),
       financeAccountId: initialReceivingAccountId,
       paymentInstructions: initialPaymentInstructions,
       notes: quotation.terms || '',
@@ -151,49 +166,54 @@ export function InvoiceBuilderLiveWorkspace({
 
         <div className="commercial-modal-body">
           <section className="commercial-form-section">
-            <div className="commercial-form-grid">
-              {!quotationSelectionLocked ? (
-                <label className="commercial-field commercial-field--full">
-                  <span>Accepted quotation *</span>
-                  <select
-                    value={quotation.id}
-                    disabled={quotationSelectionLoading || saving}
-                    onChange={(event) => onSelectQuotation(Number(event.target.value))}
-                  >
-                    {eligibleQuotations.map((item) => (
-                      <option key={item.id} value={item.id}>
-                        {item.quoteNumber} · {item.clientName} · {formatCurrency(item.amount)}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-              ) : null}
+            {!quotationSelectionLocked ? (
+              <div className="commercial-form-grid">
+                <DropdownSelect
+                  label="Accepted quotation"
+                  required
+                  fullWidth
+                  fieldClassName="commercial-field commercial-field--full"
+                  placeholder="Select accepted quotation"
+                  disabled={quotationSelectionLoading || saving}
+                  options={mapDropdownOptions(
+                    eligibleQuotations.map((item) => ({
+                      value: item.id,
+                      label: `${item.quoteNumber} · ${item.clientName} · ${formatCurrency(item.amount)}`,
+                    })),
+                  )}
+                  value={String(quotation.id)}
+                  onChange={(value) => onSelectQuotation(Number(value))}
+                />
+              </div>
+            ) : null}
 
+            <div className="commercial-form-grid commercial-form-grid--3">
               <form.Field name="dueDate">
                 {(field) => (
-                  <label className="commercial-field">
-                    <span>Due date *</span>
-                    <input
-                      type="date"
-                      value={field.state.value}
-                      onChange={(event) => {
-                        if (errors.dueDate) {
-                          setErrors((current) => ({ ...current, dueDate: '' }))
-                        }
-                        field.handleChange(event.target.value)
-                      }}
-                    />
-                    {errors.dueDate ? (
-                      <small className="commercial-field-error">{errors.dueDate}</small>
-                    ) : null}
-                  </label>
+                  <DatePicker
+                    label="Due date"
+                    required
+                    value={field.state.value}
+                    invalid={Boolean(errors.dueDate)}
+                    error={errors.dueDate || undefined}
+                    fieldClassName="commercial-field"
+                    onChange={(value) => {
+                      if (errors.dueDate) {
+                        setErrors((current) => ({ ...current, dueDate: '' }))
+                      }
+                      field.handleChange(value)
+                    }}
+                  />
                 )}
               </form.Field>
 
               <form.Field name="paymentSchedule">
                 {(field) => (
                   <label className="commercial-field">
-                    <span>Payment schedule *</span>
+                    <span>
+                      Payment schedule
+                      <em className="commercial-required">*</em>
+                    </span>
                     <input
                       value={field.state.value}
                       onChange={(event) => {
@@ -215,40 +235,43 @@ export function InvoiceBuilderLiveWorkspace({
 
               <form.Field name="financeAccountId">
                 {(field) => (
-                  <label className="commercial-field commercial-field--full">
-                    <span>Receiving account *</span>
-                    <select
-                      value={field.state.value || ''}
-                      disabled={financeAccountsLoading || saving}
-                      onChange={(event) => applyReceivingAccount(Number(event.target.value))}
-                    >
-                      <option value="">
-                        {financeAccountsLoading
-                          ? 'Loading accounts...'
-                          : 'Select receiving account'}
-                      </option>
-                      {financeAccounts.map((account) => (
-                        <option key={account.id} value={account.id}>
-                          {formatFinanceAccountOptionLabel(account)}
-                        </option>
-                      ))}
-                    </select>
-                    {errors.financeAccountId ? (
-                      <small className="commercial-field-error">{errors.financeAccountId}</small>
-                    ) : (
-                      <small className="commercial-form-note">
-                        This account is shown to the client in payment instructions and used when
-                        staff record payment proof.
-                      </small>
+                  <DropdownSelect
+                    label="Receiving account"
+                    required
+                    fieldClassName="commercial-field"
+                    placeholder={
+                      financeAccountsLoading ? 'Loading accounts...' : 'Select receiving account'
+                    }
+                    disabled={financeAccountsLoading || saving}
+                    loading={financeAccountsLoading}
+                    invalid={Boolean(errors.financeAccountId)}
+                    options={mapDropdownOptions(
+                      financeAccounts.map((account) => ({
+                        value: account.id,
+                        label: formatFinanceAccountOptionLabel(account),
+                      })),
                     )}
-                  </label>
+                    value={field.state.value ? String(field.state.value) : ''}
+                    helpText={
+                      errors.financeAccountId
+                        ? undefined
+                        : 'Shown in client payment instructions and used when recording payment proof.'
+                    }
+                    error={errors.financeAccountId}
+                    onChange={(value) => applyReceivingAccount(Number(value))}
+                  />
                 )}
               </form.Field>
+            </div>
 
+            <div className="commercial-form-grid">
               <form.Field name="paymentInstructions">
                 {(field) => (
-                  <label className="commercial-field commercial-field--full">
-                    <span>Payment instructions *</span>
+                  <label className="commercial-field">
+                    <span>
+                      Payment instructions
+                      <em className="commercial-required">*</em>
+                    </span>
                     <textarea
                       rows={3}
                       value={field.state.value}
@@ -263,7 +286,7 @@ export function InvoiceBuilderLiveWorkspace({
 
               <form.Field name="notes">
                 {(field) => (
-                  <label className="commercial-field commercial-field--full">
+                  <label className="commercial-field">
                     <span>Notes</span>
                     <textarea
                       rows={3}

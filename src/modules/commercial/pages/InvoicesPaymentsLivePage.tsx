@@ -12,6 +12,7 @@ import { formatCurrency } from '@/shared/lib/formatters'
 import { withOptionalSearchValue, withoutSearchKeys } from '@/shared/navigation/search-state'
 import { ErrorState, useToast } from '@/shared/ui'
 import { EmptyState } from '@/shared/ui/empty-state'
+import { DropdownSelect } from '@/shared/ui/dropdown-select'
 import {
   CompactActionButton,
   CompactPageToolbar,
@@ -498,6 +499,16 @@ export function InvoicesPaymentsLivePage({ recordSearch }: { recordSearch: AppSe
   const eligibleQuotes = eligibleQuotesQuery.data ?? []
   const hasActiveFilters = Boolean(recordSearch.search) || Boolean(recordSearch.status)
   const totalPages = Math.max(1, Math.ceil(listQuery.data.count / 10))
+  const invoiceStatusFilterOptions = [
+    { value: '', label: 'All statuses' },
+    { value: 'draft', label: 'Draft' },
+    { value: 'sent', label: 'Sent' },
+    { value: 'viewed', label: 'Viewed' },
+    { value: 'partially_paid', label: 'Partially Paid' },
+    { value: 'paid', label: 'Paid' },
+    { value: 'overdue', label: 'Overdue' },
+    { value: 'cancelled', label: 'Cancelled' },
+  ]
 
   return (
     <ModulePageFrame
@@ -613,19 +624,13 @@ export function InvoicesPaymentsLivePage({ recordSearch }: { recordSearch: AppSe
                   />
                 </label>
 
-                <select
+                <DropdownSelect
+                  compact
+                  placeholder="All statuses"
+                  options={invoiceStatusFilterOptions}
                   value={recordSearch.status ?? ''}
-                  onChange={(event) => setSearchValue('status', event.target.value)}
-                >
-                  <option value="">All statuses</option>
-                  <option value="draft">Draft</option>
-                  <option value="sent">Sent</option>
-                  <option value="viewed">Viewed</option>
-                  <option value="partially_paid">Partially Paid</option>
-                  <option value="paid">Paid</option>
-                  <option value="overdue">Overdue</option>
-                  <option value="cancelled">Cancelled</option>
-                </select>
+                  onChange={(value) => setSearchValue('status', value)}
+                />
               </div>
 
               {enrichedInvoices.length === 0 ? (

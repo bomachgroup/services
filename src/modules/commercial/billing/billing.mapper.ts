@@ -1,5 +1,6 @@
 import type {
   Invoice,
+  InvoicePaymentDuePhase,
   FinanceAccount,
   PaginatedInvoices,
   PaginatedPayments,
@@ -74,19 +75,64 @@ export function mapInvoice(payload: unknown): Invoice {
     paymentProgress: number(value.payment_progress),
     status: text(value.status, 'draft') as Invoice['status'],
     statusDisplay: text(value.status_display),
+    realEstateSettlementMode: text(value.real_estate_settlement_mode),
     paymentSchedule: text(value.payment_schedule),
     paymentInstructions: text(value.payment_instructions),
     activationThresholdAmount: number(value.activation_threshold_amount),
     activationThresholdMetAt: nullableText(value.activation_threshold_met_at),
+    paymentDue: (() => {
+      const due = record(value.payment_due)
+      return {
+        amountDueNow: number(due.amount_due_now, number(value.balance)),
+        label: text(due.label),
+        dueDate: nullableText(due.due_date),
+        phase: text(due.phase, 'balance') as InvoicePaymentDuePhase,
+        scheduleLines: array(due.schedule_lines).map((item) => {
+          const row = record(item)
+          return {
+            sequence: number(row.sequence),
+            label: text(row.label),
+            dueDate: nullableText(row.due_date),
+            amount: number(row.amount),
+            status: text(row.status, 'pending'),
+            amountRemaining:
+              row.amount_remaining == null || row.amount_remaining === ''
+                ? null
+                : number(row.amount_remaining),
+          }
+        }),
+      }
+    })(),
     notes: text(value.notes),
     items: array(value.items).map((item) => {
       const row = record(item)
       return {
         id: number(row.id),
+        sourceQuoteItemId: nullableNumber(row.source_quote_item_id),
         description: text(row.description),
+        kind: text(row.kind),
+        kindDisplay: text(row.kind_display, text(row.kind)),
+        paymentTiming: text(row.payment_timing),
+        paymentTimingDisplay: text(row.payment_timing_display, text(row.payment_timing)),
         quantity: number(row.quantity),
         unitPrice: number(row.unit_price),
         total: number(row.total),
+        sortOrder: number(row.sort_order),
+        sourceContext: record(row.source_context),
+      }
+    }),
+    attachments: array(value.attachments).map((item) => {
+      const row = record(item)
+      return {
+        id: number(row.id),
+        label: text(row.label) || text(row.file_name) || 'Document',
+        fileName: text(row.file_name) || text(row.label) || 'Document',
+        fileUrl: text(row.file_url),
+        contentType: text(row.content_type),
+        fileSizeBytes: number(row.file_size_bytes),
+        sortOrder: number(row.sort_order),
+        createdAt: text(row.created_at),
+        updatedAt: text(row.updated_at),
       }
     }),
     createdAt: text(value.created_at),
