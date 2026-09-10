@@ -1,14 +1,21 @@
+import { env } from '@/shared/config/env'
+
 import type {
   BrokerageListing,
   BrokerageStats,
+  BoundaryPoint,
   Estate,
   EstateChoices,
   EstateDocument,
   EstatePlotLayoutItem,
+  EffectivePropertyPricing,
+  AdditionalFee,
   EstateStats,
   PaginatedBrokerageListings,
   PaginatedEstates,
   PaginatedProperties,
+  PricingHistoryEvent,
+  PropertyFeeConfig,
   Property,
 } from './real-estate.types'
 
@@ -31,9 +38,102 @@ const paginatedItems = (payload: unknown) => {
   return { count: num(v.count, items.length), items }
 }
 
+function mapBoundary(payload: unknown): BoundaryPoint[] {
+  return Array.isArray(payload)
+    ? payload.map((x) => row(x)).map((x) => ({ lat: num(x.lat), lng: num(x.lng) }))
+    : []
+}
+
+/**
+ * The backend returns media paths relative to its own origin (e.g.
+ * "/media/estates/documents/file.pdf"). Resolve them against the API origin
+ * so previews and new-tab links load from the backend instead of the
+ * frontend host (which only serves the SPA).
+ */
+function resolveFileUrl(url: string): string {
+  if (!url || /^https?:\/\//i.test(url) || url.startsWith('blob:') || url.startsWith('data:')) {
+    return url
+  }
+  if (!url.startsWith('/')) return url
+  const backendOrigin = env.apiBaseUrl.replace(/\/api\/v1\/?$/, '')
+  return `${backendOrigin}${url}`
+}
+
 function mapDocument(payload: unknown): EstateDocument {
   const v = row(payload)
-  return { id: num(v.id), file: str(v.file), caption: str(v.caption), createdAt: str(v.created_at) }
+  return {
+    id: num(v.id),
+    name: str(v.name, str(v.caption, 'Document')),
+    file: resolveFileUrl(str(v.file)),
+    createdAt: str(v.created_at),
+  }
+}
+
+function mapFee(payload: unknown): AdditionalFee {
+  const v = row(payload)
+  const id = str(v.id)
+  return {
+    ...(id ? { id } : {}),
+    name: str(v.name),
+    amount: num(v.amount),
+    paymentTiming: str(v.payment_timing, 'upfront') as AdditionalFee['paymentTiming'],
+    active: v.active !== false,
+  }
+}
+
+function mapPricingHistory(payload: unknown): PricingHistoryEvent[] {
+  return Array.isArray(payload)
+    ? payload.map((item) => {
+        const v = row(item)
+        return {
+          event: str(v.event),
+          at: str(v.at),
+          changedBy: nnum(v.changed_by),
+          reason: str(v.reason),
+          data: row(v.data),
+        }
+      })
+    : []
+}
+
+function mapFeeConfig(payload: unknown): PropertyFeeConfig {
+  const v = row(payload)
+  const overrides = Array.isArray(v.overrides) ? v.overrides.map(row) : []
+  return {
+    inheritEstateFees: v.inherit_estate_fees !== false,
+    overrides: overrides.map((override) => ({
+      estateFeeId: str(override.estate_fee_id),
+      action: str(override.action, 'override') as 'override' | 'exclude',
+      amount: nnum(override.amount),
+    })),
+    additionalFees: Array.isArray(v.additional_fees) ? v.additional_fees.map(mapFee) : [],
+  }
+}
+
+function mapEffectivePricing(payload: unknown): EffectivePropertyPricing | null {
+  const v = row(payload)
+  if (!Object.keys(v).length) return null
+  return {
+    basePrice: num(v.base_price),
+    basePriceSource: str(
+      v.base_price_source,
+      'manual_override',
+    ) as EffectivePropertyPricing['basePriceSource'],
+    estateRate: nnum(v.estate_rate),
+    areaSqm: nnum(v.area_sqm),
+    fees: Array.isArray(v.fees)
+      ? v.fees.map((fee) => ({
+          ...mapFee(fee),
+          id: str(row(fee).id),
+          source: str(
+            row(fee).source,
+            'property',
+          ) as EffectivePropertyPricing['fees'][number]['source'],
+        }))
+      : [],
+    feesTotal: num(v.fees_total),
+    total: num(v.total),
+  }
 }
 
 export function mapEstate(payload: unknown): Estate {
@@ -41,9 +141,6 @@ export function mapEstate(payload: unknown): Estate {
   return {
     id: num(v.id),
     isOurEstate: bool(v.is_our_estate),
-    legalFee: nnum(v.legal_fee),
-    developmentFee: nnum(v.development_fee),
-    receiptFee: nnum(v.receipt_fee),
     estateName: str(v.estate_name),
     estateCode: str(v.estate_code),
     estateType: str(v.estate_type, 'land') as Estate['estateType'],
@@ -55,10 +152,10 @@ export function mapEstate(payload: unknown): Estate {
     state: str(v.state),
     cityTown: str(v.city_town),
     preciseAddress: str(v.precise_address),
-    boundary: Array.isArray(v.boundary)
-      ? v.boundary.map((x) => row(x)).map((x) => ({ lat: num(x.lat), lng: num(x.lng) }))
-      : [],
+    boundary: mapBoundary(v.boundary),
     documents: Array.isArray(v.documents) ? v.documents.map(mapDocument) : [],
+    additionalFees: Array.isArray(v.additional_fees) ? v.additional_fees.map(mapFee) : [],
+    pricingHistory: mapPricingHistory(v.pricing_history),
     hasCOfO: bool(v.has_c_of_o),
     hasDeedOfAssignment: bool(v.has_deed_of_assignment),
     hasSurveyPlan: bool(v.has_survey_plan),
@@ -85,6 +182,15 @@ export function mapEstate(payload: unknown): Estate {
     hasRecreation: bool(v.has_recreation),
     amenities: strings(v.amenities),
     tags: strings(v.tags),
+    allowReservation: bool(v.allow_reservation),
+    reservationPercent: nnum(v.reservation_percent),
+    reservationDurationHours: nnum(v.reservation_duration_hours),
+    requestClaimHoldHours: nnum(v.request_claim_hold_hours) ?? 48,
+    reservationRefundable: v.reservation_refundable !== false,
+    reservationRetentionPercent: num(v.reservation_retention_percent),
+    allowInstallment: bool(v.allow_installment),
+    installmentDownPaymentPercent: nnum(v.installment_down_payment_percent),
+    installmentMonths: nnum(v.installment_months),
     isActive: bool(v.is_active),
     createdAt: str(v.created_at),
     updatedAt: str(v.updated_at),
@@ -102,6 +208,7 @@ export function mapEstateStats(payload: unknown): EstateStats {
     total: num(v.total),
     sold: num(v.sold),
     reserved: num(v.reserved),
+    underOffer: num(v.under_offer),
     available: num(v.available),
     hold: num(v.hold),
     notForSale: num(v.not_for_sale),
@@ -116,10 +223,16 @@ export function mapPlotLayoutItem(payload: unknown): EstatePlotLayoutItem {
     id: num(v.id),
     plotNumber: nnum(v.plot_number),
     propertyName: str(v.property_name),
+    propertyType: str(v.property_type, 'plot') as EstatePlotLayoutItem['propertyType'],
+    propertyTypeDisplay: str(v.property_type_display),
+    plotUse: str(v.plot_use) as EstatePlotLayoutItem['plotUse'],
+    plotUseDisplay: str(v.plot_use_display),
     status: str(v.status, 'available') as EstatePlotLayoutItem['status'],
     statusDisplay: str(v.status_display),
     plotSize: nnum(v.plot_size),
+    plotSizeUnit: str(v.plot_size_unit),
     price: num(v.price),
+    isOurProperty: bool(v.is_our_property),
     clientName: str(v.client_name),
   }
 }
@@ -144,7 +257,7 @@ function mapImage(payload: unknown) {
   const v = row(payload)
   return {
     id: num(v.id),
-    image: str(v.image),
+    image: resolveFileUrl(str(v.image)),
     caption: str(v.caption),
     createdAt: str(v.created_at),
   }
@@ -160,8 +273,15 @@ export function mapProperty(payload: unknown): Property {
     estateCode: str(v.estate_code),
     propertyType: str(v.property_type, 'plot') as Property['propertyType'],
     propertyTypeDisplay: str(v.property_type_display),
+    plotUse: str(v.plot_use) as Property['plotUse'],
+    plotUseDisplay: str(v.plot_use_display),
     propertyName: str(v.property_name),
     price: num(v.price),
+    boundary: mapBoundary(v.boundary),
+    pricingMode: str(v.pricing_mode, 'manual_override') as Property['pricingMode'],
+    feeConfig: mapFeeConfig(v.fee_config),
+    pricingHistory: mapPricingHistory(v.pricing_history),
+    effectivePricing: mapEffectivePricing(v.effective_pricing),
     description: str(v.description),
     status: str(v.status, 'available') as Property['status'],
     statusDisplay: str(v.status_display),
@@ -181,6 +301,7 @@ export function mapProperty(payload: unknown): Property {
     numberOfFloors: nnum(v.number_of_floors),
     unitsOffices: nnum(v.units_offices),
     images: Array.isArray(v.images) ? v.images.map(mapImage) : [],
+    documents: Array.isArray(v.documents) ? v.documents.map(mapDocument) : [],
     isActive: bool(v.is_active),
     createdAt: str(v.created_at),
     updatedAt: str(v.updated_at),
@@ -196,7 +317,7 @@ function mapBrokerageImage(payload: unknown) {
   const v = row(payload)
   return {
     id: num(v.id),
-    image: str(v.image),
+    image: resolveFileUrl(str(v.image)),
     caption: str(v.caption),
     createdAt: str(v.created_at),
   }
@@ -210,6 +331,7 @@ export function mapBrokerageListing(payload: unknown): BrokerageListing {
     description: str(v.description),
     location: str(v.location),
     price: num(v.price),
+    boundary: mapBoundary(v.boundary),
     propertyType: str(v.property_type, 'land') as BrokerageListing['propertyType'],
     ownerName: str(v.owner_name),
     ownerPhone: str(v.owner_phone),
@@ -223,8 +345,11 @@ export function mapBrokerageListing(payload: unknown): BrokerageListing {
     assignedAgentId: nnum(v.assigned_agent_id),
     estateId: nnum(v.estate_id),
     tags: strings(v.tags),
+    additionalFees: Array.isArray(v.additional_fees) ? v.additional_fees.map(mapFee) : [],
+    pricingHistory: mapPricingHistory(v.pricing_history),
     isActive: bool(v.is_active),
     images: Array.isArray(v.images) ? v.images.map(mapBrokerageImage) : [],
+    documents: Array.isArray(v.documents) ? v.documents.map(mapDocument) : [],
     createdAt: str(v.created_at),
     updatedAt: str(v.updated_at),
   }

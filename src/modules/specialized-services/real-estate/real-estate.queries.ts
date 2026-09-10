@@ -61,4 +61,22 @@ export const realEstateQueries = {
       queryFn: realEstateApi.brokerageStats,
       staleTime: 10_000,
     }),
+  commercialContext: (requestId: number) =>
+    queryOptions({
+      queryKey: realEstateKeys.commercialContext(requestId),
+      queryFn: () => realEstateApi.commercialContext(requestId),
+      staleTime: 10_000,
+    }),
+  propertyCommercialHistory: (propertyId: number) =>
+    queryOptions({
+      queryKey: realEstateKeys.propertyCommercialHistory(propertyId),
+      queryFn: () => realEstateApi.propertyCommercialHistory(propertyId),
+      staleTime: 10_000,
+    }),
+  brokerageCommercialHistory: (listingId: number) =>
+    queryOptions({
+      queryKey: realEstateKeys.brokerageCommercialHistory(listingId),
+      queryFn: () => realEstateApi.brokerageCommercialHistory(listingId),
+      staleTime: 10_000,
+    }),
 }

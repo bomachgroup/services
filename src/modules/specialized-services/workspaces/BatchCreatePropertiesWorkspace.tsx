@@ -1,41 +1,24 @@
-import { IconBuilding, IconHome, IconMap2, IconRefresh } from '@tabler/icons-react'
+import { IconBuildingStore, IconHome, IconMap2, IconX } from '@tabler/icons-react'
 import { useMemo, useState } from 'react'
 
 import { presentError } from '@/shared/errors'
+import { GroupedNumberInput } from '@/shared/ui/grouped-number-input'
 
+import { PropertyPriceField } from '../components/PropertyPriceField'
+import { PropertyTypePicker } from '../components/PropertyTypePicker'
 import { RealEstateFormDropdown } from '../components/RealEstateFormDropdown'
 import { realEstateApi } from '../real-estate/real-estate.api'
-import { buildPropertyBatch } from '../real-estate/property-batch'
+import { buildPropertyBatch, estatePlotName, nextEstatePlotNumber } from '../real-estate/property-batch'
 import {
   commercialBuildingTypes,
   propertyStatuses,
   residentialBuildingTypes,
   type CreatePropertyInput,
+  type PricingMode,
   type PropertyBatchItem,
   type PropertyType,
 } from '../real-estate/real-estate.types'
 import { validateProperty } from '../real-estate/real-estate.validation'
-
-const propertyTypeOptions = [
-  {
-    value: 'plot' as const,
-    label: 'Plot of Land',
-    description: 'Land plots with number, size, price and inventory status.',
-    Icon: IconMap2,
-  },
-  {
-    value: 'residential' as const,
-    label: 'Residential Building',
-    description: 'Houses, villas, apartments, duplexes, bungalows and related units.',
-    Icon: IconHome,
-  },
-  {
-    value: 'commercial' as const,
-    label: 'Commercial Building',
-    description: 'Offices, retail spaces, warehouses, hotels, malls and mixed-use assets.',
-    Icon: IconBuilding,
-  },
-]
 
 function parsePositiveInteger(value: string, fallback = 0) {
   if (value.trim() === '') return fallback
@@ -45,33 +28,39 @@ function parsePositiveInteger(value: string, fallback = 0) {
   return Math.max(0, Math.trunc(parsed))
 }
 
-function parseNonNegativeNumber(value: string, fallback = 0) {
-  if (value.trim() === '') return fallback
-
-  const parsed = Number(value)
-  return Number.isFinite(parsed) && parsed >= 0 ? parsed : fallback
-}
-
 function numberInputValue(value: number | null | undefined) {
   return !value ? '' : String(value)
+}
+
+function statusLabel(status: PropertyBatchItem['status']) {
+  if (status === 'created') return 'Created'
+  if (status === 'failed') return 'Failed'
+  if (status === 'creating') return 'Creating'
+  return 'Queued'
 }
 
 export function BatchCreatePropertiesWorkspace({
   estateId,
   estateName,
+  estatePricePerSqm = null,
+  occupiedPlotNumbers = [],
   onClose,
   onChanged,
 }: {
   estateId: number
   estateName: string
+  estatePricePerSqm?: number | null
+  occupiedPlotNumbers?: number[]
   onClose: () => void
   onChanged: () => Promise<void> | void
 }) {
   const [propertyType, setPropertyType] = useState<PropertyType>('plot')
   const [count, setCount] = useState(10)
-  const [start, setStart] = useState(1)
-  const [namePrefix, setNamePrefix] = useState('Plot')
-  const [price, setPrice] = useState(5_000_000)
+  const [start, setStart] = useState(() =>
+    nextEstatePlotNumber(occupiedPlotNumbers.map((plotNumber) => ({ plotNumber }))),
+  )
+  const [pricingMode, setPricingMode] = useState<PricingMode>('estate_rate')
+  const [price, setPrice] = useState<number | null>(null)
   const [status, setStatus] = useState<CreatePropertyInput['status']>('available')
   const [description, setDescription] = useState('')
   const [plotSize, setPlotSize] = useState(500)
@@ -87,6 +76,16 @@ export function BatchCreatePropertiesWorkspace({
   const [items, setItems] = useState<PropertyBatchItem[]>([])
   const [running, setRunning] = useState(false)
   const [error, setError] = useState('')
+  const [notice, setNotice] = useState('')
+
+  const areaSqm =
+    propertyType === 'plot'
+      ? plotSize
+      : propertyType === 'residential'
+        ? residentialArea
+        : commercialArea
+  const computedEstatePrice =
+    estatePricePerSqm != null && areaSqm > 0 ? estatePricePerSqm * areaSqm : null
 
   const summary = useMemo(
     () => ({
@@ -100,12 +99,22 @@ export function BatchCreatePropertiesWorkspace({
 
   const completed = summary.created + summary.failed
   const progress = items.length ? Math.round((completed / items.length) * 100) : 0
+  const batchStarted = items.length > 0
 
   const template = (): CreatePropertyInput => ({
     isOurProperty: true,
     propertyType,
-    propertyName: namePrefix || 'Property',
-    price,
+    propertyName: estatePlotName(start),
+    price: pricingMode === 'manual_override' ? price : null,
+    plotUse: propertyType === 'plot' ? 'residential' : '',
+    pricingMode,
+    boundary: [],
+    feeConfig: {
+      inheritEstateFees: true,
+      overrides: [],
+      additionalFees: [],
+    },
+    documents: [],
     description,
     status,
     ...(propertyType === 'plot' ? { plotSize, plotSizeUnit: 'sqm' } : {}),
@@ -128,68 +137,95 @@ export function BatchCreatePropertiesWorkspace({
       : {}),
   })
 
-  const createOne = async (item: PropertyBatchItem) => {
-    setItems((rows) =>
-      rows.map((row) => (row.key === item.key ? { ...row, status: 'creating', error: '' } : row)),
-    )
-    try {
-      const created = await realEstateApi.createProperty(estateId, item.input)
-      setItems((rows) =>
-        rows.map((row) =>
-          row.key === item.key
-            ? { ...row, status: 'created', propertyId: created.id, error: '' }
-            : row,
-        ),
+  const createItemsSequentially = async (rows: PropertyBatchItem[]) => {
+    setRunning(true)
+    setError('')
+    setNotice('')
+
+    const nextItems = rows.map((item) => ({ ...item }))
+    setItems(nextItems.map((item) => ({ ...item })))
+
+    for (let index = 0; index < nextItems.length; index += 1) {
+      const item = nextItems[index]
+      if (!item || item.status === 'created') continue
+
+      nextItems[index] = { ...item, status: 'creating', error: '' }
+      setItems(nextItems.map((item) => ({ ...item })))
+
+      try {
+        const created = await realEstateApi.createProperty(estateId, item.input)
+        nextItems[index] = {
+          ...item,
+          status: 'created',
+          propertyId: created.id,
+          error: '',
+        }
+      } catch (createError) {
+        nextItems[index] = {
+          ...item,
+          status: 'failed',
+          error: presentError(createError, 'form-submit').message,
+        }
+      }
+
+      setItems(nextItems.map((item) => ({ ...item })))
+    }
+
+    const createdCount = nextItems.filter((item) => item.status === 'created').length
+    const failedCount = nextItems.filter((item) => item.status === 'failed').length
+
+    if (failedCount === 0) {
+      setNotice(
+        createdCount === 1
+          ? '1 property created successfully.'
+          : `${createdCount.toLocaleString()} properties created successfully.`,
       )
-    } catch (createError) {
-      const message = presentError(createError, 'form-submit').message
-      setItems((rows) =>
-        rows.map((row) =>
-          row.key === item.key ? { ...row, status: 'failed', error: message } : row,
-        ),
+    } else if (createdCount === 0) {
+      setError(
+        failedCount === 1
+          ? 'Property creation failed.'
+          : `All ${failedCount.toLocaleString()} properties failed. Review errors below and retry.`,
+      )
+    } else {
+      setNotice(
+        `${createdCount.toLocaleString()} created · ${failedCount.toLocaleString()} failed. Retry failed items to continue.`,
       )
     }
+
+    setRunning(false)
+    await onChanged()
   }
 
   const runBatch = async () => {
     const base = template()
     const validationError = validateProperty(base)
     if (validationError) return setError(validationError)
-    if (!Number.isInteger(count) || count < 1 || count > 250)
-      return setError('Batch size must be between 1 and 250 Properties.')
+    if (!Number.isInteger(count) || count < 1 || count > 1000)
+      return setError('Batch size must be between 1 and 1,000 properties.')
     if (!Number.isInteger(start) || start < 1)
       return setError('Starting number must be a positive whole number.')
 
-    const rows = buildPropertyBatch(base, count, start, namePrefix)
-    setItems(rows)
-    setError('')
-    setRunning(true)
-    for (const item of rows) await createOne(item)
-    setRunning(false)
-    await onChanged()
-  }
+    const occupied = new Set(occupiedPlotNumbers)
+    for (let sequence = start; sequence < start + count; sequence += 1) {
+      if (occupied.has(sequence)) {
+        return setError(
+          `Plot ${sequence} already exists in this estate. Choose a starting number that keeps every plot unique.`,
+        )
+      }
+    }
 
-  const retryOne = async (item: PropertyBatchItem) => {
-    setRunning(true)
-    await createOne(item)
-    setRunning(false)
-    await onChanged()
+    await createItemsSequentially(buildPropertyBatch(base, count, start))
   }
 
   const retryFailed = async () => {
+    if (running) return
     const failed = items.filter((item) => item.status === 'failed')
     if (!failed.length) return
-    setRunning(true)
-    for (const item of failed) await createOne(item)
-    setRunning(false)
-    await onChanged()
-  }
 
-  const changeType = (next: PropertyType) => {
-    setPropertyType(next)
-    setNamePrefix(
-      next === 'plot' ? 'Plot' : next === 'residential' ? 'Residence' : 'Commercial Unit',
+    const nextItems = items.map((item) =>
+      item.status === 'failed' ? { ...item, status: 'queued' as const, error: '' } : item,
     )
+    await createItemsSequentially(nextItems)
   }
 
   return (
@@ -210,7 +246,9 @@ export function BatchCreatePropertiesWorkspace({
         <header className="commercial-modal-header">
           <div>
             <h2>Add Estate Properties</h2>
-            <p>{estateName} · Create one property or a controlled batch of up to 250.</p>
+            <p>
+              {estateName} · Create one property or a batch of up to 1,000.
+            </p>
           </div>
           <button
             type="button"
@@ -219,56 +257,36 @@ export function BatchCreatePropertiesWorkspace({
             onClick={onClose}
             aria-label="Close"
           >
-            ×
+            <IconX size={16} />
           </button>
         </header>
 
         <div className="commercial-modal-body">
           {error ? <div className="commercial-notice commercial-notice-red">{error}</div> : null}
+          {notice && !error ? (
+            <div className="commercial-notice commercial-notice-green">{notice}</div>
+          ) : null}
 
-          {!items.length ? (
+          {!batchStarted ? (
             <>
-              <section className="commercial-form-section">
-                <div className="commercial-form-section-heading">
-                  <div>
-                    <h3>Property type</h3>
-                    <p>Choose the asset class you want to create for this estate.</p>
-                  </div>
-                </div>
-
-                <section className="specialized-property-type-picker">
-                  {propertyTypeOptions.map(({ value, label, description, Icon }) => (
-                    <button
-                      key={value}
-                      type="button"
-                      className={
-                        propertyType === value
-                          ? 'specialized-property-type-option is-active'
-                          : 'specialized-property-type-option'
-                      }
-                      onClick={() => changeType(value)}
-                    >
-                      <span className="specialized-property-type-icon">
-                        <Icon size={20} />
-                      </span>
-                      <span>
-                        <b>{label}</b>
-                        <small>{description}</small>
-                      </span>
-                    </button>
-                  ))}
-                </section>
-              </section>
+              <PropertyTypePicker
+                value={propertyType}
+                onChange={setPropertyType}
+                description="Choose the asset class you want to create for this estate."
+              />
 
               <section className="commercial-form-section">
                 <div className="commercial-form-section-heading">
                   <div>
                     <h3>Batch setup</h3>
-                    <p>Configure the volume, naming pattern and inventory defaults.</p>
+                    <p>
+                      Configure volume and defaults. Units are named Plot 1, Plot 2, and so on —
+                      type is shown by icon on the estate board.
+                    </p>
                   </div>
                 </div>
 
-                <div className="commercial-form-grid">
+                <div className="commercial-form-grid commercial-form-grid--3">
                   <label className="commercial-field">
                     <span>
                       How many properties? <em>*</em>
@@ -277,14 +295,11 @@ export function BatchCreatePropertiesWorkspace({
                       className="commercial-number-input"
                       type="number"
                       min={1}
-                      max={250}
+                      max={1000}
                       inputMode="numeric"
                       value={numberInputValue(count)}
                       onChange={(event) => setCount(parsePositiveInteger(event.target.value))}
                     />
-                    <small>
-                      Use `1` for a single property or a larger number for batch creation.
-                    </small>
                   </label>
                   <label className="commercial-field">
                     <span>
@@ -299,182 +314,174 @@ export function BatchCreatePropertiesWorkspace({
                       onChange={(event) => setStart(parsePositiveInteger(event.target.value))}
                     />
                   </label>
-                  <label className="commercial-field">
-                    <span>
-                      Name prefix <em>*</em>
-                    </span>
-                    <input
-                      value={namePrefix}
-                      onChange={(event) => setNamePrefix(event.target.value)}
-                    />
-                    <small>
-                      Example: {namePrefix || 'Property'} {String(start).padStart(2, '0')}
-                    </small>
-                  </label>
-                  <label className="commercial-field">
-                    <span>
-                      Price per property <em>*</em>
-                    </span>
-                    <input
-                      className="commercial-number-input"
-                      type="number"
-                      min={1}
-                      step="any"
-                      inputMode="decimal"
-                      value={numberInputValue(price)}
-                      onChange={(event) => setPrice(parseNonNegativeNumber(event.target.value))}
-                    />
-                  </label>
                   <RealEstateFormDropdown
                     label="Initial status"
                     options={propertyStatuses}
                     value={status}
+                    fullWidth={false}
+                    fieldClassName="commercial-field"
                     onChange={(nextValue) => setStatus(nextValue as CreatePropertyInput['status'])}
                   />
+                </div>
+                <p className="specialized-batch-setup-note">
+                  Use 1 for a single property. Names will run {estatePlotName(start)}
+                  {count > 1 ? ` … ${estatePlotName(start + Math.max(count, 1) - 1)}` : ''}. Each
+                  plot number must be unique in this estate.
+                </p>
 
+                <div className="commercial-form-grid">
                   {propertyType === 'plot' ? (
                     <label className="commercial-field">
                       <span>
-                        Plot size (sqm) <em>*</em>
+                        Plot size(s) (sqm) <em>*</em>
                       </span>
-                      <input
-                        className="commercial-number-input"
-                        type="number"
-                        min={1}
-                        step="any"
-                        inputMode="decimal"
-                        value={numberInputValue(plotSize)}
-                        onChange={(event) =>
-                          setPlotSize(parseNonNegativeNumber(event.target.value))
-                        }
+                      <GroupedNumberInput
+                        value={plotSize}
+                        onChange={(nextValue) => setPlotSize(nextValue > 0 ? nextValue : 0)}
                       />
                     </label>
                   ) : null}
 
+                  <PropertyPriceField
+                    hasEstate
+                    pricingMode={pricingMode}
+                    price={price}
+                    computedEstatePrice={computedEstatePrice}
+                    estateRatePerSqm={estatePricePerSqm}
+                    areaSqm={areaSqm > 0 ? areaSqm : null}
+                    onPricingModeChange={(mode) => {
+                      setPricingMode(mode)
+                      if (mode === 'estate_rate') setPrice(null)
+                    }}
+                    onPriceChange={setPrice}
+                  />
+
                   {propertyType === 'residential' ? (
                     <>
-                      <RealEstateFormDropdown
-                        label="Residential type"
-                        required
-                        options={residentialBuildingTypes}
-                        value={residentialType}
-                        onChange={setResidentialType}
-                      />
-                      <label className="commercial-field">
-                        <span>
-                          Bedrooms <em>*</em>
-                        </span>
-                        <input
-                          className="commercial-number-input"
-                          type="number"
-                          min={1}
-                          inputMode="numeric"
-                          value={numberInputValue(bedrooms)}
-                          onChange={(event) =>
-                            setBedrooms(parsePositiveInteger(event.target.value))
-                          }
+                      <div className="commercial-form-grid commercial-form-grid--3 commercial-field--full">
+                        <label className="commercial-field">
+                          <span>
+                            Bedrooms <em>*</em>
+                          </span>
+                          <input
+                            className="commercial-number-input"
+                            type="number"
+                            min={1}
+                            inputMode="numeric"
+                            value={numberInputValue(bedrooms)}
+                            onChange={(event) =>
+                              setBedrooms(parsePositiveInteger(event.target.value))
+                            }
+                          />
+                        </label>
+                        <label className="commercial-field">
+                          <span>
+                            Bathrooms <em>*</em>
+                          </span>
+                          <input
+                            className="commercial-number-input"
+                            type="number"
+                            min={1}
+                            inputMode="numeric"
+                            value={numberInputValue(bathrooms)}
+                            onChange={(event) =>
+                              setBathrooms(parsePositiveInteger(event.target.value))
+                            }
+                          />
+                        </label>
+                        <label className="commercial-field">
+                          <span>
+                            Total area <em>*</em>
+                          </span>
+                          <GroupedNumberInput
+                            value={residentialArea}
+                            onChange={(nextValue) =>
+                              setResidentialArea(nextValue > 0 ? nextValue : 0)
+                            }
+                          />
+                        </label>
+                      </div>
+                      <div className="commercial-form-grid commercial-field--full">
+                        <RealEstateFormDropdown
+                          label="Residential type"
+                          required
+                          options={residentialBuildingTypes}
+                          value={residentialType}
+                          fullWidth={false}
+                          fieldClassName="commercial-field"
+                          onChange={setResidentialType}
                         />
-                      </label>
-                      <label className="commercial-field">
-                        <span>
-                          Bathrooms <em>*</em>
-                        </span>
-                        <input
-                          className="commercial-number-input"
-                          type="number"
-                          min={1}
-                          inputMode="numeric"
-                          value={numberInputValue(bathrooms)}
-                          onChange={(event) =>
-                            setBathrooms(parsePositiveInteger(event.target.value))
-                          }
-                        />
-                      </label>
-                      <label className="commercial-field">
-                        <span>Floors</span>
-                        <input
-                          className="commercial-number-input"
-                          type="number"
-                          min={1}
-                          inputMode="numeric"
-                          value={numberInputValue(residentialFloors)}
-                          onChange={(event) =>
-                            setResidentialFloors(parsePositiveInteger(event.target.value))
-                          }
-                        />
-                      </label>
-                      <label className="commercial-field">
-                        <span>
-                          Total area <em>*</em>
-                        </span>
-                        <input
-                          className="commercial-number-input"
-                          type="number"
-                          min={1}
-                          step="any"
-                          inputMode="decimal"
-                          value={numberInputValue(residentialArea)}
-                          onChange={(event) =>
-                            setResidentialArea(parseNonNegativeNumber(event.target.value))
-                          }
-                        />
-                      </label>
+                        <label className="commercial-field">
+                          <span>Floors</span>
+                          <input
+                            className="commercial-number-input"
+                            type="number"
+                            min={1}
+                            inputMode="numeric"
+                            value={numberInputValue(residentialFloors)}
+                            onChange={(event) =>
+                              setResidentialFloors(parsePositiveInteger(event.target.value))
+                            }
+                          />
+                        </label>
+                      </div>
                     </>
                   ) : null}
 
                   {propertyType === 'commercial' ? (
                     <>
-                      <RealEstateFormDropdown
-                        label="Commercial type"
-                        required
-                        options={commercialBuildingTypes}
-                        value={commercialType}
-                        onChange={setCommercialType}
-                      />
-                      <label className="commercial-field">
-                        <span>
-                          Total area <em>*</em>
-                        </span>
-                        <input
-                          className="commercial-number-input"
-                          type="number"
-                          min={1}
-                          step="any"
-                          inputMode="decimal"
-                          value={numberInputValue(commercialArea)}
-                          onChange={(event) =>
-                            setCommercialArea(parseNonNegativeNumber(event.target.value))
-                          }
+                      <div className="commercial-form-grid commercial-field--full">
+                        <RealEstateFormDropdown
+                          label="Commercial type"
+                          required
+                          options={commercialBuildingTypes}
+                          value={commercialType}
+                          fullWidth={false}
+                          fieldClassName="commercial-field"
+                          onChange={setCommercialType}
                         />
-                      </label>
-                      <label className="commercial-field">
-                        <span>
-                          Number of floors <em>*</em>
-                        </span>
-                        <input
-                          className="commercial-number-input"
-                          type="number"
-                          min={1}
-                          inputMode="numeric"
-                          value={numberInputValue(commercialFloors)}
-                          onChange={(event) =>
-                            setCommercialFloors(parsePositiveInteger(event.target.value))
-                          }
-                        />
-                      </label>
-                      <label className="commercial-field">
-                        <span>Units / offices</span>
-                        <input
-                          className="commercial-number-input"
-                          type="number"
-                          min={0}
-                          inputMode="numeric"
-                          value={numberInputValue(commercialUnits)}
-                          onChange={(event) =>
-                            setCommercialUnits(parsePositiveInteger(event.target.value))
-                          }
-                        />
-                      </label>
+                        <label className="commercial-field">
+                          <span>Units / offices</span>
+                          <input
+                            className="commercial-number-input"
+                            type="number"
+                            min={0}
+                            inputMode="numeric"
+                            value={numberInputValue(commercialUnits)}
+                            onChange={(event) =>
+                              setCommercialUnits(parsePositiveInteger(event.target.value))
+                            }
+                          />
+                        </label>
+                      </div>
+                      <div className="commercial-form-grid commercial-field--full">
+                        <label className="commercial-field">
+                          <span>
+                            Total area <em>*</em>
+                          </span>
+                          <GroupedNumberInput
+                            value={commercialArea}
+                            onChange={(nextValue) =>
+                              setCommercialArea(nextValue > 0 ? nextValue : 0)
+                            }
+                          />
+                        </label>
+                        <label className="commercial-field">
+                          <span>
+                            Number of floors <em>*</em>
+                          </span>
+                          <input
+                            className="commercial-number-input"
+                            type="number"
+                            min={1}
+                            inputMode="numeric"
+                            value={numberInputValue(commercialFloors)}
+                            onChange={(event) =>
+                              setCommercialFloors(parsePositiveInteger(event.target.value))
+                            }
+                          />
+                        </label>
+                      </div>
                     </>
                   ) : null}
 
@@ -492,65 +499,79 @@ export function BatchCreatePropertiesWorkspace({
             <section className="commercial-form-section">
               <div className="commercial-form-section-heading">
                 <div>
-                  <h3>Batch progress</h3>
+                  <h3>{running ? 'Creating properties' : 'Batch complete'}</h3>
                   <p>
-                    Creation runs sequentially. Failures can be retried individually or in one pass.
+                    {running
+                      ? 'Properties are created one at a time. Failures do not stop the rest of the batch.'
+                      : 'Review results below. Failed items can be retried without re-entering the form.'}
                   </p>
                 </div>
               </div>
 
-              <div className="specialized-batch-banner">
-                <div className="specialized-batch-banner-heading">
-                  <div>
-                    <b>{running ? 'Creating estate properties...' : 'Property batch complete'}</b>
-                    <span>
-                      {summary.created} created · {summary.failed} failed · {summary.pending}{' '}
-                      pending
-                    </span>
-                  </div>
-                  <strong>{progress}%</strong>
+              <div className="specialized-batch-metrics" aria-label="Batch summary">
+                <div className="specialized-batch-metric specialized-batch-metric--green">
+                  <b>{summary.created}</b>
+                  <span>Created</span>
                 </div>
-                <progress value={completed} max={items.length} />
+                <div className="specialized-batch-metric specialized-batch-metric--red">
+                  <b>{summary.failed}</b>
+                  <span>Failed</span>
+                </div>
+                <div className="specialized-batch-metric specialized-batch-metric--blue">
+                  <b>{summary.pending}</b>
+                  <span>Remaining</span>
+                </div>
+                <div className="specialized-batch-metric">
+                  <b>{progress}%</b>
+                  <span>Progress</span>
+                </div>
+              </div>
+
+              <div className="specialized-batch-progress" aria-hidden={!items.length}>
+                <div className="specialized-batch-progress-track">
+                  <div
+                    className="specialized-batch-progress-fill"
+                    style={{ width: `${progress}%` }}
+                  />
+                </div>
                 <small>
-                  Each property is created in order. A failure does not stop later items.
+                  {completed} of {items.length} processed
                 </small>
               </div>
 
-              <div className="specialized-batch-list">
+              <div className="specialized-batch-list" role="list">
                 {items.map((item) => {
                   const Icon =
                     item.input.propertyType === 'plot'
                       ? IconMap2
                       : item.input.propertyType === 'residential'
                         ? IconHome
-                        : IconBuilding
+                        : IconBuildingStore
 
                   return (
                     <article
                       key={item.key}
+                      role="listitem"
                       className={`specialized-batch-row specialized-batch-row--${item.status}`}
                     >
                       <div className="specialized-batch-row-icon">
-                        <Icon size={16} />
+                        <Icon size={15} stroke={1.75} />
                       </div>
                       <div className="specialized-batch-row-main">
-                        <b>{item.input.propertyName}</b>
+                        <div className="specialized-batch-row-title">
+                          <b>{item.input.propertyName}</b>
+                          <span
+                            className={`specialized-batch-status specialized-batch-status--${item.status}`}
+                          >
+                            {statusLabel(item.status)}
+                          </span>
+                        </div>
                         <small>
-                          #{item.sequence} · {item.status}
-                          {item.propertyId ? ` · Property ID ${item.propertyId}` : ''}
+                          Plot #{item.sequence}
+                          {item.propertyId ? ` · ID ${item.propertyId}` : ''}
                         </small>
                         {item.error ? <p>{item.error}</p> : null}
                       </div>
-                      {item.status === 'failed' ? (
-                        <button
-                          type="button"
-                          className="commercial-btn commercial-btn-small"
-                          disabled={running}
-                          onClick={() => void retryOne(item)}
-                        >
-                          <IconRefresh size={13} /> Retry
-                        </button>
-                      ) : null}
                     </article>
                   )
                 })}
@@ -561,9 +582,9 @@ export function BatchCreatePropertiesWorkspace({
 
         <footer className="commercial-modal-footer">
           <button type="button" className="commercial-btn" disabled={running} onClick={onClose}>
-            {items.length ? 'Close' : 'Cancel'}
+            {batchStarted ? 'Close' : 'Cancel'}
           </button>
-          {!items.length ? (
+          {!batchStarted ? (
             <button
               type="button"
               className="commercial-btn commercial-btn-primary"
@@ -572,14 +593,14 @@ export function BatchCreatePropertiesWorkspace({
             >
               Create {count} {count === 1 ? 'Property' : 'Properties'}
             </button>
-          ) : summary.failed ? (
+          ) : summary.failed > 0 ? (
             <button
               type="button"
               className="commercial-btn commercial-btn-primary"
               disabled={running}
               onClick={() => void retryFailed()}
             >
-              <IconRefresh size={13} /> Retry All Failed ({summary.failed})
+              Retry {summary.failed} failed
             </button>
           ) : null}
         </footer>

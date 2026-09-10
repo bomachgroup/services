@@ -22,8 +22,10 @@ type RealEstateFormDropdownProps = {
   disabled?: boolean
   placeholder?: string
   searchable?: boolean
+  loading?: boolean
   fieldClassName?: string
   className?: string
+  fullWidth?: boolean
 }
 
 function normalizeOptions(options: OptionSource): DropdownOption[] {
@@ -46,8 +48,10 @@ export function RealEstateFormDropdown({
   disabled = false,
   placeholder,
   searchable,
+  loading = false,
   fieldClassName = 'commercial-field',
   className,
+  fullWidth = true,
 }: RealEstateFormDropdownProps) {
   const normalizedOptions = normalizeOptions(options)
 
@@ -55,13 +59,14 @@ export function RealEstateFormDropdown({
     <DropdownSelect
       label={label}
       required={required}
-      fullWidth
+      fullWidth={fullWidth}
       fieldClassName={fieldClassName}
       className={className}
       options={normalizedOptions}
       value={value}
       onChange={onChange}
       disabled={disabled}
+      loading={loading}
       placeholder={placeholder}
       searchable={searchable ?? normalizedOptions.length >= 6}
     />

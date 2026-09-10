@@ -18,4 +18,10 @@ export const realEstateKeys = {
   brokerage: () => [...realEstateKeys.all, 'brokerage'] as const,
   brokerageList: (f: BrokerageFilters) => [...realEstateKeys.brokerage(), 'list', f] as const,
   brokerageStats: () => [...realEstateKeys.brokerage(), 'stats'] as const,
+  commercialContext: (requestId: number) =>
+    [...realEstateKeys.all, 'commercial-context', requestId] as const,
+  propertyCommercialHistory: (propertyId: number) =>
+    [...realEstateKeys.all, 'property-commercial-history', propertyId] as const,
+  brokerageCommercialHistory: (listingId: number) =>
+    [...realEstateKeys.all, 'brokerage-commercial-history', listingId] as const,
 }
