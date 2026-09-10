@@ -3,6 +3,7 @@ export { SpecializedRequestContextPanel } from './SpecializedRequestContextPanel
 export type {
   SpecializedRequestContextFieldsProps,
   SpecializedRequestFormValues,
+  SpecializedRequestContinueHandler,
   SpecializedRequestHandoff,
   SpecializedRequestPlugin,
 } from './types'

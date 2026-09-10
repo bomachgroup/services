@@ -3,6 +3,7 @@ import type { SpecializedRequestPlugin } from '../types'
 import {
   buildRealEstateRequestHandoff,
   createInitialRealEstateRequestContext,
+  isSaleCapableRealEstateService,
   validateRealEstateRequestContext,
 } from './real-estate.request-context'
 import {
@@ -13,15 +14,15 @@ import {
 export const realEstateRequestPlugin: SpecializedRequestPlugin<RealEstateRequestContext> = {
   domain: 'real_estate',
   label: 'Real Estate',
-  matchesService: (service) => service.specializedDomain === 'real_estate',
+  matchesService: (service) => isSaleCapableRealEstateService(service),
   skipIntakeForm: true,
-  flowTitle: 'Start Estate Service Request',
+  flowTitle: 'Create Real Estate Request',
   flowDescription:
-    'Select the client and estate context, then continue to the estate sales workspace.',
+    'Select the client, inventory asset and purchase terms before creating the request.',
   sectionTitle: 'Estate context',
   sectionDescription:
-    'Choose an inventory source: estate, standalone property, or unlinked brokerage. Then pick the specific record to continue.',
-  submitLabel: 'Continue to Estate Sales',
+    'Choose the asset being sold or reserved, then confirm how the customer wants to proceed.',
+  submitLabel: 'Create Request and Build Quote',
   initialContext: createInitialRealEstateRequestContext,
   validateContext: validateRealEstateRequestContext,
   buildHandoff: buildRealEstateRequestHandoff,
