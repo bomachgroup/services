@@ -67,11 +67,13 @@ export function DocumentPreviewModal({
   const isPdf = isPdfContentType(contentType, fileName)
   const [loadFailed, setLoadFailed] = useState(false)
 
-  // Iframes swallow load errors and render the browser's error page. Probe the
-  // file first so a missing/unreachable document shows a clear message with a
-  // new-tab action instead.
+  // Iframes swallow load errors and render the browser's error page. Probe PDFs
+  // with HEAD first. Skip HEAD for images — CloudFront often blocks cross-origin
+  // HEAD (CORS), which falsely marks a loadable image as missing; <img onError>
+  // is the reliable signal there.
   useEffect(() => {
     if (!/^https?:\/\//i.test(document.fileUrl)) return
+    if (isImage) return
     let cancelled = false
     fetch(document.fileUrl, { method: 'HEAD' })
       .then((response) => {
@@ -83,7 +85,7 @@ export function DocumentPreviewModal({
     return () => {
       cancelled = true
     }
-  }, [document.fileUrl])
+  }, [document.fileUrl, isImage])
 
   return (
     <div
