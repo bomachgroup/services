@@ -1,4 +1,10 @@
-import type { PaginatedQuotations, Quotation, RoleOption } from './quotation.types'
+import type {
+  CommercialAttachment,
+  PaginatedQuotations,
+  Quotation,
+  QuotationItem,
+  RoleOption,
+} from './quotation.types'
 
 type R = Record<string, unknown>
 const rec = (v: unknown): R =>
@@ -33,6 +39,44 @@ function rows(payload: unknown) {
   return { count: num(r.count, items.length), rows: items }
 }
 
+function arr(value: unknown): unknown[] {
+  return Array.isArray(value) ? value : []
+}
+
+export function mapQuotationItem(payload: unknown): QuotationItem {
+  const v = rec(payload)
+  const item: QuotationItem = {
+    description: txt(v.description),
+    kind: txt(v.kind, 'additional_charge') as QuotationItem['kind'],
+    kindDisplay: txt(v.kind_display, txt(v.kind)),
+    paymentTiming: txt(v.payment_timing, 'upfront') as QuotationItem['paymentTiming'],
+    paymentTimingDisplay: txt(v.payment_timing_display, txt(v.payment_timing)),
+    quantity: num(v.quantity, 1),
+    unitPrice: num(v.unit_price),
+    total: num(v.total),
+    sourceContext: rec(v.source_context),
+    sortOrder: num(v.sort_order),
+  }
+  const id = nnum(v.id)
+  return id === null ? item : { ...item, id }
+}
+
+export function mapCommercialAttachment(payload: unknown): CommercialAttachment {
+  const v = rec(payload)
+  const attachment: CommercialAttachment = {
+    label: txt(v.label) || txt(v.file_name) || 'Document',
+    fileName: txt(v.file_name) || txt(v.label) || 'Document',
+    fileUrl: txt(v.file_url),
+    contentType: txt(v.content_type),
+    fileSizeBytes: num(v.file_size_bytes),
+    sortOrder: num(v.sort_order),
+    createdAt: txt(v.created_at),
+    updatedAt: txt(v.updated_at),
+  }
+  const id = nnum(v.id)
+  return id === null ? attachment : { ...attachment, id }
+}
+
 export function mapQuotation(payload: unknown): Quotation {
   const v = rec(payload)
   const role = rec(v.required_approver_role)
@@ -65,10 +109,12 @@ export function mapQuotation(payload: unknown): Quotation {
     taxAmount: num(v.tax_amount),
     depositPercent: num(v.deposit_percent),
     depositAmount: num(v.deposit_amount),
+    initialPaymentAmount: num(v.initial_payment_amount),
     amount: num(v.amount),
     validUntil: txt(v.valid_until),
     status: txt(v.status, 'draft') as Quotation['status'],
     statusDisplay: txt(v.status_display, txt(v.status)),
+    realEstateSettlementMode: txt(v.real_estate_settlement_mode),
     approvedById: nnum(v.approved_by_id ?? approved.id),
     approvedByName: txt(v.approved_by_name) || displayName(v.approved_by),
     approvedAt: ntxt(v.approved_at),
@@ -79,6 +125,8 @@ export function mapQuotation(payload: unknown): Quotation {
     createdByName: txt(v.created_by_name) || displayName(v.created_by),
     createdAt: txt(v.created_at),
     updatedAt: txt(v.updated_at),
+    items: arr(v.items).map(mapQuotationItem),
+    attachments: arr(v.attachments).map(mapCommercialAttachment),
   }
 }
 

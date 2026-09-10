@@ -12,6 +12,7 @@ import { formatCurrency } from '@/shared/lib/formatters'
 import { withOptionalSearchValue, withoutSearchKeys } from '@/shared/navigation/search-state'
 import { ErrorState, useToast } from '@/shared/ui'
 import { EmptyState } from '@/shared/ui/empty-state'
+import { DropdownSelect } from '@/shared/ui/dropdown-select'
 import {
   CompactActionButton,
   CompactPageToolbar,
@@ -159,7 +160,10 @@ export function QuotationsLivePage({ recordSearch }: { recordSearch: AppSectionS
   }
 
   const createMutation = useMutation({
-    mutationFn: (input: CreateQuotationInput) => quotationsApi.create(input),
+    mutationFn: (input: CreateQuotationInput) =>
+      builderMode === 'revision' && builderQuote
+        ? quotationsApi.revise(builderQuote.id, input)
+        : quotationsApi.create(input),
     onSuccess: async (quote, input) => {
       await invalidate(quote.id, input.serviceRequestId)
       closeBuilder()
@@ -212,6 +216,24 @@ export function QuotationsLivePage({ recordSearch }: { recordSearch: AppSectionS
     },
     onError: async (error) => {
       toast.error('Quotation could not be approved', {
+        description: presentError(error, 'background-action').message,
+      })
+      if (selectedQuoteId) {
+        await queryClient.invalidateQueries({
+          queryKey: quotationKeys.detail(selectedQuoteId),
+        })
+      }
+    },
+  })
+
+  const clientAcceptMutation = useMutation({
+    mutationFn: (quoteId: number) => quotationsApi.recordClientAcceptance(quoteId),
+    onSuccess: async (quote) => {
+      await invalidate(quote.id, quote.serviceRequestId ?? undefined)
+      toast.success('Client acceptance recorded')
+    },
+    onError: async (error) => {
+      toast.error('Client acceptance could not be recorded', {
         description: presentError(error, 'background-action').message,
       })
       if (selectedQuoteId) {
@@ -373,6 +395,14 @@ export function QuotationsLivePage({ recordSearch }: { recordSearch: AppSectionS
   const displayedCount = normalizedSearch ? filteredQuotes.length : listQuery.data.count
   const displayedQuotes = normalizedSearch ? filteredQuotes : listQuery.data.items
   const totalPages = Math.max(1, Math.ceil(displayedCount / 10))
+  const statusFilterOptions = [
+    { value: '', label: 'All statuses' },
+    { value: 'awaiting_approval', label: 'Awaiting Approval' },
+    { value: 'sent', label: 'Sent' },
+    { value: 'accepted', label: 'Accepted' },
+    { value: 'rejected', label: 'Rejected' },
+    { value: 'expired', label: 'Expired' },
+  ]
 
   return (
     <ModulePageFrame
@@ -464,17 +494,13 @@ export function QuotationsLivePage({ recordSearch }: { recordSearch: AppSectionS
                 placeholder="Search quote, client or service"
               />
             </label>
-            <select
+            <DropdownSelect
+              compact
+              placeholder="All statuses"
+              options={statusFilterOptions}
               value={recordSearch.status ?? ''}
-              onChange={(event) => setSearchValue('status', event.target.value)}
-            >
-              <option value="">All statuses</option>
-              <option value="awaiting_approval">Awaiting Approval</option>
-              <option value="sent">Sent</option>
-              <option value="accepted">Accepted</option>
-              <option value="rejected">Rejected</option>
-              <option value="expired">Expired</option>
-            </select>
+              onChange={(value) => setSearchValue('status', value)}
+            />
           </div>
 
           {displayedQuotes.length === 0 ? (
@@ -595,6 +621,7 @@ export function QuotationsLivePage({ recordSearch }: { recordSearch: AppSectionS
 
       {builderMode && activeBuilderRequest ? (
         <QuotationBuilderLiveWorkspace
+          key={`${builderMode}-${activeBuilderRequest.id}-${builderQuote?.id ?? 'new'}`}
           mode={builderMode}
           request={activeBuilderRequest}
           {...(builderQuote ? { quote: builderQuote } : {})}
@@ -657,8 +684,11 @@ export function QuotationsLivePage({ recordSearch }: { recordSearch: AppSectionS
         <QuotationDetailLiveWorkspace
           quotation={detailQuery.data}
           linkedInvoice={linkedInvoiceQuery.data ?? null}
-          saving={approveMutation.isPending || updateMutation.isPending}
+          saving={
+            approveMutation.isPending || updateMutation.isPending || clientAcceptMutation.isPending
+          }
           canApprove={hasPermission(user, PERMISSIONS.quotesApprove)}
+          canAcceptForClient={hasPermission(user, PERMISSIONS.quotesUpdate)}
           canEdit={hasPermission(user, PERMISSIONS.quotesUpdate)}
           canRevise={hasPermission(user, PERMISSIONS.quotesCreate)}
           onClose={() =>
@@ -678,6 +708,7 @@ export function QuotationsLivePage({ recordSearch }: { recordSearch: AppSectionS
             })
           }}
           onApprove={() => approveMutation.mutate(detailQuery.data.id)}
+          onAcceptForClient={() => clientAcceptMutation.mutate(detailQuery.data.id)}
           onRevise={() => {
             const requestId = detailQuery.data.serviceRequestId
             if (!requestId) return

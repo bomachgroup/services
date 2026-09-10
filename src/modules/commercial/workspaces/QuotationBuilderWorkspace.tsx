@@ -2,6 +2,8 @@ import { IconX } from '@tabler/icons-react'
 import { useForm } from '@tanstack/react-form'
 
 import { formatNumberFieldValue, parseNumberFieldValue } from '@/shared/lib/number-input'
+import { DropdownSelect, mapDropdownOptions } from '@/shared/ui/dropdown-select'
+import { DatePicker } from '@/shared/ui/date-picker'
 import { commercialMoney, quotationApprovers } from '../commercial.ui'
 import type { CommercialServiceRequest, CreateQuotationInput } from '../types/commercial.types'
 import { getQuotationEligibleRequests, validateQuotationDraft } from './quotation-workflow.rules'
@@ -118,32 +120,32 @@ export function QuotationBuilderWorkspace({
             <div className="commercial-form-grid">
               <form.Field name="requestId">
                 {(field) => (
-                  <label className="commercial-field">
-                    <span>Service request *</span>
-                    <select
-                      value={field.state.value}
-                      onChange={(event) => applyRequest(event.target.value)}
-                    >
-                      {eligibleRequests.map((item) => (
-                        <option key={item.id} value={item.id}>
-                          {item.id} — {item.client} — {item.service}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
+                  <DropdownSelect
+                    label="Service request"
+                    required
+                    fullWidth
+                    fieldClassName="commercial-field"
+                    options={mapDropdownOptions(
+                      eligibleRequests.map((item) => ({
+                        value: item.id,
+                        label: `${item.id} — ${item.client} — ${item.service}`,
+                      })),
+                    )}
+                    value={field.state.value}
+                    onChange={applyRequest}
+                  />
                 )}
               </form.Field>
 
               <form.Field name="validUntil">
                 {(field) => (
-                  <label className="commercial-field">
-                    <span>Valid until *</span>
-                    <input
-                      type="date"
-                      value={field.state.value}
-                      onChange={(event) => field.handleChange(event.target.value)}
-                    />
-                  </label>
+                  <DatePicker
+                    label="Valid until"
+                    required
+                    value={field.state.value}
+                    onChange={(value) => field.handleChange(value)}
+                    fieldClassName="commercial-field"
+                  />
                 )}
               </form.Field>
             </div>
@@ -251,17 +253,19 @@ export function QuotationBuilderWorkspace({
 
               <form.Field name="approvalRoute">
                 {(field) => (
-                  <label className="commercial-field">
-                    <span>Approval route</span>
-                    <select
-                      value={field.state.value}
-                      onChange={(event) => field.handleChange(event.target.value)}
-                    >
-                      {quotationApprovers.map((approver) => (
-                        <option key={approver}>{approver}</option>
-                      ))}
-                    </select>
-                  </label>
+                  <DropdownSelect
+                    label="Approval route"
+                    fullWidth
+                    fieldClassName="commercial-field"
+                    options={mapDropdownOptions(
+                      quotationApprovers.map((approver) => ({
+                        value: approver,
+                        label: approver,
+                      })),
+                    )}
+                    value={field.state.value}
+                    onChange={(value) => field.handleChange(value)}
+                  />
                 )}
               </form.Field>
             </div>
