@@ -5,9 +5,10 @@ import {
   IconFileTypePdf,
   IconPhoto,
   IconPlus,
+  IconRefresh,
   IconTrash,
 } from '@tabler/icons-react'
-import { useRef, useState, type ReactNode } from 'react'
+import { useEffect, useId, useRef, useState, type ReactNode } from 'react'
 
 import { uploadFile } from '@/shared/api/file-upload'
 import { presentError } from '@/shared/errors'
@@ -18,6 +19,8 @@ export type EditableNamedDocument = Partial<NamedDocument> & {
   fileUrl?: string
   uploadState?: 'idle' | 'uploading' | 'ready' | 'failed'
   error?: string
+  /** Retained File for retry. Not sent to backend. */
+  fileObj?: File | undefined
 }
 
 function documentIcon(name: string, fileUrl?: string): ReactNode {
@@ -47,15 +50,49 @@ export function NamedDocumentsEditor({
   value,
   onChange,
   error = '',
+  onBusyChange,
 }: {
   value: EditableNamedDocument[]
   onChange: (value: EditableNamedDocument[]) => void
   error?: string
+  onBusyChange?: (busy: boolean) => void
 }) {
   const fileInputRef = useRef<HTMLInputElement | null>(null)
   const [draftName, setDraftName] = useState('')
   const [adderError, setAdderError] = useState('')
+  const idPrefix = useId()
+  const keyCounter = useRef(0)
+  // Latest value ref avoids stale-closure wipes when an upload finishes
+  // after the list changed (e.g. user removed another doc mid-upload).
+  const valueRef = useRef(value)
+  useEffect(() => {
+    valueRef.current = value
+  }, [value])
+  const nextKey = (fileName: string) => {
+    keyCounter.current += 1
+    return `${fileName}-${idPrefix}-${keyCounter.current}`
+  }
   const isUploading = value.some((document) => document.uploadState === 'uploading')
+
+  useEffect(() => {
+    onBusyChange?.(isUploading)
+  }, [isUploading, onBusyChange])
+
+  const setByKey = (key: string, patch: Partial<EditableNamedDocument>) => {
+    onChange(valueRef.current.map((d) => (d.file === key ? { ...d, ...patch } : d)))
+  }
+
+  const doUpload = async (key: string, file: File) => {
+    try {
+      const url = await uploadFile(file)
+      setByKey(key, { file: url, fileUrl: url, uploadState: 'ready', error: '', fileObj: undefined })
+    } catch (uploadError) {
+      setByKey(key, {
+        uploadState: 'failed',
+        error: presentError(uploadError, 'form-submit').message,
+      })
+    }
+  }
 
   const addFile = async (file: File) => {
     const name = draftName.trim()
@@ -65,37 +102,33 @@ export function NamedDocumentsEditor({
     }
 
     setAdderError('')
-    const key = `${file.name}-${Date.now()}`
+    const key = nextKey(file.name)
     const draft: EditableNamedDocument = {
       name,
       file: key,
       uploadState: 'uploading',
+      fileObj: file,
     }
-    onChange([...value, draft])
+    onChange([...valueRef.current, draft])
     setDraftName('')
+    await doUpload(key, file)
+  }
 
-    try {
-      const url = await uploadFile(file)
-      onChange(
-        [...value, draft].map((document) =>
-          document.file === key
-            ? { ...document, file: url, fileUrl: url, uploadState: 'ready', error: '' }
-            : document,
-        ),
-      )
-    } catch (uploadError) {
-      onChange(
-        [...value, draft].map((document) =>
-          document.file === key
-            ? {
-                ...document,
-                uploadState: 'failed',
-                error: presentError(uploadError, 'form-submit').message,
-              }
-            : document,
-        ),
-      )
+  const retryUpload = (index: number) => {
+    const doc = valueRef.current[index]
+    if (!doc?.fileObj) return
+    const key = doc.file ?? nextKey('retry')
+    setByKey(key, { uploadState: 'uploading', error: '' })
+    void doUpload(key, doc.fileObj)
+  }
+
+  const removeDoc = (index: number) => {
+    const doc = valueRef.current[index]
+    // Confirm before dropping an already-saved doc (omission = delete on PUT).
+    if (doc?.id && !window.confirm(`Remove "${doc.name || 'Document'}" from this estate? The file will be deleted from storage on save.`)) {
+      return
     }
+    onChange(valueRef.current.filter((_, docIndex) => docIndex !== index))
   }
 
   const openFilePicker = () => {
@@ -165,7 +198,7 @@ export function NamedDocumentsEditor({
 
             return (
               <article
-                key={`${document.id ?? document.file ?? index}`}
+                key={document.id != null ? `doc-${document.id}` : `doc-${document.file ?? index}`}
                 className="specialized-document-card"
                 data-state={document.uploadState ?? 'ready'}
               >
@@ -177,7 +210,7 @@ export function NamedDocumentsEditor({
                   {status ? <span className="specialized-document-card-meta">{status}</span> : null}
                 </div>
                 <div className="specialized-document-card-actions">
-                  {fileUrl && document.uploadState !== 'failed' ? (
+                  {fileUrl && document.uploadState !== 'failed' && document.uploadState !== 'uploading' ? (
                     <a
                       className="commercial-btn commercial-btn-ghost commercial-btn-compact"
                       href={fileUrl}
@@ -187,11 +220,21 @@ export function NamedDocumentsEditor({
                       Open
                     </a>
                   ) : null}
+                  {document.uploadState === 'failed' && document.fileObj ? (
+                    <button
+                      type="button"
+                      className="commercial-icon-btn"
+                      aria-label={`Retry ${document.name || 'document'} upload`}
+                      onClick={() => retryUpload(index)}
+                    >
+                      <IconRefresh size={15} />
+                    </button>
+                  ) : null}
                   <button
                     type="button"
                     className="commercial-icon-btn"
                     aria-label={`Remove ${document.name || 'document'}`}
-                    onClick={() => onChange(value.filter((_, docIndex) => docIndex !== index))}
+                    onClick={() => removeDoc(index)}
                   >
                     <IconTrash size={15} />
                   </button>
@@ -203,6 +246,9 @@ export function NamedDocumentsEditor({
           <div className="commercial-empty">No documents added yet.</div>
         )}
       </div>
+      {isUploading ? (
+        <div className="commercial-field-hint">Waiting for document upload to finish before saving…</div>
+      ) : null}
     </section>
   )
 }

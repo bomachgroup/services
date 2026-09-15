@@ -169,6 +169,27 @@ export interface EstateStats {
   soldValue: number
 }
 
+export interface PortfolioStats {
+  units: {
+    total: number
+    available: number
+    underOffer: number
+    reserved: number
+    sold: number
+  }
+  properties: {
+    total: number
+    inEstate: number
+    standalone: number
+  }
+  estatesWithPlots: {
+    available: number[]
+    underOffer: number[]
+    reserved: number[]
+    sold: number[]
+  }
+}
+
 export interface EstatePlotLayoutItem {
   id: number
   plotNumber: number | null

@@ -7,6 +7,7 @@ export const realEstateKeys = {
   estateStats: (id: number) => [...realEstateKeys.estates(), 'stats', id] as const,
   estateLayout: (id: number) => [...realEstateKeys.estates(), 'layout', id] as const,
   estateChoices: () => [...realEstateKeys.estates(), 'choices'] as const,
+  portfolioStats: () => [...realEstateKeys.estates(), 'portfolio-stats'] as const,
   properties: (estateId: number) => [...realEstateKeys.all, 'properties', estateId] as const,
   propertyList: (estateId: number, f: PropertyFilters) =>
     [...realEstateKeys.properties(estateId), 'list', f] as const,

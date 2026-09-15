@@ -251,6 +251,7 @@ export function CreateEstateLiveWorkspace({
   const [fieldErrors, setFieldErrors] = useState<EstateFieldErrors>({})
   const [selectedLga, setSelectedLga] = useState(initialLocation.lga)
   const [fallbackCityTown, setFallbackCityTown] = useState(initialLocation.city)
+  const [docsUploading, setDocsUploading] = useState(false)
   const fieldRefs = useRef<Partial<Record<EstateFieldKey, HTMLElement | null>>>({})
   const boundarySubmitError = isBoundaryError(submitError) ? submitError : ''
   const boundaryFieldErrors = Object.fromEntries(
@@ -310,6 +311,18 @@ export function CreateEstateLiveWorkspace({
   const form = useForm({
     defaultValues: estate ? mapEstateToFormValues(estate) : createDefaultEstateFormValues(),
     onSubmit: ({ value }) => {
+      if (docsUploading) {
+        setFormError('Wait for document uploads to finish, then save again.')
+        return
+      }
+      const failedDocs = (value.documents ?? []).filter(
+        (d) => (d as { uploadState?: string }).uploadState === 'failed',
+      )
+      if (failedDocs.length > 0) {
+        setFormError('One or more documents failed to upload. Retry or remove them before saving.')
+        setFieldErrors((current) => ({ ...current, documents: 'Retry or remove failed uploads.' }))
+        return
+      }
       const cityTownValue = value.cityTown.trim() || fallbackCityTown.trim()
       const input: CreateEstateInput = {
         ...value,
@@ -914,6 +927,7 @@ export function CreateEstateLiveWorkspace({
                 <NamedDocumentsEditor
                   value={field.state.value ?? []}
                   {...(fieldErrors.documents ? { error: fieldErrors.documents } : {})}
+                  onBusyChange={setDocsUploading}
                   onChange={(nextValue) => {
                     clearFieldError('documents')
                     field.handleChange(nextValue)
@@ -1076,8 +1090,12 @@ export function CreateEstateLiveWorkspace({
           <button type="button" className="commercial-btn" onClick={onClose} disabled={saving}>
             Cancel
           </button>
-          <button type="submit" className="commercial-btn commercial-btn-primary" disabled={saving}>
-            {saving ? 'Saving...' : isEdit ? 'Save Estate' : 'Create Estate'}
+          <button
+            type="submit"
+            className="commercial-btn commercial-btn-primary"
+            disabled={saving || docsUploading}
+          >
+            {saving ? 'Saving...' : docsUploading ? 'Uploading…' : isEdit ? 'Save Estate' : 'Create Estate'}
           </button>
         </footer>
       </form>
