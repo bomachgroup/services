@@ -48,9 +48,7 @@ export function getServiceRequestCapabilities(request: ServiceRequestDetail) {
       ? ''
       : mobilisationReady
         ? 'Mobilisation payment received. Create the service order from the invoice, or update owner and follow-up fields here.'
-        : commerciallyAdvanced
-          ? 'This request has moved into quotation or billing. Status cannot be rolled back to assessment or intake stages.'
-          : '',
+        : '',
   }
 }
 

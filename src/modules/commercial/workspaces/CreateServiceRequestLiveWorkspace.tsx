@@ -375,6 +375,8 @@ function LeadResultsTable({
   emptyMessage,
   leads: leadRows,
   selectedLeadId = 0,
+  busyLeadId = null,
+  disabled = false,
   onSelect,
 }: {
   loading?: boolean
@@ -384,6 +386,8 @@ function LeadResultsTable({
   emptyMessage?: string
   leads: MarketingLeadOption[]
   selectedLeadId?: number
+  busyLeadId?: number | null
+  disabled?: boolean
   onSelect?: (lead: MarketingLeadOption) => void
 }) {
   const { scrollRef, sentinelRef } = useDirectoryScrollLoadMore({
@@ -429,22 +433,31 @@ function LeadResultsTable({
         <tbody>
           {leadRows.map((lead) => {
             const selected = selectedLeadId === lead.id
-            const rowClassName = selected ? 'commercial-table-row--selected' : undefined
+            const busy = busyLeadId === lead.id
+            const rowClassName = [
+              selected ? 'commercial-table-row--selected' : '',
+              busy ? 'commercial-table-row--busy' : '',
+            ]
+              .filter(Boolean)
+              .join(' ')
+            const interactive = Boolean(onSelect) && !disabled
 
             return (
               <tr
                 key={lead.id}
-                className={rowClassName}
-                tabIndex={0}
-                role="button"
+                className={rowClassName || undefined}
+                tabIndex={interactive ? 0 : undefined}
+                role={interactive ? 'button' : undefined}
                 aria-selected={selected}
+                aria-disabled={disabled || busy}
+                aria-busy={busy}
                 onPointerDown={(event) => {
-                  if (event.button !== 0 || !onSelect) return
+                  if (event.button !== 0 || !onSelect || disabled || busy) return
                   event.preventDefault()
                   onSelect(lead)
                 }}
                 onKeyDown={(event) => {
-                  if (!onSelect) return
+                  if (!onSelect || disabled || busy) return
                   if (event.key !== 'Enter' && event.key !== ' ') return
                   event.preventDefault()
                   onSelect(lead)
@@ -456,7 +469,7 @@ function LeadResultsTable({
                 <td>{lead.phone || '—'}</td>
                 <td>{lead.email || '—'}</td>
                 <td>{lead.statusDisplay || lead.status || '—'}</td>
-                <td>{lead.linkedClientName ?? 'Create client'}</td>
+                <td>{lead.linkedClientName ?? 'Select'}</td>
               </tr>
             )
           })}
@@ -527,6 +540,8 @@ export function CreateServiceRequestLiveWorkspace({
   const [clientDirectoryTab, setClientDirectoryTab] = useState<ClientDirectoryTab>('clients')
   const [leadSearchDraft, setLeadSearchDraft] = useState('')
   const [leadSearch, setLeadSearch] = useState('')
+  const [convertingLeadId, setConvertingLeadId] = useState<number | null>(null)
+  const [leadSelectError, setLeadSelectError] = useState('')
   const [selectedMarketingLead, setSelectedMarketingLead] = useState<MarketingLeadOption | null>(
     null,
   )
@@ -941,41 +956,60 @@ export function CreateServiceRequestLiveWorkspace({
     [form],
   )
 
-  const openCreateClientFromLead = useCallback(
-    (lead: MarketingLeadOption) => {
-      const { firstName, lastName } = splitFullName(lead.fullName)
-      pickedClientRef.current = null
-      setPickedClient(null)
-      setSelectedMarketingLead(lead)
-      crmLeadIdRef.current = lead.id
-      form.setFieldValue('clientId', 0)
-      form.setFieldValue('contactName', lead.fullName)
-      form.setFieldValue('contactPhone', lead.phone ?? '')
-      form.setFieldValue('contactEmail', lead.email ?? '')
-      form.setFieldValue('sourceReference', `LEAD-${lead.id}`)
-      setNewClientFirstName(firstName)
-      setNewClientLastName(lastName)
-      setNewClientEmail(lead.email)
-      setNewClientPhone(lead.phone)
-      setShowCreateClient(true)
-      setCreateClientFormError('')
-      setNewClientFieldErrors({})
-      setClientSearchDraft('')
-      setClientSearch('')
-      setLeadSearchDraft('')
-      setLeadSearch('')
+  // Silent background conversion for unlinked leads tapped in the picker.
+  // The client already shows as selected (optimistic); success just swaps in
+  // the real id, failure unselects and shows one inline error.
+  // Declared before chooseLead, which fires it.
+  const convertLeadMutation = useMutation({
+    mutationFn: (input: {
+      leadId: number
+      firstName: string
+      lastName: string
+      email: string
+      phoneNumber: string
+    }) =>
+      serviceRequestsApi.createClient({
+        firstName: input.firstName,
+        lastName: input.lastName,
+        email: input.email,
+        phoneNumber: input.phoneNumber,
+      }),
+    onSuccess: async (client) => {
+      await queryClient.invalidateQueries({ queryKey: serviceRequestKeys.clients() })
+      pickedClientRef.current = client
+      setPickedClient(client)
+      form.setFieldValue('clientId', client.id)
+      form.setFieldValue('contactName', client.name)
+      form.setFieldValue('contactPhone', client.phone ?? '')
+      form.setFieldValue('contactEmail', client.email ?? '')
+      setConvertingLeadId(null)
+      setLeadSelectError('')
       setError('')
     },
-    [form],
-  )
+    onError: () => {
+      setConvertingLeadId(null)
+      pickedClientRef.current = null
+      setPickedClient(null)
+      setSelectedMarketingLead(null)
+      crmLeadIdRef.current = null
+      form.setFieldValue('clientId', 0)
+      form.setFieldValue('contactName', '')
+      form.setFieldValue('contactPhone', '')
+      form.setFieldValue('contactEmail', '')
+      form.setFieldValue('sourceReference', '')
+      setLeadSelectError('Lead could not be selected. Please try again.')
+    },
+  })
+
+  const { mutate: convertLead } = convertLeadMutation
 
   const chooseLead = useCallback(
     (lead: MarketingLeadOption) => {
-      setSelectedMarketingLead(lead)
-      crmLeadIdRef.current = lead.id
-      form.setFieldValue('sourceReference', `LEAD-${lead.id}`)
-
+      // Linked leads behave like normal clients.
       if (lead.linkedClientId) {
+        setSelectedMarketingLead(lead)
+        crmLeadIdRef.current = lead.id
+        form.setFieldValue('sourceReference', `LEAD-${lead.id}`)
         chooseClient({
           id: lead.linkedClientId,
           name: lead.linkedClientName || lead.fullName,
@@ -987,9 +1021,42 @@ export function CreateServiceRequestLiveWorkspace({
         return
       }
 
-      openCreateClientFromLead(lead)
+      // New lead: select immediately (optimistic), create silently behind.
+      // The user never sees a form or a loading state.
+      if (convertingLeadId != null || !canCreateClient) {
+        if (!canCreateClient) setLeadSelectError('Lead could not be selected. Please try again.')
+        return
+      }
+      const { firstName, lastName } = splitFullName(lead.fullName)
+      setLeadSelectError('')
+      setConvertingLeadId(lead.id)
+      setSelectedMarketingLead(lead)
+      crmLeadIdRef.current = lead.id
+      form.setFieldValue('sourceReference', `LEAD-${lead.id}`)
+      form.setFieldValue('contactName', lead.fullName)
+      form.setFieldValue('contactPhone', lead.phone ?? '')
+      form.setFieldValue('contactEmail', lead.email ?? '')
+      // Optimistic: show the client as selected right away with a temp id.
+      // The real id swaps in when the background creation finishes.
+      const optimisticClient = {
+        id: 0,
+        name: lead.fullName,
+        email: lead.email,
+        phone: lead.phone,
+        companyName: '',
+        active: true,
+      }
+      pickedClientRef.current = optimisticClient
+      setPickedClient(optimisticClient)
+      convertLead({
+        leadId: lead.id,
+        firstName,
+        lastName,
+        email: lead.email,
+        phoneNumber: lead.phone,
+      })
     },
-    [chooseClient, form, openCreateClientFromLead],
+    [chooseClient, convertLead, convertingLeadId, canCreateClient, form],
   )
 
   const clearClientSelection = useCallback(() => {
@@ -1002,6 +1069,7 @@ export function CreateServiceRequestLiveWorkspace({
     form.setFieldValue('contactPhone', '')
     form.setFieldValue('contactEmail', '')
     setError('')
+    setLeadSelectError('')
   }, [form])
 
   const openCreateClient = useCallback(() => {
@@ -1374,6 +1442,7 @@ export function CreateServiceRequestLiveWorkspace({
                               setClientDirectoryTab('clients')
                               setLeadSearchDraft('')
                               setLeadSearch('')
+                              setLeadSelectError('')
                             }}
                           >
                             Clients
@@ -1397,6 +1466,7 @@ export function CreateServiceRequestLiveWorkspace({
                               setClientDirectoryTab('leads')
                               setClientSearchDraft('')
                               setClientSearch('')
+                              setLeadSelectError('')
                             }}
                           >
                             Leads
@@ -1521,18 +1591,27 @@ export function CreateServiceRequestLiveWorkspace({
                     ) : null}
 
                     {clientPickerMode === 'browse' && clientDirectoryTab === 'leads' ? (
-                      <LeadResultsTable
-                        loading={canSearchLeads && leadDirectoryQuery.isPending}
-                        loadingMore={leadDirectoryQuery.isFetchingNextPage}
-                        hasMore={Boolean(leadDirectoryQuery.hasNextPage)}
-                        onLoadMore={() => {
-                          void leadDirectoryQuery.fetchNextPage()
-                        }}
-                        emptyMessage={browseEmptyMessage}
-                        leads={browseLeads}
-                        selectedLeadId={0}
-                        onSelect={chooseLead}
-                      />
+                      <>
+                        {leadSelectError ? (
+                          <div className="service-admin-notice service-admin-notice-red">
+                            {leadSelectError}
+                          </div>
+                        ) : null}
+                        <LeadResultsTable
+                          loading={canSearchLeads && leadDirectoryQuery.isPending}
+                          loadingMore={leadDirectoryQuery.isFetchingNextPage}
+                          hasMore={Boolean(leadDirectoryQuery.hasNextPage)}
+                          onLoadMore={() => {
+                            void leadDirectoryQuery.fetchNextPage()
+                          }}
+                          emptyMessage={browseEmptyMessage}
+                          leads={browseLeads}
+                          selectedLeadId={0}
+                          busyLeadId={convertingLeadId}
+                          disabled={convertingLeadId != null}
+                          onSelect={chooseLead}
+                        />
+                      </>
                     ) : null}
 
                     {clientPickerMode === 'selected' && selectedClient ? (

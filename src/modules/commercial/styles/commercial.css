@@ -456,6 +456,46 @@ button.commercial-attachment-row {
   text-decoration: none;
 }
 
+.commercial-document-preview-header .commercial-document-preview-title {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.commercial-document-preview-title h2 {
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 15px;
+}
+
+.commercial-document-preview-title p {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 2px 0 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--color-foreground-subtle);
+  font-size: 11px;
+}
+
+.commercial-document-type-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: #e8eefb;
+  color: #1f3d7a;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+
 .commercial-attachment-row:hover {
   border-color: #bfd0ea;
   background: #f8fbff;
