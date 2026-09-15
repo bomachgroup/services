@@ -1,12 +1,12 @@
-import { IconExternalLink, IconX } from '@tabler/icons-react'
-import { useEffect, useState } from 'react'
+import { IconDownload, IconExternalLink, IconX } from '@tabler/icons-react'
+import { useState } from 'react'
 
 import { FileTypeIcon } from './file-presentation'
 import {
   contentTypeFromFileName,
   fileNameFromUrl,
+  fileTypeLabel,
   isImageContentType,
-  isPdfContentType,
 } from './file-presentation.utils'
 
 export interface PreviewDocument {
@@ -59,33 +59,18 @@ export function DocumentPreviewModal({
   document: PreviewDocument
   onClose: () => void
 }) {
-  const fileName = document.fileName?.trim() || fileNameFromUrl(document.fileUrl)
+  // Clean display name: never show raw URLs or uuid prefixes in the UI.
+  const cleanFileName = document.fileName?.trim() || fileNameFromUrl(document.fileUrl)
   const contentType =
-    document.contentType?.trim() || contentTypeFromFileName(fileName) || 'Document'
-  const title = document.label?.trim() || fileName
-  const isImage = isImageContentType(contentType, fileName)
-  const isPdf = isPdfContentType(contentType, fileName)
-  const [loadFailed, setLoadFailed] = useState(false)
-
-  // Iframes swallow load errors and render the browser's error page. Probe PDFs
-  // with HEAD first. Skip HEAD for images — CloudFront often blocks cross-origin
-  // HEAD (CORS), which falsely marks a loadable image as missing; <img onError>
-  // is the reliable signal there.
-  useEffect(() => {
-    if (!/^https?:\/\//i.test(document.fileUrl)) return
-    if (isImage) return
-    let cancelled = false
-    fetch(document.fileUrl, { method: 'HEAD' })
-      .then((response) => {
-        if (!cancelled && !response.ok) setLoadFailed(true)
-      })
-      .catch(() => {
-        if (!cancelled) setLoadFailed(true)
-      })
-    return () => {
-      cancelled = true
-    }
-  }, [document.fileUrl, isImage])
+    document.contentType?.trim() || contentTypeFromFileName(cleanFileName) || ''
+  const friendlyType = fileTypeLabel(cleanFileName)
+  const title = document.label?.trim() || cleanFileName
+  const isImage = isImageContentType(contentType, cleanFileName)
+  // No HEAD probe and no reset effect: images report real failures via
+  // <img onError>, everything else shows the action card. The failed URL is
+  // tracked so switching documents clears the error without an effect.
+  const [failedUrl, setFailedUrl] = useState<string | null>(null)
+  const loadFailed = failedUrl != null && failedUrl === document.fileUrl
 
   return (
     <div
@@ -94,16 +79,21 @@ export function DocumentPreviewModal({
       onMouseDown={onClose}
     >
       <section
-        className="commercial-modal commercial-modal--preview"
+        className="commercial-modal commercial-modal--preview commercial-document-preview"
         role="dialog"
         aria-modal="true"
         aria-label={`Preview ${title}`}
         onMouseDown={(event) => event.stopPropagation()}
       >
-        <header className="commercial-modal-header">
-          <div>
-            <h2>{title}</h2>
-            <p>{fileName}</p>
+        <header className="commercial-modal-header commercial-document-preview-header">
+          <div className="commercial-document-preview-title">
+            <FileTypeIcon fileName={cleanFileName} contentType={contentType} size={22} />
+            <div>
+              <h2>{title}</h2>
+              <p>
+                {cleanFileName} <span className="commercial-document-type-badge">{friendlyType}</span>
+              </p>
+            </div>
           </div>
           <button
             type="button"
@@ -116,37 +106,37 @@ export function DocumentPreviewModal({
         </header>
 
         <div className="commercial-document-preview-body">
-          {loadFailed ? (
-            <div className="commercial-document-preview-fallback">
-              <div className="commercial-document-preview-fallback-icon">
-                <FileTypeIcon fileName={fileName} contentType={contentType} size={28} />
-              </div>
-              <strong>{fileName}</strong>
-              <p>
-                This document could not be loaded — the file may be missing or unavailable right
-                now. Try opening it in a new tab.
-              </p>
-            </div>
-          ) : isImage ? (
+          {isImage && !loadFailed ? (
             <img
               src={document.fileUrl}
               alt={title}
               className="commercial-document-preview-image"
-              onError={() => setLoadFailed(true)}
+              onError={() => setFailedUrl(document.fileUrl)}
             />
-          ) : isPdf ? (
-            <iframe
-              src={document.fileUrl}
-              title={title}
-              className="commercial-document-preview-frame"
-            />
+          ) : loadFailed ? (
+            <div className="commercial-document-preview-fallback">
+              <div className="commercial-document-preview-fallback-icon">
+                <FileTypeIcon fileName={cleanFileName} contentType={contentType} size={28} />
+              </div>
+              <strong>{title}</strong>
+              <span className="commercial-document-type-badge">{friendlyType}</span>
+              <p>
+                This file couldn’t be loaded for inline viewing. Open it in a new tab or download
+                it instead.
+              </p>
+            </div>
           ) : (
             <div className="commercial-document-preview-fallback">
               <div className="commercial-document-preview-fallback-icon">
-                <FileTypeIcon fileName={fileName} contentType={contentType} size={28} />
+                <FileTypeIcon fileName={cleanFileName} contentType={contentType} size={28} />
               </div>
-              <strong>{fileName}</strong>
-              <p>Preview is not available for this file type. Open it in a new tab to view.</p>
+              <strong>{title}</strong>
+              <span className="commercial-document-type-badge">{friendlyType}</span>
+              <p>
+                {isImage
+                  ? 'Image preview unavailable.'
+                  : 'Inline preview isn’t available for this file type. Open it in a new tab or download it to view.'}
+              </p>
             </div>
           )}
         </div>
@@ -156,7 +146,15 @@ export function DocumentPreviewModal({
             <IconExternalLink size={14} />
             Open in new tab
           </a>
-          <button type="button" className="commercial-btn commercial-btn-primary" onClick={onClose}>
+          <a
+            href={document.fileUrl}
+            download={cleanFileName}
+            className="commercial-btn commercial-btn-primary"
+          >
+            <IconDownload size={14} />
+            Download
+          </a>
+          <button type="button" className="commercial-btn" onClick={onClose}>
             Close
           </button>
         </footer>
