@@ -34,6 +34,12 @@ export const realEstateQueries = {
       queryFn: realEstateApi.estateChoices,
       staleTime: 60_000,
     }),
+  portfolioStats: () =>
+    queryOptions({
+      queryKey: realEstateKeys.portfolioStats(),
+      queryFn: () => realEstateApi.portfolioStats(),
+      staleTime: 15_000,
+    }),
   properties: (estateId: number, f: PropertyFilters) =>
     queryOptions({
       queryKey: realEstateKeys.propertyList(estateId, f),

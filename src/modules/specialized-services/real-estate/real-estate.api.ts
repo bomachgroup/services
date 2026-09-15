@@ -10,6 +10,7 @@ import {
   mapEstateLayout,
   mapEstateList,
   mapEstateStats,
+  mapPortfolioStats,
   mapPlotLayoutItem,
   mapProperty,
   mapPropertyList,
@@ -144,11 +145,20 @@ const feeConfigPayload = (config: CreatePropertyInput['feeConfig']) =>
       }
     : undefined
 const documentPayload = (documents: CreatePropertyInput['documents']) =>
-  (documents ?? []).map((document) => ({
-    ...(document.id ? { id: document.id } : {}),
-    name: document.name ?? 'Document',
-    file_url: document.fileUrl ?? document.file ?? '',
-  }))
+  (documents ?? [])
+    // Never send uploading/failed placeholders (e.g. "my.pdf-12345") as file_url.
+    // Those are local temp keys, not storage URLs — backend would store junk.
+    .filter((document) => {
+      const state = (document as { uploadState?: string }).uploadState
+      if (state === 'uploading' || state === 'failed') return false
+      const url = document.fileUrl ?? document.file ?? ''
+      return Boolean(url && (url.startsWith('http') || url.startsWith('/') || url.startsWith('blob:') || url.startsWith('data:')))
+    })
+    .map((document) => ({
+      ...(document.id ? { id: document.id } : {}),
+      name: document.name ?? 'Document',
+      file_url: document.fileUrl ?? document.file ?? '',
+    }))
 const propertyPayload = (i: CreatePropertyInput) => ({
   is_our_property: i.isOurProperty,
   property_type: i.propertyType,
@@ -347,6 +357,8 @@ export const realEstateApi = {
   estateDetail: async (id: number) => mapEstate(await apiClient.get<unknown>(`/estates/${id}`)),
   estateStats: async (id: number) =>
     mapEstateStats(await apiClient.get<unknown>(`/estates/${id}/stats`)),
+  portfolioStats: async () =>
+    mapPortfolioStats(await apiClient.get<unknown>('/estates/portfolio-stats')),
   estateLayout: async (id: number) =>
     mapEstateLayout(await apiClient.get<unknown>(`/estates/${id}/layout`)),
   estateChoices: async () =>
