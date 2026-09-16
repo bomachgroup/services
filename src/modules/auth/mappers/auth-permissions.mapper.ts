@@ -27,11 +27,42 @@ export function mapBackendPermissions(
   const granted = new Set<AppPermission>()
   const unmappedBackendPermissions: string[] = []
 
-  for (const backendPermission of backendPermissions) {
-    if (appPermissions.has(backendPermission)) {
-      granted.add(backendPermission as AppPermission)
-    } else {
-      unmappedBackendPermissions.push(backendPermission)
+  const isGlobalWildcard =
+    Boolean(permissions['*']?.some((a) => a === '*' || a === 'all')) ||
+    Boolean(permissions['all']?.some((a) => a === '*' || a === 'all')) ||
+    Boolean(permissions['admin']) ||
+    backendPermissions.includes('*.*') ||
+    backendPermissions.includes('*.all') ||
+    backendPermissions.includes('all.*') ||
+    backendPermissions.includes('all.all')
+
+  if (isGlobalWildcard) {
+    for (const perm of APP_PERMISSION_VALUES) {
+      granted.add(perm)
+    }
+  } else {
+    for (const [resource, actions] of Object.entries(permissions)) {
+      const normalizedResource = normalize(resource)
+      const hasWildcardAction = actions.some((a) => {
+        const norm = normalize(a)
+        return norm === '*' || norm === 'all' || norm === 'manage'
+      })
+
+      if (hasWildcardAction) {
+        for (const appPerm of APP_PERMISSION_VALUES) {
+          if (appPerm.startsWith(`${normalizedResource}.`)) {
+            granted.add(appPerm)
+          }
+        }
+      }
+    }
+
+    for (const backendPermission of backendPermissions) {
+      if (appPermissions.has(backendPermission)) {
+        granted.add(backendPermission as AppPermission)
+      } else {
+        unmappedBackendPermissions.push(backendPermission)
+      }
     }
   }
 
