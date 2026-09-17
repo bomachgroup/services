@@ -41,7 +41,8 @@ export interface InvoiceScheduleLine {
   amountRemaining: number | null
 }
 
-export type InvoicePaymentDuePhase = 'activation' | 'installment' | 'balance' | 'paid'
+export type InvoicePaymentDuePhase =
+  'activation' | 'installment' | 'balance' | 'paid' | 'reservation' | 'reserved'
 
 export interface InvoicePaymentDue {
   amountDueNow: number
@@ -49,6 +50,14 @@ export interface InvoicePaymentDue {
   dueDate: string | null
   phase: InvoicePaymentDuePhase
   scheduleLines: InvoiceScheduleLine[]
+  feeThreshold?: number | null
+  feePaid?: number | null
+  propertyPaid?: number | null
+  reservationExpiresAt?: string | null
+  reservationRefundable?: boolean | null
+  reservationRetentionPercent?: number | null
+  reservationDurationHours?: number | null
+  allowInstallment?: boolean | null
 }
 
 export interface Invoice {
@@ -70,6 +79,7 @@ export interface Invoice {
   taxRate: number
   taxAmount: number
   totalAmount: number
+  discount: number
   amountPaid: number
   balance: number
   paymentProgress: number
@@ -79,6 +89,8 @@ export interface Invoice {
   paymentSchedule: string
   paymentInstructions: string
   activationThresholdAmount: number
+  financeAccountId: number | null
+  financeAccountName: string
   activationThresholdMetAt: string | null
   paymentDue: InvoicePaymentDue
   notes: string
@@ -128,6 +140,7 @@ export interface Payment {
   updatedAt: string
   createdById: number
   createdByName: string
+  purpose: string
 }
 
 export interface PaginatedPayments {
@@ -153,6 +166,7 @@ export interface PaymentSubmission {
   statusDisplay: string
   rejectionReason: string
   createdAt: string
+  purpose: string
 }
 
 export interface FinanceAccount {
@@ -177,6 +191,7 @@ export interface CreateInvoiceFromQuoteInput {
   paymentSchedule: string
   paymentInstructions: string
   notes: string
+  financeAccountId: number
 }
 
 export interface UpdateInvoiceInput {

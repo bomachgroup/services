@@ -25,6 +25,19 @@ export interface ServiceRequestChoices {
   activityOutcomes: ServiceRequestChoice[]
 }
 
+export type ServicePricingMode = 'calculator' | 'specialized' | 'quotation'
+
+export type CommercialPath = 'quotation' | 'direct_invoice'
+
+export interface DirectExtraCharge {
+  description: string
+  quantity: number
+  unitPrice: number
+  paymentTiming: string
+  sourceContext: Record<string, unknown>
+  sortOrder: number
+}
+
 export interface ServiceRequestListItem {
   id: number
   requestNumber: string
@@ -32,6 +45,9 @@ export interface ServiceRequestListItem {
   clientName: string
   serviceId: number
   serviceName: string
+  specializedDomain: string | null
+  pricingMode: ServicePricingMode
+  calculatorCode: string
   branchId: number | null
   branchName: string
   quoteId: number | null
@@ -51,6 +67,7 @@ export interface ServiceRequestListItem {
   dueDate: string | null
   nextAction: string
   scopeSummary: string
+  commercialPath: CommercialPath
   ownerId: number | null
   ownerName: string
   createdAt: string
@@ -97,12 +114,15 @@ export interface ServiceRequestDetail extends ServiceRequestListItem {
   crmLeadId: number | null
   requestFormId: number
   requestFormVersion: number
-  pricingConfigId: number | null
-  pricingConfigVersion: number | null
   workflowId: number | null
   workflowVersion: number | null
   answersSnapshot: Record<string, unknown>
   formSnapshot: Record<string, unknown>
+  calculatorInputs: Record<string, unknown>
+  directExtraCharges: DirectExtraCharge[]
+  directDiscount: number
+  directTaxRate: number
+  directThreshold: number
   answers: ServiceRequestAnswer[]
   attachments: ServiceRequestAttachment[]
   activities: ServiceRequestActivity[]
@@ -161,6 +181,8 @@ export interface ServiceOption {
   specializedServiceId?: number | null
   specializedDomain?: string | null
   specializedConfig?: Record<string, unknown>
+  calculatorCode?: string | null
+  calculatorName?: string | null
   activeBranches: BranchOption[]
 }
 
@@ -262,6 +284,7 @@ export interface CreateServiceRequestInput {
   scopeSummary: string
   answers: Record<string, unknown>
   crmLeadId?: number
+  commercialPath?: CommercialPath
 }
 
 export interface UpdateServiceRequestInput {
@@ -273,6 +296,12 @@ export interface UpdateServiceRequestInput {
   dueDate?: string | null
   nextAction?: string
   estimatedValue?: number
+  calculatorInputs?: Record<string, unknown>
+  commercialPath?: CommercialPath
+  directExtraCharges?: DirectExtraCharge[]
+  directDiscount?: number
+  directTaxRate?: number
+  directThreshold?: number
   scopeSummary?: string
 }
 
@@ -291,4 +320,24 @@ export interface CreateServiceRequestAttachmentInput {
   fileUrl: string
   contentType?: string
   fileSizeBytes?: number
+}
+
+export interface DirectInvoiceExtraChargeInput {
+  description: string
+  quantity?: number
+  unitPrice: number
+  paymentTiming?: string
+}
+
+export interface DirectInvoiceBilling {
+  extraCharges: DirectInvoiceExtraChargeInput[]
+  discount: number
+  taxRate: number
+  threshold: number
+}
+
+export interface CreateDirectInvoiceInput {
+  dueDate: string
+  paymentInstructions: string
+  billing: DirectInvoiceBilling
 }

@@ -4,9 +4,11 @@ import { useNavigate } from '@tanstack/react-router'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 
 import { useAuth } from '@/app/auth'
+import type { AuthUser } from '@/app/auth/auth.types'
 import { SectionLoadingState } from '@/app/loading/SectionLoadingState'
 import { hasPermission, PERMISSIONS } from '@/app/permissions'
 import type { AppSectionSearch } from '@/routes/app/$section'
+import { ApiError } from '@/shared/api/api-error'
 import { presentError } from '@/shared/errors'
 import { formatCurrency } from '@/shared/lib/formatters'
 import { withOptionalSearchValue, withoutSearchKeys } from '@/shared/navigation/search-state'
@@ -48,6 +50,28 @@ function statusClass(status: string) {
   }
   if (status === 'awaiting_approval') return 'commercial-pill-yellow'
   return 'commercial-pill-blue'
+}
+
+function approvalErrorMessage(error: unknown): string {
+  // Approval denials carry the specific reason (wrong approver role, missing
+  // role, wrong state) — surface it instead of the generic 403 mask.
+  if (error instanceof ApiError) {
+    const detail = (error.details as { detail?: unknown } | null)?.detail
+    if (typeof detail === 'string' && detail.trim()) return detail.trim()
+  }
+  return presentError(error, 'background-action').message
+}
+
+function approverBlockerForQuote(
+  quote: Pick<Quotation, 'requiredApproverRoleId' | 'requiredApproverRoleName'> | null | undefined,
+  user: AuthUser | null,
+): string | null {
+  if (!quote || !user || quote.requiredApproverRoleId == null || user.backendRoleId == null) {
+    return null
+  }
+  if (user.backendRoleId === quote.requiredApproverRoleId) return null
+  const required = quote.requiredApproverRoleName?.trim() || 'a different role'
+  return `Requires ${required} approval — your role (${user.roleLabel}) cannot approve this quote.`
 }
 
 export function QuotationsLivePage({ recordSearch }: { recordSearch: AppSectionSearch }) {
@@ -116,7 +140,10 @@ export function QuotationsLivePage({ recordSearch }: { recordSearch: AppSectionS
     () =>
       eligibleRequestListQuery.data?.items.filter(
         (request) =>
-          !request.quoteId && request.status !== 'converted' && request.status !== 'rejected',
+          !request.quoteId &&
+          request.status !== 'converted' &&
+          request.status !== 'rejected' &&
+          (request.pricingMode !== 'calculator' || request.estimatedValue > 0),
       ) ?? [],
     [eligibleRequestListQuery.data?.items],
   )
@@ -216,7 +243,7 @@ export function QuotationsLivePage({ recordSearch }: { recordSearch: AppSectionS
     },
     onError: async (error) => {
       toast.error('Quotation could not be approved', {
-        description: presentError(error, 'background-action').message,
+        description: approvalErrorMessage(error),
       })
       if (selectedQuoteId) {
         await queryClient.invalidateQueries({
@@ -688,6 +715,7 @@ export function QuotationsLivePage({ recordSearch }: { recordSearch: AppSectionS
             approveMutation.isPending || updateMutation.isPending || clientAcceptMutation.isPending
           }
           canApprove={hasPermission(user, PERMISSIONS.quotesApprove)}
+          approveBlocker={approverBlockerForQuote(detailQuery.data, user)}
           canAcceptForClient={hasPermission(user, PERMISSIONS.quotesUpdate)}
           canEdit={hasPermission(user, PERMISSIONS.quotesUpdate)}
           canRevise={hasPermission(user, PERMISSIONS.quotesCreate)}

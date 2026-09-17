@@ -63,6 +63,8 @@ function snapshotBudget(value: JsonRecord) {
 
 export function mapServiceRequestListItem(payload: unknown): ServiceRequestListItem {
   const value = record(payload)
+  const modeRaw = text(value.pricing_mode, 'quotation').toLowerCase()
+  const pathRaw = text(value.commercial_path, 'quotation').toLowerCase()
   return {
     id: num(value.id),
     requestNumber: text(value.request_number),
@@ -70,6 +72,9 @@ export function mapServiceRequestListItem(payload: unknown): ServiceRequestListI
     clientName: text(value.client_name),
     serviceId: num(value.service_id),
     serviceName: text(value.service_name),
+    specializedDomain: nullableText(value.specialized_domain),
+    pricingMode: modeRaw === 'calculator' || modeRaw === 'specialized' ? modeRaw : 'quotation',
+    calculatorCode: text(value.calculator_code),
     branchId: nullableNumber(value.branch_id),
     branchName: text(value.branch_name),
     quoteId: nullableNumber(value.quote_id),
@@ -89,6 +94,7 @@ export function mapServiceRequestListItem(payload: unknown): ServiceRequestListI
     dueDate: nullableText(value.due_date),
     nextAction: text(value.next_action),
     scopeSummary: text(value.scope_summary),
+    commercialPath: pathRaw === 'direct_invoice' ? 'direct_invoice' : 'quotation',
     ownerId: nullableNumber(value.owner_id),
     ownerName: text(value.owner_name),
     createdAt: text(value.created_at),
@@ -107,12 +113,25 @@ export function mapServiceRequestDetail(payload: unknown): ServiceRequestDetail 
     crmLeadId: nullableNumber(value.crm_lead_id),
     requestFormId: num(value.request_form_id),
     requestFormVersion: num(value.request_form_version),
-    pricingConfigId: nullableNumber(value.pricing_config_id),
-    pricingConfigVersion: nullableNumber(value.pricing_config_version),
     workflowId: nullableNumber(value.workflow_id),
     workflowVersion: nullableNumber(value.workflow_version),
     answersSnapshot: record(value.answers_snapshot),
     formSnapshot: record(value.form_snapshot),
+    calculatorInputs: record(value.calculator_inputs),
+    directExtraCharges: array(value.direct_extra_charges).map((item) => {
+      const row = record(item)
+      return {
+        description: text(row.description),
+        quantity: num(row.quantity) || 1,
+        unitPrice: num(row.unit_price),
+        paymentTiming: text(row.payment_timing, 'upfront'),
+        sourceContext: record(row.source_context),
+        sortOrder: num(row.sort_order),
+      }
+    }),
+    directDiscount: num(value.direct_discount),
+    directTaxRate: num(value.direct_tax_rate),
+    directThreshold: num(value.direct_threshold),
     answers: array(value.answers).map((item) => {
       const row = record(item)
       return {
@@ -210,6 +229,9 @@ export function mapServices(payload: unknown): ServiceOption[] {
   const { rows } = paginatedRows(payload)
   return rows.map((item) => {
     const row = record(item)
+    const calculator = record(row.active_calculator)
+    const calculatorCode = text(calculator.code) || null
+    const calculatorName = text(calculator.name) || null
     return {
       id: num(row.id),
       code: text(row.code),
@@ -218,6 +240,8 @@ export function mapServices(payload: unknown): ServiceOption[] {
       specializedServiceId: nullableNumber(row.specialized_service_id),
       specializedDomain: nullableText(row.specialized_domain),
       specializedConfig: record(row.specialized_config),
+      ...(calculatorCode ? { calculatorCode } : {}),
+      ...(calculatorName ? { calculatorName } : {}),
       activeBranches: array(row.active_branches).map((item) => {
         const branch = record(item)
         return {

@@ -1,9 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import {
-  commercialEmptyLabel,
-  commercialSourceContextLabel,
-} from './commercial-source-context'
+import { commercialEmptyLabel, commercialSourceContextLabel } from './commercial-source-context'
 
 describe('commercialSourceContextLabel', () => {
   it('labels real-estate asset lines with asset name', () => {
@@ -37,12 +34,8 @@ describe('commercialSourceContextLabel', () => {
   })
 
   it('uses quotation-item fallback when requested', () => {
-    expect(commercialSourceContextLabel({}, { fromQuoteItem: true })).toBe(
-      'From quotation item',
-    )
-    expect(commercialSourceContextLabel(null, { fromQuoteItem: true })).toBe(
-      'From quotation item',
-    )
+    expect(commercialSourceContextLabel({}, { fromQuoteItem: true })).toBe('From quotation item')
+    expect(commercialSourceContextLabel(null, { fromQuoteItem: true })).toBe('From quotation item')
   })
 
   it('returns empty string for unrelated context', () => {

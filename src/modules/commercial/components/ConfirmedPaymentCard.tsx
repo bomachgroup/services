@@ -13,6 +13,12 @@ function paymentMethodLabel(method: string) {
   return paymentMethodOptions.find((item) => item.value === method)?.label ?? method
 }
 
+function purposeLabel(purpose: string) {
+  if (purpose === 'reservation_fee') return 'Reservation fee'
+  if (purpose === 'property') return 'Property payment'
+  return purpose
+}
+
 function formatPreciseCurrency(value: number) {
   const amount = Number(value) || 0
   const hasFraction = Math.abs(amount % 1) > 0.000001
@@ -54,7 +60,7 @@ export function ConfirmedPaymentCard({ payment }: { payment: Payment }) {
     <>
       <article
         className={`commercial-payment-proof-card commercial-payment-proof-card--confirmed commercial-payment-proof-card--foldable${
-          expanded ? ' is-expanded' : ' is-collapsed'
+          expanded ? 'is-expanded' : 'is-collapsed'
         }`}
       >
         <button
@@ -103,6 +109,12 @@ export function ConfirmedPaymentCard({ payment }: { payment: Payment }) {
               <div>
                 <div className="commercial-kl">Receiving account</div>
                 <b>{payment.financeAccountName || '—'}</b>
+              </div>
+              <div>
+                <div className="commercial-kl">Purpose</div>
+                <span className={`commercial-pill commercial-pill-blue commercial-purpose-pill`}>
+                  {purposeLabel(payment.purpose ?? 'property')}
+                </span>
               </div>
               {submissionReference ? (
                 <div>

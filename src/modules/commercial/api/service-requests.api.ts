@@ -1,5 +1,8 @@
 import { apiClient } from '@/shared/api/api-client'
 
+import { mapInvoice } from '../billing/billing.mapper'
+import type { Invoice } from '../billing/billing.types'
+
 import {
   mapClient,
   mapClients,
@@ -12,6 +15,14 @@ import {
   mapServices,
 } from './service-requests.mapper'
 import type {
+  BoundarySurveyEstimateInput,
+  CalculatorEstimateResult,
+  EngineeringCategoryInput,
+  EngineeringCategoryOption,
+  EngineeringEstimateInput,
+  RestablishmentSurveyEstimateInput,
+} from './calculator-estimate.types'
+import type {
   ClientOption,
   CreateClientInput,
   CreateServiceRequestActivityInput,
@@ -19,7 +30,6 @@ import type {
   CreateServiceRequestInput,
   EmployeeOption,
   PaginatedResult,
-  ServicePricingConfig,
   ServiceIntakeForm,
   ServiceOption,
   ServiceRequestChoices,
@@ -50,6 +60,40 @@ async function count(filters: ServiceRequestFilters = {}) {
       `/service-requests/admin?${qs({ ...filters, page: 1, limit: 1 })}`,
     ),
   ).count
+}
+
+function textOf(value: unknown, fallback = '') {
+  return typeof value === 'string' ? value : fallback
+}
+
+function codeOf(value: unknown, fallback: string) {
+  return typeof value === 'string' && value.trim() !== '' ? value : fallback
+}
+
+function mapEngineeringCategory(item: unknown): EngineeringCategoryOption {
+  const row = (item ?? {}) as Record<string, unknown>
+  return {
+    id: Number(row.id ?? 0),
+    name: textOf(row.name),
+    categoryType: textOf(row.category_type),
+    unitPrice: Number(row.unit_price ?? 0),
+    maxBedrooms: Number(row.max_bedrooms_default ?? 0),
+    maxFloors: Number(row.max_floors_default ?? 0),
+    extraBedroomFee: Number(row.extra_bedroom_fee ?? 0),
+    extraFloorFee: Number(row.extra_floor_fee ?? 0),
+    maxArea:
+      row.max_area_default == null || row.max_area_default === ''
+        ? null
+        : Number(row.max_area_default),
+    areaFee: row.area_fee == null || row.area_fee === '' ? null : Number(row.area_fee),
+    timelineDays:
+      row.timeline_days_default == null || row.timeline_days_default === ''
+        ? null
+        : Number(row.timeline_days_default),
+    timelineFee:
+      row.timeline_fee == null || row.timeline_fee === '' ? null : Number(row.timeline_fee),
+    active: row.is_active !== false,
+  }
 }
 
 export const serviceRequestsApi = {
@@ -123,13 +167,6 @@ export const serviceRequestsApi = {
     )
   },
 
-  activePricingConfig(serviceId: number): ServicePricingConfig | null {
-    // Formula ServicePricingConfig endpoints were removed. Quote auto-pricing now uses
-    // PricingCalculator attachments; intake estimate returns null without a legacy config.
-    void serviceId
-    return null
-  },
-
   async uploadFile(file: File, signal?: AbortSignal): Promise<string> {
     const formData = new FormData()
     formData.set('file', file)
@@ -181,6 +218,7 @@ export const serviceRequestsApi = {
         scope_summary: input.scopeSummary,
         answers: input.answers,
         ...(input.crmLeadId ? { crm_lead_id: input.crmLeadId } : {}),
+        ...(input.commercialPath ? { commercial_path: input.commercialPath } : {}),
       }),
     )
   },
@@ -196,9 +234,172 @@ export const serviceRequestsApi = {
         ...(input.dueDate !== undefined ? { due_date: input.dueDate } : {}),
         ...(input.nextAction !== undefined ? { next_action: input.nextAction } : {}),
         ...(input.estimatedValue !== undefined ? { estimated_value: input.estimatedValue } : {}),
+        ...(input.calculatorInputs !== undefined
+          ? { calculator_inputs: input.calculatorInputs }
+          : {}),
+        ...(input.commercialPath !== undefined ? { commercial_path: input.commercialPath } : {}),
+        ...(input.directExtraCharges !== undefined
+          ? {
+              direct_extra_charges: input.directExtraCharges.map((charge, index) => ({
+                description: charge.description,
+                quantity: charge.quantity ?? 1,
+                unit_price: charge.unitPrice,
+                kind: 'additional_charge',
+                payment_timing: charge.paymentTiming || 'upfront',
+                source_context: {},
+                sort_order: (index + 1) * 10,
+              })),
+            }
+          : {}),
+        ...(input.directDiscount !== undefined ? { direct_discount: input.directDiscount } : {}),
+        ...(input.directTaxRate !== undefined ? { direct_tax_rate: input.directTaxRate } : {}),
+        ...(input.directThreshold !== undefined ? { direct_threshold: input.directThreshold } : {}),
         ...(input.scopeSummary !== undefined ? { scope_summary: input.scopeSummary } : {}),
       }),
     )
+  },
+
+  async estimateBoundary(
+    serviceId: number,
+    input: BoundarySurveyEstimateInput,
+  ): Promise<CalculatorEstimateResult> {
+    const payload = (await apiClient.post<unknown>(`/services/${serviceId}/calculator/estimate`, {
+      area: input.area,
+      unit: input.unit,
+      customer_type: input.customer_type,
+      boundary_registration: input.boundary_registration,
+      plots: input.plots,
+      single_plan: input.single_plan,
+      state: input.state,
+      lga: input.lga,
+      country: input.country,
+    })) as Record<string, unknown>
+    return {
+      total: Number(payload.total ?? 0),
+      calculatorCode: codeOf(payload.calculator_code, 'BOUNDARY-SURVEY'),
+      raw: payload,
+    }
+  },
+
+  async estimateRestablishment(
+    serviceId: number,
+    input: RestablishmentSurveyEstimateInput,
+  ): Promise<CalculatorEstimateResult> {
+    const payload = (await apiClient.post<unknown>(
+      `/services/${serviceId}/calculator/restablishment-survey/estimate`,
+      { number_of_beacons: input.number_of_beacons },
+    )) as Record<string, unknown>
+    return {
+      total: Number(payload.total ?? 0),
+      calculatorCode: codeOf(payload.calculator_code, 'RESTABLISHMENT-SURVEY'),
+      raw: payload,
+    }
+  },
+
+  async estimateEngineering(
+    serviceId: number,
+    input: EngineeringEstimateInput,
+  ): Promise<CalculatorEstimateResult> {
+    const payload = (await apiClient.post<unknown>(
+      `/services/${serviceId}/calculator/engineering/estimate`,
+      {
+        category_name: input.category_name,
+        number_of_bedrooms: input.number_of_bedrooms,
+        number_of_floors: input.number_of_floors,
+        ...(input.area_sqm != null ? { area_sqm: input.area_sqm } : {}),
+        ...(input.timeline_days != null ? { timeline_days: input.timeline_days } : {}),
+      },
+    )) as Record<string, unknown>
+    return {
+      total: Number(payload.total ?? 0),
+      calculatorCode: textOf(payload.calculator_code),
+      raw: payload,
+    }
+  },
+
+  async engineeringCategories(includeInactive = false): Promise<EngineeringCategoryOption[]> {
+    const payload = await apiClient.get<unknown>(
+      includeInactive
+        ? '/services/engineering-categories?include_inactive=true'
+        : '/services/engineering-categories',
+    )
+    const rows = Array.isArray(payload)
+      ? payload
+      : Array.isArray((payload as Record<string, unknown>).items)
+        ? ((payload as Record<string, unknown>).items as unknown[])
+        : []
+    return rows.map(mapEngineeringCategory)
+  },
+
+  async restablishmentUnitPrice(): Promise<number | null> {
+    try {
+      const payload = (await apiClient.get<unknown>(
+        '/services/restablishment-survey-unit-price',
+      )) as Record<string, unknown>
+      const parsed = Number(payload.unit_price)
+      return Number.isFinite(parsed) ? parsed : null
+    } catch {
+      return null
+    }
+  },
+
+  async setRestablishmentUnitPrice(unitPrice: number): Promise<number> {
+    const payload = (await apiClient.put<unknown>('/services/restablishment-survey-unit-price', {
+      unit_price: unitPrice,
+    })) as Record<string, unknown>
+    return Number(payload.unit_price ?? unitPrice)
+  },
+
+  async createEngineeringCategory(
+    input: EngineeringCategoryInput,
+  ): Promise<EngineeringCategoryOption> {
+    return mapEngineeringCategory(
+      await apiClient.post<unknown>('/services/engineering-categories', {
+        name: input.name.trim(),
+        category_type: input.category_type.trim(),
+        unit_price: input.unit_price,
+        max_bedrooms_default: input.max_bedrooms_default,
+        max_floors_default: input.max_floors_default,
+        extra_bedroom_fee: input.extra_bedroom_fee,
+        extra_floor_fee: input.extra_floor_fee,
+        ...(input.max_area_default != null ? { max_area_default: input.max_area_default } : {}),
+        ...(input.area_fee != null ? { area_fee: input.area_fee } : {}),
+        ...(input.timeline_days_default != null
+          ? { timeline_days_default: input.timeline_days_default }
+          : {}),
+        ...(input.timeline_fee != null ? { timeline_fee: input.timeline_fee } : {}),
+        ...(input.is_active !== undefined ? { is_active: input.is_active } : {}),
+      }),
+    )
+  },
+
+  async updateEngineeringCategory(
+    categoryId: number,
+    input: Partial<EngineeringCategoryInput>,
+  ): Promise<EngineeringCategoryOption> {
+    const payload: Record<string, unknown> = {}
+    if (input.name !== undefined) payload.name = input.name.trim()
+    if (input.category_type !== undefined) payload.category_type = input.category_type.trim()
+    if (input.unit_price !== undefined) payload.unit_price = input.unit_price
+    if (input.max_bedrooms_default !== undefined)
+      payload.max_bedrooms_default = input.max_bedrooms_default
+    if (input.max_floors_default !== undefined)
+      payload.max_floors_default = input.max_floors_default
+    if (input.extra_bedroom_fee !== undefined) payload.extra_bedroom_fee = input.extra_bedroom_fee
+    if (input.extra_floor_fee !== undefined) payload.extra_floor_fee = input.extra_floor_fee
+    if (input.max_area_default !== undefined) payload.max_area_default = input.max_area_default
+    if (input.area_fee !== undefined) payload.area_fee = input.area_fee
+    if (input.timeline_days_default !== undefined)
+      payload.timeline_days_default = input.timeline_days_default
+    if (input.timeline_fee !== undefined) payload.timeline_fee = input.timeline_fee
+    if (input.is_active !== undefined) payload.is_active = input.is_active
+    return mapEngineeringCategory(
+      await apiClient.put<unknown>(`/services/engineering-categories/${categoryId}`, payload),
+    )
+  },
+
+  async deleteEngineeringCategory(categoryId: number): Promise<void> {
+    await apiClient.delete(`/services/engineering-categories/${categoryId}`)
   },
 
   async addActivity(requestId: number, input: CreateServiceRequestActivityInput) {
@@ -220,5 +421,36 @@ export const serviceRequestsApi = {
       content_type: input.contentType ?? '',
       file_size_bytes: input.fileSizeBytes ?? 0,
     })
+  },
+
+  async setBalancePlan(requestId: number, mode: 'full_payment' | 'installment') {
+    return mapServiceRequestDetail(
+      await apiClient.post<unknown>(`/service-requests/admin/${requestId}/balance-plan`, {
+        mode,
+      }),
+    )
+  },
+
+  async createInvoiceFromRequest(
+    requestId: number,
+    input: { dueDate: string; paymentInstructions?: string; notes?: string },
+  ): Promise<Invoice> {
+    return mapInvoice(
+      await apiClient.post<unknown>(`/service-requests/admin/${requestId}/invoice`, {
+        due_date: input.dueDate,
+        ...(input.paymentInstructions !== undefined
+          ? { payment_instructions: input.paymentInstructions }
+          : {}),
+        ...(input.notes !== undefined ? { notes: input.notes } : {}),
+      }),
+    )
+  },
+
+  async cancelReservation(requestId: number, reason = '') {
+    return mapServiceRequestDetail(
+      await apiClient.post<unknown>(`/service-requests/admin/${requestId}/cancel-reservation`, {
+        reason,
+      }),
+    )
   },
 }

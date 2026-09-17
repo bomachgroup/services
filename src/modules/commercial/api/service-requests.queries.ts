@@ -86,13 +86,6 @@ export const serviceRequestQueries = {
       queryFn: () => serviceRequestsApi.intakeForm(id),
       staleTime: 60_000,
     }),
-  pricingConfig: (serviceId: number) =>
-    queryOptions({
-      queryKey: serviceRequestKeys.pricingConfig(serviceId),
-      queryFn: () => serviceRequestsApi.activePricingConfig(serviceId),
-      staleTime: 60_000,
-      retry: false,
-    }),
   summary: () =>
     queryOptions({
       queryKey: serviceRequestKeys.summary(),
