@@ -25,7 +25,9 @@ import { validateProperty } from '../real-estate/real-estate.validation'
 const residentialTypeOptions = [...residentialBuildingTypes]
 const commercialTypeOptions = [...commercialBuildingTypes]
 
-type PropertyFieldErrors = Partial<Record<'plotNumber' | 'propertyName' | 'plotSize' | 'price', string>>
+type PropertyFieldErrors = Partial<
+  Record<'plotNumber' | 'propertyName' | 'plotSize' | 'price', string>
+>
 
 function parsePositiveInteger(value: string, fallback: number | null = null) {
   if (value.trim() === '') return fallback
@@ -161,9 +163,7 @@ export function EditPropertyLiveWorkspace({
         setError('')
         if (fromApi.plotNumber) {
           requestAnimationFrame(() => {
-            document
-              .querySelector<HTMLInputElement>('[data-property-field="plotNumber"]')
-              ?.focus()
+            document.querySelector<HTMLInputElement>('[data-property-field="plotNumber"]')?.focus()
           })
         }
       })
@@ -216,7 +216,7 @@ export function EditPropertyLiveWorkspace({
 
   const plotNumberField = (
     <label
-      className={`commercial-field${fieldErrors.plotNumber ? ' commercial-field--invalid' : ''}`}
+      className={`commercial-field${fieldErrors.plotNumber ? 'commercial-field--invalid' : ''}`}
     >
       <span>
         Plot number <em>*</em>
@@ -236,8 +236,7 @@ export function EditPropertyLiveWorkspace({
           setValue((current) => ({
             ...current,
             plotNumber: nextNumber,
-            propertyName:
-              nextNumber && hasEstate ? `Plot ${nextNumber}` : current.propertyName,
+            propertyName: nextNumber && hasEstate ? `Plot ${nextNumber}` : current.propertyName,
           }))
         }}
       />

@@ -44,26 +44,28 @@ export function PropertyTypePicker({
       </div>
 
       <section className="specialized-property-type-picker">
-        {propertyTypeOptions.map(({ value: optionValue, label, description: optionDescription, Icon }) => (
-          <button
-            key={optionValue}
-            type="button"
-            className={
-              value === optionValue
-                ? 'specialized-property-type-option is-active'
-                : 'specialized-property-type-option'
-            }
-            onClick={() => onChange(optionValue)}
-          >
-            <span className="specialized-property-type-icon">
-              <Icon size={20} />
-            </span>
-            <span>
-              <b>{label}</b>
-              <small>{optionDescription}</small>
-            </span>
-          </button>
-        ))}
+        {propertyTypeOptions.map(
+          ({ value: optionValue, label, description: optionDescription, Icon }) => (
+            <button
+              key={optionValue}
+              type="button"
+              className={
+                value === optionValue
+                  ? 'specialized-property-type-option is-active'
+                  : 'specialized-property-type-option'
+              }
+              onClick={() => onChange(optionValue)}
+            >
+              <span className="specialized-property-type-icon">
+                <Icon size={20} />
+              </span>
+              <span>
+                <b>{label}</b>
+                <small>{optionDescription}</small>
+              </span>
+            </button>
+          ),
+        )}
       </section>
     </section>
   )

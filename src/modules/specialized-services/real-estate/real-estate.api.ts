@@ -152,7 +152,13 @@ const documentPayload = (documents: CreatePropertyInput['documents']) =>
       const state = (document as { uploadState?: string }).uploadState
       if (state === 'uploading' || state === 'failed') return false
       const url = document.fileUrl ?? document.file ?? ''
-      return Boolean(url && (url.startsWith('http') || url.startsWith('/') || url.startsWith('blob:') || url.startsWith('data:')))
+      return Boolean(
+        url &&
+        (url.startsWith('http') ||
+          url.startsWith('/') ||
+          url.startsWith('blob:') ||
+          url.startsWith('data:')),
+      )
     })
     .map((document) => ({
       ...(document.id ? { id: document.id } : {}),
@@ -328,6 +334,19 @@ const mapCommercialContext = (payload: unknown): RealEstateCommercialContext => 
     paymentTermsSummary: terms,
     allowsServiceOrder: Boolean(value.allows_service_order),
     requiresFulfillment: Boolean(value.requires_fulfillment),
+    invoice: (() => {
+      const raw = record(value.invoice)
+      if (!raw.invoice_number) return null
+      return {
+        invoiceNumber: text(raw.invoice_number),
+        status: text(raw.status),
+        totalAmount: number(raw.total_amount),
+        amountPaid: number(raw.amount_paid),
+        balance: number(raw.balance),
+        feePaid: number(raw.fee_paid),
+        propertyPaid: number(raw.property_paid ?? raw.amount_paid),
+      }
+    })(),
   }
 }
 const mapCommercialHistory = (payload: unknown): RealEstateCommercialHistoryItem[] =>
@@ -445,11 +464,7 @@ export const realEstateApi = {
       await apiClient.patch<unknown>(`/estates/${estateId}/plots/${id}/quick-update`, {
         ...(i.status !== undefined ? { status: i.status } : {}),
         ...(i.pricingMode !== undefined ? { pricing_mode: i.pricingMode } : {}),
-        ...(i.pricingMode === 'estate_rate'
-          ? {}
-          : i.price !== undefined
-            ? { price: i.price }
-            : {}),
+        ...(i.pricingMode === 'estate_rate' ? {} : i.price !== undefined ? { price: i.price } : {}),
         ...(i.clientName !== undefined ? { client_name: i.clientName } : {}),
       }),
     ),

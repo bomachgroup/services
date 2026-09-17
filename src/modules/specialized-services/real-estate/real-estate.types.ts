@@ -2,12 +2,7 @@ export type EstateType = 'residential' | 'commercial' | 'industrial' | 'mixed_us
 export type EstateStatus = 'available' | 'sold_out' | 'under_development' | 'coming_soon'
 export type PropertyType = 'plot' | 'residential' | 'commercial'
 export type PropertyStatus =
-  | 'not-for-sale'
-  | 'available'
-  | 'under_offer'
-  | 'reserved'
-  | 'sold'
-  | 'hold'
+  'not-for-sale' | 'available' | 'under_offer' | 'reserved' | 'sold' | 'hold'
 export type BrokerageVerificationStatus = 'pending' | 'verified' | 'inspection_due'
 export type BrokerageStatus = 'available' | 'sold' | 'off_market'
 export type BrokeragePropertyType = 'residential' | 'commercial' | 'land'
@@ -612,6 +607,16 @@ export interface RealEstatePaymentPolicy {
   termsSummary: string[]
 }
 
+export interface RealEstateContextInvoice {
+  invoiceNumber: string
+  status: string
+  totalAmount: number
+  amountPaid: number
+  balance: number
+  feePaid: number
+  propertyPaid: number
+}
+
 export interface RealEstateCommercialContext {
   requestId: number
   requestNumber: string
@@ -623,6 +628,7 @@ export interface RealEstateCommercialContext {
   paymentTermsSummary: string[]
   allowsServiceOrder: boolean
   requiresFulfillment: boolean
+  invoice: RealEstateContextInvoice | null
 }
 
 export interface RealEstateCommercialHistoryItem {

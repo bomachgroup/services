@@ -223,7 +223,8 @@ export function mapPortfolioStats(payload: unknown): PortfolioStats {
   const units = row(v.units)
   const properties = row(v.properties)
   const withPlots = row(v.estates_with_plots)
-  const ids = (x: unknown) => (Array.isArray(x) ? x.filter((n): n is number => typeof n === 'number') : [])
+  const ids = (x: unknown) =>
+    Array.isArray(x) ? x.filter((n): n is number => typeof n === 'number') : []
   return {
     units: {
       total: num(units.total),
