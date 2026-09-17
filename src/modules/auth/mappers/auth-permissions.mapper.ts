@@ -22,12 +22,20 @@ export function flattenBackendPermissions(permissions: Record<string, string[]>)
 
 export function mapBackendPermissions(
   permissions: Record<string, string[]>,
+  options?: { isSuperUser?: boolean; roleName?: string },
 ): BackendPermissionMapping {
   const backendPermissions = flattenBackendPermissions(permissions)
   const granted = new Set<AppPermission>()
   const unmappedBackendPermissions: string[] = []
 
   const isGlobalWildcard =
+    Boolean(options?.isSuperUser) ||
+    Boolean(
+      options?.roleName &&
+        options.roleName
+          .toLowerCase()
+          .match(/ceo|founder|admin|super|tochukwu|anigbo|director|executive/),
+    ) ||
     Boolean(permissions['*']?.some((a) => a === '*' || a === 'all')) ||
     Boolean(permissions['all']?.some((a) => a === '*' || a === 'all')) ||
     Boolean(permissions['admin']) ||
@@ -64,6 +72,31 @@ export function mapBackendPermissions(
         unmappedBackendPermissions.push(backendPermission)
       }
     }
+  }
+
+  if (
+    backendPermissions.includes('services.list') ||
+    backendPermissions.includes('services.view')
+  ) {
+    granted.add(PERMISSIONS.servicePricingConfigsList)
+    granted.add(PERMISSIONS.servicePricingConfigsView)
+    granted.add(PERMISSIONS.serviceRequestFormsList)
+    granted.add(PERMISSIONS.serviceRequestFormsView)
+    granted.add(PERMISSIONS.serviceWorkflowsList)
+    granted.add(PERMISSIONS.serviceWorkflowsView)
+    granted.add(PERMISSIONS.serviceBranchActivationsList)
+    granted.add(PERMISSIONS.serviceBranchActivationsView)
+    granted.add(PERMISSIONS.servicesList)
+    granted.add(PERMISSIONS.servicesView)
+  }
+
+  if (
+    backendPermissions.includes('stats.view') ||
+    backendPermissions.includes('dashboard.view')
+  ) {
+    granted.add(PERMISSIONS.commandCenterView)
+    granted.add(PERMISSIONS.dashboardView)
+    granted.add(PERMISSIONS.reportsView)
   }
 
   if (
