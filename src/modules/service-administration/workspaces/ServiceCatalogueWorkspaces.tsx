@@ -1,11 +1,7 @@
 import { IconX } from '@tabler/icons-react'
 import { useRef, useState, useId, type MutableRefObject } from 'react'
 
-import {
-  formatNumberFieldValue,
-  parseNumberFieldValue,
-  parseOptionalNumberFieldValue,
-} from '@/shared/lib/number-input'
+import { formatNumberFieldValue, parseNumberFieldValue } from '@/shared/lib/number-input'
 import { DropdownSelect } from '@/shared/ui/dropdown-select'
 
 import type {
@@ -30,8 +26,6 @@ import {
   CLIENT_VISIBILITY_OPTIONS_LABEL,
   CLIENT_VISIBILITY_OPTIONS_VALUE,
   FULFILLMENT_MODE_OPTIONS,
-  PRICING_METHOD_OPTIONS_CONFIGURE,
-  PRICING_METHOD_OPTIONS_CREATE,
   SERVICE_STATUS_OPTIONS,
   SERVICE_STATUS_OPTIONS_WITH_PUBLISH,
 } from '../components/service-admin-dropdown-options'
@@ -74,11 +68,8 @@ type ServiceWizardFieldName =
   | 'fulfilmentMode'
   | 'specializedDomain'
   | 'specializedRequestContext'
-  | 'pricingMethod'
-  | 'rate'
-  | 'depositPercent'
-  | 'taxPercent'
-  | 'discountApprovalPercent'
+  | 'pricingMode'
+  | 'calculatorCode'
   | 'requestFields'
   | 'workflow'
   | 'branches'
@@ -204,6 +195,8 @@ export function CreateServiceWizard({
   stageAccess,
   progress = [],
   setupServiceId = null,
+  calculators = [],
+  calculatorsLoading = false,
   onClose,
   onSubmit,
   onRetryFailed,
@@ -214,6 +207,8 @@ export function CreateServiceWizard({
   branches?: Array<{ id: number; name: string; code: string }>
   ownerRoles?: WorkflowOwnerRoleOption[]
   fieldTypes?: RequestFieldTypeOption[]
+  calculators?: PricingCalculator[]
+  calculatorsLoading?: boolean
   stageAccess?: CreateServiceStageAccess
   progress?: ServiceSetupStageProgress[]
   setupServiceId?: number | null
@@ -240,11 +235,11 @@ export function CreateServiceWizard({
   const [fulfilmentMode, setFulfilmentMode] = useState('Quick service order')
   const [specializedDomain, setSpecializedDomain] = useState('')
   const [specializedRequestContext, setSpecializedRequestContext] = useState('')
-  const [pricingMethod, setPricingMethod] = useState('')
-  const [rate, setRate] = useState<number | null>(null)
-  const [depositPercent, setDepositPercent] = useState<number | null>(null)
-  const [taxPercent, setTaxPercent] = useState<number | null>(null)
-  const [discountApprovalPercent, setDiscountApprovalPercent] = useState<number | null>(null)
+  // Phase 1 pricing: mode toggle + calculator select. Quotation mode stores
+  // nothing (staff prices per quotation); calculator mode attaches a calculator.
+  const [pricingMode, setPricingMode] = useState<'quotation' | 'calculator'>('quotation')
+  const [calculatorCode, setCalculatorCode] = useState('')
+  const isSpecializedPricing = specializedDomain.trim() !== ''
   const [requestFields, setRequestFields] = useState<RequestFormField[]>([])
   const [workflowStages, setWorkflowStages] = useState<WorkflowStage[]>([])
   const [selectedBranchIds, setSelectedBranchIds] = useState<number[]>([])
@@ -311,38 +306,14 @@ export function CreateServiceWizard({
       }
     }
     if (stage === 'pricing') {
-      if (!pricingMethod.trim()) {
-        return { message: 'Pricing method is required.', field: 'pricingMethod' }
+      // Specialized services: calculator select is optional — always pass.
+      if (isSpecializedPricing) return null
+      // Quotation mode stores nothing on the service — always pass.
+      if (pricingMode === 'quotation') return null
+      // Calculator mode requires a calculator.
+      if (!calculatorCode.trim()) {
+        return { message: 'Select a calculator for this service.', field: 'calculatorCode' }
       }
-      if (rate === null || !Number.isFinite(rate) || rate < 0) {
-        return { message: 'Base / unit price is required.', field: 'rate' }
-      }
-      if (
-        depositPercent === null ||
-        !Number.isFinite(depositPercent) ||
-        depositPercent < 0 ||
-        depositPercent > 100
-      ) {
-        return { message: 'Deposit (%) must be between 0 and 100.', field: 'depositPercent' }
-      }
-      if (
-        taxPercent === null ||
-        !Number.isFinite(taxPercent) ||
-        taxPercent < 0 ||
-        taxPercent > 100
-      ) {
-        return { message: 'Tax (%) must be between 0 and 100.', field: 'taxPercent' }
-      }
-      if (
-        discountApprovalPercent === null ||
-        !Number.isFinite(discountApprovalPercent) ||
-        discountApprovalPercent < 0 ||
-        discountApprovalPercent > 100
-      )
-        return {
-          message: 'Discount approval (%) must be between 0 and 100.',
-          field: 'discountApprovalPercent',
-        }
     }
     if (stage === 'request-form' && requestFields.length === 0) {
       return {
@@ -374,7 +345,10 @@ export function CreateServiceWizard({
     }
 
     const enabledStages: ServiceSetupStageId[] = [
-      ...(access.pricing ? ['pricing' as const] : []),
+      // Pricing runs only when a calculator is attached; quotation mode and
+      // specialized-without-calculator store nothing, so the stage is omitted
+      // entirely instead of reporting a misleading skip.
+      ...(access.pricing && calculatorCode.trim() ? ['pricing' as const] : []),
       ...(access.requestForm ? ['request-form' as const] : []),
       ...(access.workflow ? ['workflow' as const] : []),
       ...(access.branches && effectiveSelectedBranchIds.length > 0 ? ['branches' as const] : []),
@@ -407,11 +381,17 @@ export function CreateServiceWizard({
           }
         : {},
       pricing: {
-        method: pricingMethod,
-        rate: rate as number,
-        depositPercent: depositPercent as number,
-        taxPercent: taxPercent as number,
-        discountApprovalPercent: discountApprovalPercent as number,
+        method: '',
+        rate: 0,
+        depositPercent: 0,
+        taxPercent: 0,
+        discountApprovalPercent: 0,
+        mode: isSpecializedPricing
+          ? calculatorCode.trim()
+            ? 'calculator'
+            : 'quotation'
+          : pricingMode,
+        calculatorCode: calculatorCode.trim(),
       },
       requestFields,
       workflowStages: workflowStages.map((stage, index) => ({ ...stage, order: index + 1 })),
@@ -436,14 +416,14 @@ export function CreateServiceWizard({
     setStep(following)
   }
 
-  const retryable = progress.filter((item) => item.state === 'failed' || item.state === 'skipped')
+  const failedStages = progress.filter((item) => item.state === 'failed')
   const successful = progress.filter((item) => item.state === 'success').length
   const progressPercent = progress.length ? Math.round((successful / progress.length) * 100) : 0
-  const symbol = (state: ServiceSetupStageProgress['state']) => {
-    if (state === 'success') return '✓'
-    if (state === 'failed') return '✕'
-    if (state === 'running') return '→'
-    if (state === 'skipped') return '○'
+  const stateLabel = (state: ServiceSetupStageProgress['state']) => {
+    if (state === 'success') return 'Done'
+    if (state === 'failed') return 'Failed'
+    if (state === 'running') return 'Working…'
+    if (state === 'skipped') return 'Skipped'
     return '·'
   }
 
@@ -674,92 +654,114 @@ export function CreateServiceWizard({
 
         {currentStage === 'pricing' ? (
           <div className="service-admin-form-grid">
-            <Field label="Pricing method" required error={fieldErrors.pricingMethod}>
-              <DropdownSelect
-                placeholder="Select pricing method"
-                options={PRICING_METHOD_OPTIONS_CREATE}
-                value={pricingMethod}
-                invalid={Boolean(fieldErrors.pricingMethod)}
-                containerRef={(node) => {
-                  fieldRefs.current.pricingMethod = node
-                }}
-                onChange={(value) => {
-                  clearFieldError('pricingMethod')
-                  setPricingMethod(value)
-                }}
-              />
-            </Field>
-            <Field label="Base / unit price" required error={fieldErrors.rate}>
-              <input
-                ref={(node) => {
-                  fieldRefs.current.rate = node
-                }}
-                aria-invalid={fieldErrors.rate ? true : undefined}
-                type="number"
-                min={0}
-                placeholder="e.g. 100000"
-                value={formatNumberFieldValue(rate)}
-                onChange={(event) => {
-                  clearFieldError('rate')
-                  setRate(parseOptionalNumberFieldValue(event.target.value))
-                }}
-              />
-            </Field>
-            <Field label="Deposit (%)" required error={fieldErrors.depositPercent}>
-              <input
-                ref={(node) => {
-                  fieldRefs.current.depositPercent = node
-                }}
-                aria-invalid={fieldErrors.depositPercent ? true : undefined}
-                type="number"
-                min={0}
-                max={100}
-                placeholder="e.g. 70"
-                value={formatNumberFieldValue(depositPercent)}
-                onChange={(event) => {
-                  clearFieldError('depositPercent')
-                  setDepositPercent(parseOptionalNumberFieldValue(event.target.value))
-                }}
-              />
-            </Field>
-            <Field label="Tax (%)" required error={fieldErrors.taxPercent}>
-              <input
-                ref={(node) => {
-                  fieldRefs.current.taxPercent = node
-                }}
-                aria-invalid={fieldErrors.taxPercent ? true : undefined}
-                type="number"
-                min={0}
-                max={100}
-                placeholder="e.g. 7.5"
-                value={formatNumberFieldValue(taxPercent)}
-                onChange={(event) => {
-                  clearFieldError('taxPercent')
-                  setTaxPercent(parseOptionalNumberFieldValue(event.target.value))
-                }}
-              />
-            </Field>
-            <Field
-              label="Discount approval above (%)"
-              required
-              error={fieldErrors.discountApprovalPercent}
-            >
-              <input
-                ref={(node) => {
-                  fieldRefs.current.discountApprovalPercent = node
-                }}
-                aria-invalid={fieldErrors.discountApprovalPercent ? true : undefined}
-                type="number"
-                min={0}
-                max={100}
-                placeholder="e.g. 5"
-                value={formatNumberFieldValue(discountApprovalPercent)}
-                onChange={(event) => {
-                  clearFieldError('discountApprovalPercent')
-                  setDiscountApprovalPercent(parseOptionalNumberFieldValue(event.target.value))
-                }}
-              />
-            </Field>
+            {isSpecializedPricing ? (
+              <>
+                <div className="service-admin-notice service-admin-notice-blue">
+                  <b>Specialized service.</b> Pricing is owned by the specialized flow. Optionally
+                  attach a calculator below, or continue without one.
+                </div>
+                <Field label="Calculator (optional)" error={fieldErrors.calculatorCode}>
+                  <DropdownSelect
+                    placeholder={
+                      calculatorsLoading ? 'Loading calculators…' : 'Select a calculator (optional)'
+                    }
+                    options={calculators.map((calculator) => ({
+                      value: calculator.code,
+                      label: `${calculator.name} (${calculator.code})`,
+                    }))}
+                    value={calculatorCode}
+                    invalid={Boolean(fieldErrors.calculatorCode)}
+                    containerRef={(node) => {
+                      fieldRefs.current.calculatorCode = node
+                    }}
+                    onChange={(value) => {
+                      clearFieldError('calculatorCode')
+                      setCalculatorCode(value)
+                    }}
+                  />
+                </Field>
+              </>
+            ) : (
+              <>
+                <Field label="Pricing mode" required error={fieldErrors.pricingMode}>
+                  <div
+                    className="service-admin-segmented"
+                    role="group"
+                    aria-label="Pricing mode"
+                    ref={(node) => {
+                      fieldRefs.current.pricingMode = node
+                    }}
+                  >
+                    <button
+                      type="button"
+                      aria-pressed={pricingMode === 'quotation'}
+                      className={
+                        pricingMode === 'quotation'
+                          ? 'service-admin-button service-admin-button-primary'
+                          : 'service-admin-button'
+                      }
+                      onClick={() => {
+                        clearFieldError('pricingMode')
+                        setPricingMode('quotation')
+                      }}
+                    >
+                      Quotation-based
+                    </button>
+                    <button
+                      type="button"
+                      aria-pressed={pricingMode === 'calculator'}
+                      className={
+                        pricingMode === 'calculator'
+                          ? 'service-admin-button service-admin-button-primary'
+                          : 'service-admin-button'
+                      }
+                      onClick={() => {
+                        clearFieldError('pricingMode')
+                        setPricingMode('calculator')
+                      }}
+                    >
+                      Calculator-based
+                    </button>
+                  </div>
+                </Field>
+                {pricingMode === 'quotation' ? (
+                  <div className="service-admin-notice service-admin-notice-blue">
+                    <b>Quotation-based.</b> Nothing is stored here — staff set the primary price,
+                    deposit, tax and discount on each quotation.
+                  </div>
+                ) : (
+                  <Field
+                    label="Calculator"
+                    required
+                    error={fieldErrors.calculatorCode}
+                    hint={
+                      !calculatorsLoading && calculators.length === 0
+                        ? 'No calculators available — use quotation mode or ask an admin to activate one.'
+                        : undefined
+                    }
+                  >
+                    <DropdownSelect
+                      placeholder={
+                        calculatorsLoading ? 'Loading calculators…' : 'Select a calculator'
+                      }
+                      options={calculators.map((calculator) => ({
+                        value: calculator.code,
+                        label: `${calculator.name} (${calculator.code})`,
+                      }))}
+                      value={calculatorCode}
+                      invalid={Boolean(fieldErrors.calculatorCode)}
+                      containerRef={(node) => {
+                        fieldRefs.current.calculatorCode = node
+                      }}
+                      onChange={(value) => {
+                        clearFieldError('calculatorCode')
+                        setCalculatorCode(value)
+                      }}
+                    />
+                  </Field>
+                )}
+              </>
+            )}
           </div>
         ) : null}
 
@@ -915,27 +917,33 @@ export function CreateServiceWizard({
                 <progress max={100} value={progressPercent} style={{ width: '100%' }} />
                 <div className="service-admin-stack">
                   {progress.map((item) => (
-                    <div key={item.id} className="service-admin-row">
+                    <div key={item.id} className="service-admin-row service-admin-progress-row">
+                      <span
+                        className={`service-admin-progress-dot service-admin-progress-dot--${item.state}`}
+                        aria-hidden="true"
+                      />
                       <div>
-                        <b>
-                          {symbol(item.state)} {item.label}
-                        </b>
+                        <b>{item.label}</b>
                         {item.error ? (
                           <div className="service-admin-row-subtitle">{item.error}</div>
                         ) : null}
                       </div>
-                      <span>{item.state}</span>
+                      <span
+                        className={`service-admin-state-pill service-admin-state-pill--${item.state}`}
+                      >
+                        {stateLabel(item.state)}
+                      </span>
                     </div>
                   ))}
                 </div>
-                {retryable.length > 0 && onRetryFailed ? (
+                {failedStages.length > 0 && onRetryFailed ? (
                   <button
                     type="button"
                     className="service-admin-button service-admin-button-primary"
                     disabled={pending}
                     onClick={onRetryFailed}
                   >
-                    {pending ? 'Retrying…' : 'Retry failed setup'}
+                    {pending ? 'Retrying…' : `Retry ${failedStages.length} failed setup`}
                   </button>
                 ) : null}
               </div>
@@ -950,6 +958,8 @@ export function CreateServiceWizard({
 export function ConfigureServiceWorkspace({
   service,
   calculator,
+  calculators = [],
+  calculatorsLoading = false,
   requestForm,
   workflow,
   branches: branchOptions = [],
@@ -962,6 +972,8 @@ export function ConfigureServiceWorkspace({
 }: {
   service: ServiceCatalogueItem
   calculator?: PricingCalculator
+  calculators?: PricingCalculator[]
+  calculatorsLoading?: boolean
   requestForm?: ServiceRequestForm
   workflow?: ServiceWorkflow
   branches?: Array<{ id: number; name: string; code: string }>
@@ -984,32 +996,11 @@ export function ConfigureServiceWorkspace({
   const [specializedRequestContext, setSpecializedRequestContext] = useState(() =>
     readSpecializedRequestContext(service.specializedConfig),
   )
-  const [pricingMethod, setPricingMethod] = useState(
-    calculator?.charges.some((charge) => charge.kind === 'formula') ? 'Custom formula' : 'Fixed',
+  const [pricingMode, setPricingMode] = useState<'quotation' | 'calculator'>(
+    calculator ? 'calculator' : 'quotation',
   )
-  const [rate, setRate] = useState(
-    typeof calculator?.charges.find((charge) => charge.kind === 'fixed')?.value === 'number'
-      ? Number(calculator?.charges.find((charge) => charge.kind === 'fixed')?.value)
-      : Math.max(0, calculator?.sampleTotal ?? 100000),
-  )
-  const [depositPercent, setDepositPercent] = useState(() => {
-    const value = calculator?.charges.find((charge) =>
-      charge.label.toLowerCase().includes('deposit'),
-    )?.value
-    return typeof value === 'number' ? value : 70
-  })
-  const [taxPercent, setTaxPercent] = useState(() => {
-    const value = calculator?.charges.find((charge) =>
-      charge.label.toLowerCase().includes('tax'),
-    )?.value
-    return typeof value === 'number' ? value : 0
-  })
-  const [discountApprovalPercent, setDiscountApprovalPercent] = useState(() => {
-    const value = calculator?.charges.find((charge) =>
-      charge.label.toLowerCase().includes('discount'),
-    )?.value
-    return typeof value === 'number' ? value : 5
-  })
+  const [calculatorCode, setCalculatorCode] = useState(calculator?.code ?? '')
+  const isSpecializedPricing = specializedDomain.trim() !== ''
   const [requestFields, setRequestFields] = useState<RequestFormField[]>(() =>
     requestForm?.fields.length
       ? requestForm.fields.map((field) => ({ ...field }))
@@ -1051,11 +1042,17 @@ export function ConfigureServiceWorkspace({
         }
       : {},
     pricing: {
-      method: pricingMethod,
-      rate,
-      depositPercent,
-      taxPercent,
-      discountApprovalPercent,
+      method: '',
+      rate: 0,
+      depositPercent: 0,
+      taxPercent: 0,
+      discountApprovalPercent: 0,
+      mode: isSpecializedPricing
+        ? calculatorCode.trim()
+          ? 'calculator'
+          : 'quotation'
+        : pricingMode,
+      calculatorCode: calculatorCode.trim(),
     },
     requestFields,
     workflowStages: workflowStages.map((stage, index) => ({ ...stage, order: index + 1 })),
@@ -1096,27 +1093,13 @@ export function ConfigureServiceWorkspace({
       return null
     }
     if (index === 1) {
-      if (!pricingMethod.trim()) {
-        return { message: 'Pricing method is required.', field: 'pricingMethod' }
-      }
-      if (!Number.isFinite(rate) || rate < 0) {
-        return { message: 'Base / unit price is required.', field: 'rate' }
-      }
-      if (!Number.isFinite(depositPercent) || depositPercent < 0 || depositPercent > 100) {
-        return { message: 'Deposit (%) must be between 0 and 100.', field: 'depositPercent' }
-      }
-      if (!Number.isFinite(taxPercent) || taxPercent < 0 || taxPercent > 100) {
-        return { message: 'Tax (%) must be between 0 and 100.', field: 'taxPercent' }
-      }
-      if (
-        !Number.isFinite(discountApprovalPercent) ||
-        discountApprovalPercent < 0 ||
-        discountApprovalPercent > 100
-      ) {
-        return {
-          message: 'Discount approval (%) must be between 0 and 100.',
-          field: 'discountApprovalPercent',
-        }
+      // Specialized services: calculator select is optional — always pass.
+      if (isSpecializedPricing) return null
+      // Quotation mode stores nothing on the service — always pass.
+      if (pricingMode === 'quotation') return null
+      // Calculator mode requires a calculator.
+      if (!calculatorCode.trim()) {
+        return { message: 'Select a calculator for this service.', field: 'calculatorCode' }
       }
       return null
     }
@@ -1389,91 +1372,116 @@ export function ConfigureServiceWorkspace({
 
           {step === 1 ? (
             <div className="service-admin-form-grid">
-              <Field label="Pricing method" required error={fieldErrors.pricingMethod}>
-                <DropdownSelect
-                  options={PRICING_METHOD_OPTIONS_CONFIGURE}
-                  value={pricingMethod}
-                  invalid={Boolean(fieldErrors.pricingMethod)}
-                  containerRef={(node) => {
-                    fieldRefs.current.pricingMethod = node
-                  }}
-                  onChange={(value) => {
-                    clearFieldError('pricingMethod')
-                    setPricingMethod(value)
-                  }}
-                />
-              </Field>
-              <Field label="Base / unit price" required error={fieldErrors.rate}>
-                <input
-                  ref={(node) => {
-                    fieldRefs.current.rate = node
-                  }}
-                  aria-invalid={fieldErrors.rate ? true : undefined}
-                  type="number"
-                  min={0}
-                  required
-                  value={formatNumberFieldValue(rate)}
-                  onChange={(event) => {
-                    clearFieldError('rate')
-                    setRate(parseNumberFieldValue(event.target.value))
-                  }}
-                />
-              </Field>
-              <Field label="Deposit (%)" required error={fieldErrors.depositPercent}>
-                <input
-                  ref={(node) => {
-                    fieldRefs.current.depositPercent = node
-                  }}
-                  aria-invalid={fieldErrors.depositPercent ? true : undefined}
-                  type="number"
-                  min={0}
-                  max={100}
-                  required
-                  value={formatNumberFieldValue(depositPercent)}
-                  onChange={(event) => {
-                    clearFieldError('depositPercent')
-                    setDepositPercent(parseNumberFieldValue(event.target.value))
-                  }}
-                />
-              </Field>
-              <Field label="Tax (%)" required error={fieldErrors.taxPercent}>
-                <input
-                  ref={(node) => {
-                    fieldRefs.current.taxPercent = node
-                  }}
-                  aria-invalid={fieldErrors.taxPercent ? true : undefined}
-                  type="number"
-                  min={0}
-                  max={100}
-                  required
-                  value={formatNumberFieldValue(taxPercent)}
-                  onChange={(event) => {
-                    clearFieldError('taxPercent')
-                    setTaxPercent(parseNumberFieldValue(event.target.value))
-                  }}
-                />
-              </Field>
-              <Field
-                label="Discount approval above (%)"
-                required
-                error={fieldErrors.discountApprovalPercent}
-              >
-                <input
-                  ref={(node) => {
-                    fieldRefs.current.discountApprovalPercent = node
-                  }}
-                  aria-invalid={fieldErrors.discountApprovalPercent ? true : undefined}
-                  type="number"
-                  min={0}
-                  max={100}
-                  required
-                  value={formatNumberFieldValue(discountApprovalPercent)}
-                  onChange={(event) => {
-                    clearFieldError('discountApprovalPercent')
-                    setDiscountApprovalPercent(parseNumberFieldValue(event.target.value))
-                  }}
-                />
-              </Field>
+              {isSpecializedPricing ? (
+                <>
+                  <div className="service-admin-notice service-admin-notice-blue">
+                    <b>Specialized service.</b> Pricing is owned by the specialized flow. Optionally
+                    attach a calculator below, or continue without one.
+                  </div>
+                  <Field label="Calculator (optional)" error={fieldErrors.calculatorCode}>
+                    <DropdownSelect
+                      placeholder={
+                        calculatorsLoading
+                          ? 'Loading calculators…'
+                          : 'Select a calculator (optional)'
+                      }
+                      options={calculators.map((item) => ({
+                        value: item.code,
+                        label: `${item.name} (${item.code})`,
+                      }))}
+                      value={calculatorCode}
+                      invalid={Boolean(fieldErrors.calculatorCode)}
+                      containerRef={(node) => {
+                        fieldRefs.current.calculatorCode = node
+                      }}
+                      onChange={(value) => {
+                        clearFieldError('calculatorCode')
+                        setCalculatorCode(value)
+                      }}
+                    />
+                  </Field>
+                </>
+              ) : (
+                <>
+                  <Field label="Pricing mode" required error={fieldErrors.pricingMode}>
+                    <div
+                      className="service-admin-segmented"
+                      role="group"
+                      aria-label="Pricing mode"
+                      ref={(node) => {
+                        fieldRefs.current.pricingMode = node
+                      }}
+                    >
+                      <button
+                        type="button"
+                        aria-pressed={pricingMode === 'quotation'}
+                        className={
+                          pricingMode === 'quotation'
+                            ? 'service-admin-button service-admin-button-primary'
+                            : 'service-admin-button'
+                        }
+                        onClick={() => {
+                          clearFieldError('pricingMode')
+                          setPricingMode('quotation')
+                        }}
+                      >
+                        Quotation-based
+                      </button>
+                      <button
+                        type="button"
+                        aria-pressed={pricingMode === 'calculator'}
+                        className={
+                          pricingMode === 'calculator'
+                            ? 'service-admin-button service-admin-button-primary'
+                            : 'service-admin-button'
+                        }
+                        onClick={() => {
+                          clearFieldError('pricingMode')
+                          setPricingMode('calculator')
+                        }}
+                      >
+                        Calculator-based
+                      </button>
+                    </div>
+                  </Field>
+                  {pricingMode === 'quotation' ? (
+                    <div className="service-admin-notice service-admin-notice-blue">
+                      <b>Quotation-based.</b> Nothing is stored here — staff set the primary price,
+                      deposit, tax and discount on each quotation.
+                    </div>
+                  ) : (
+                    <Field
+                      label="Calculator"
+                      required
+                      error={fieldErrors.calculatorCode}
+                      hint={
+                        !calculatorsLoading && calculators.length === 0
+                          ? 'No calculators available — use quotation mode or ask an admin to activate one.'
+                          : undefined
+                      }
+                    >
+                      <DropdownSelect
+                        placeholder={
+                          calculatorsLoading ? 'Loading calculators…' : 'Select a calculator'
+                        }
+                        options={calculators.map((item) => ({
+                          value: item.code,
+                          label: `${item.name} (${item.code})`,
+                        }))}
+                        value={calculatorCode}
+                        invalid={Boolean(fieldErrors.calculatorCode)}
+                        containerRef={(node) => {
+                          fieldRefs.current.calculatorCode = node
+                        }}
+                        onChange={(value) => {
+                          clearFieldError('calculatorCode')
+                          setCalculatorCode(value)
+                        }}
+                      />
+                    </Field>
+                  )}
+                </>
+              )}
             </div>
           ) : null}
 
