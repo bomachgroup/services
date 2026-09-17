@@ -143,8 +143,7 @@ function LocationDocumentsAccordion({
 
   // If a section disappears (e.g. no boundary), close it.
   const effectiveOpen =
-    (openSection === 'location' && !showLocation) ||
-    (openSection === 'documents' && !showDocuments)
+    (openSection === 'location' && !showLocation) || (openSection === 'documents' && !showDocuments)
       ? null
       : openSection
 
@@ -166,7 +165,7 @@ function LocationDocumentsAccordion({
       <button
         key={key}
         type="button"
-        className={`specialized-card specialized-accordion-header specialized-accordion-header--${key}${expanded ? ' is-expanded' : ' is-collapsed'}`}
+        className={`specialized-card specialized-accordion-header specialized-accordion-header--${key}${expanded ? 'is-expanded' : 'is-collapsed'}`}
         aria-expanded={expanded}
         onClick={() => toggle(key)}
       >
@@ -349,7 +348,7 @@ function PropertyNextStep({
   if (status === 'available') {
     const allowed = canCreateServiceRequest
     return (
-      <div className={`specialized-property-next-step${allowed ? '' : ' is-muted'}`}>
+      <div className={`specialized-property-next-step${allowed ? '' : 'is-muted'}`}>
         <div className="specialized-property-next-step-copy">
           <span>Next step</span>
           <strong>Start a service request</strong>
@@ -378,9 +377,13 @@ function PropertyNextStep({
           <span>Next step</span>
           <strong>Sold — view closing invoice</strong>
           <small>
-            Sold{clientName?.trim() ? ` to ${clientName.trim()}` : ''}. New requests are blocked
-            to prevent double-sell.
-            {historyLoading ? ' Loading records…' : invoiceNumber.trim() ? ` Invoice ${invoiceNumber.trim()}.` : ''}
+            Sold{clientName?.trim() ? ` to ${clientName.trim()}` : ''}. New requests are blocked to
+            prevent double-sell.
+            {historyLoading
+              ? ' Loading records…'
+              : invoiceNumber.trim()
+                ? ` Invoice ${invoiceNumber.trim()}.`
+                : ''}
           </small>
         </div>
         <div className="specialized-property-next-step-actions">
@@ -562,14 +565,11 @@ function SelectedPropertyForm({
     selectedProperty.status === 'sold'
   const editableStatuses = propertyStatuses.filter(
     (option) =>
-      option.value !== 'under_offer' &&
-      option.value !== 'reserved' &&
-      option.value !== 'sold',
+      option.value !== 'under_offer' && option.value !== 'reserved' && option.value !== 'sold',
   )
   const priceHistory = selectedProperty.pricingHistory.slice().reverse()
   const areaSqm = propertyAreaSqm(selectedProperty)
-  const estateRate =
-    estatePricePerSqm ?? selectedProperty.effectivePricing?.estateRate ?? null
+  const estateRate = estatePricePerSqm ?? selectedProperty.effectivePricing?.estateRate ?? null
   const computedEstatePrice =
     estateRate != null && areaSqm != null && areaSqm > 0 ? estateRate * areaSqm : null
 
@@ -621,9 +621,7 @@ function SelectedPropertyForm({
             </div>
             <div>
               <div className="commercial-kl">Pricing</div>
-              <b>
-                {pricingMode === 'estate_rate' ? 'Estate rate' : 'Manual override'}
-              </b>
+              <b>{pricingMode === 'estate_rate' ? 'Estate rate' : 'Manual override'}</b>
             </div>
             <div>
               <div className="commercial-kl">Current price</div>
@@ -665,10 +663,7 @@ function SelectedPropertyForm({
             {statusLocked ? (
               <label className="commercial-field">
                 <span>Status</span>
-                <input
-                  value={selectedProperty.statusDisplay || selectedProperty.status}
-                  disabled
-                />
+                <input value={selectedProperty.statusDisplay || selectedProperty.status} disabled />
               </label>
             ) : (
               <RealEstateFormDropdown
@@ -1113,12 +1108,7 @@ export function RealEstateInventoryLivePage({ recordSearch }: { recordSearch: Ap
               ['total', 'Total Properties', statsQuery.data?.total, '' as const],
               ['sold', 'Sold', statsQuery.data?.sold, 'sold' as const],
               ['reserved', 'Reserved', statsQuery.data?.reserved, 'reserved' as const],
-              [
-                'under_offer',
-                'Under offer',
-                statsQuery.data?.underOffer,
-                'under_offer' as const,
-              ],
+              ['under_offer', 'Under offer', statsQuery.data?.underOffer, 'under_offer' as const],
               ['available', 'Available', statsQuery.data?.available, 'available' as const],
             ] as const
           ).map(([key, label, value, filterValue]) => {

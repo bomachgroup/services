@@ -119,10 +119,7 @@ export function validateEstateFields(i: CreateEstateInput): EstateFieldErrors {
   ) {
     errors.minPriceOtherProperties = 'Minimum property price cannot exceed maximum property price.'
   }
-  if (
-    !Number.isFinite(i.requestClaimHoldHours ?? NaN) ||
-    (i.requestClaimHoldHours ?? 0) < 1
-  ) {
+  if (!Number.isFinite(i.requestClaimHoldHours ?? NaN) || (i.requestClaimHoldHours ?? 0) < 1) {
     errors.requestClaimHoldHours = 'Request claim hold must be at least 1 hour.'
   }
   if (i.allowReservation) {

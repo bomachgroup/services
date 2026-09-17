@@ -376,7 +376,7 @@ export function BoundaryEditor({
             return (
               <div className="specialized-boundary-row" key={index}>
                 <div className="specialized-boundary-index">{index + 1}</div>
-                <label className={`commercial-field${latError ? ' commercial-field--invalid' : ''}`}>
+                <label className={`commercial-field${latError ? 'commercial-field--invalid' : ''}`}>
                   <span>Latitude</span>
                   <input
                     className="commercial-number-input"
@@ -389,7 +389,7 @@ export function BoundaryEditor({
                   />
                   {latError ? <small className="commercial-field-error">{latError}</small> : null}
                 </label>
-                <label className={`commercial-field${lngError ? ' commercial-field--invalid' : ''}`}>
+                <label className={`commercial-field${lngError ? 'commercial-field--invalid' : ''}`}>
                   <span>Longitude</span>
                   <input
                     className="commercial-number-input"

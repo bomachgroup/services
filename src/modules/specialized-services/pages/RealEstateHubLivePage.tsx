@@ -1,9 +1,4 @@
-import {
-  IconFilePlus,
-  IconPlus,
-  IconRefresh,
-  IconSearch,
-} from '@tabler/icons-react'
+import { IconFilePlus, IconPlus, IconRefresh, IconSearch } from '@tabler/icons-react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
 import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from 'react'
@@ -425,7 +420,11 @@ export function RealEstateHubLivePage({ recordSearch }: { recordSearch: AppSecti
     // e.g. Under offer would hide Azure Court even though it holds one.
     const withPlots =
       statusFilter && portfolioStatsQuery.data
-        ? new Set(portfolioStatsQuery.data.estatesWithPlots[statusFilter === 'under_offer' ? 'underOffer' : statusFilter] ?? [])
+        ? new Set(
+            portfolioStatsQuery.data.estatesWithPlots[
+              statusFilter === 'under_offer' ? 'underOffer' : statusFilter
+            ] ?? [],
+          )
         : null
     return estates
       .filter((estate) => matchesInventoryType(estate.estateType, typeFilter))
@@ -441,7 +440,15 @@ export function RealEstateHubLivePage({ recordSearch }: { recordSearch: AppSecti
           (withPlots?.has(estate.id) ?? false),
       )
       .sort((left, right) => left.estateName.localeCompare(right.estateName))
-  }, [canEstateList, estates, searchToken, sourceFilter, statusFilter, typeFilter, portfolioStatsQuery.data])
+  }, [
+    canEstateList,
+    estates,
+    searchToken,
+    sourceFilter,
+    statusFilter,
+    typeFilter,
+    portfolioStatsQuery.data,
+  ])
 
   const filteredStandalone = useMemo(() => {
     if (!canPropertyList || (sourceFilter && sourceFilter !== 'owned')) return []
@@ -770,8 +777,8 @@ export function RealEstateHubLivePage({ recordSearch }: { recordSearch: AppSecti
             <div>
               <div className="specialized-card-title">Real Estate Portfolio</div>
               <div className="specialized-card-subtitle">
-                Browse estates, owned standalone properties and third-party brokerage listings in one
-                portfolio. Brokerage requests stay in Service Requests.
+                Browse estates, owned standalone properties and third-party brokerage listings in
+                one portfolio. Brokerage requests stay in Service Requests.
               </div>
             </div>
             <div className="specialized-action-row">
@@ -841,8 +848,7 @@ export function RealEstateHubLivePage({ recordSearch }: { recordSearch: AppSecti
               ['sold', 'Sold', portfolioStatusStats.sold],
             ] as const
           ).map(([key, label, value]) => {
-            const active =
-              key === 'total' ? statusFilter === '' : statusFilter === key
+            const active = key === 'total' ? statusFilter === '' : statusFilter === key
             return (
               <button
                 key={key}
@@ -867,8 +873,8 @@ export function RealEstateHubLivePage({ recordSearch }: { recordSearch: AppSecti
             <div>
               <div className="specialized-card-title">Properties</div>
               <div className="specialized-card-subtitle">
-                Estates, owned standalone inventory and third-party brokerage listings together.
-                Tap a status card to filter the board.
+                Estates, owned standalone inventory and third-party brokerage listings together. Tap
+                a status card to filter the board.
               </div>
             </div>
             <div className="specialized-estate-sort-row">
@@ -984,9 +990,7 @@ export function RealEstateHubLivePage({ recordSearch }: { recordSearch: AppSecti
                     highlighted={highlightedBrokerageId === listing.id}
                     canVerify={canBrokerageUpdate}
                     canDelete={canBrokerageDelete}
-                    onVerify={() =>
-                      verifyMutation.mutate({ id: listing.id, status: 'verified' })
-                    }
+                    onVerify={() => verifyMutation.mutate({ id: listing.id, status: 'verified' })}
                     onDelete={() => deleteBrokerageMutation.mutate(listing.id)}
                   />
                 ))}

@@ -85,7 +85,13 @@ export function NamedDocumentsEditor({
   const doUpload = async (key: string, file: File) => {
     try {
       const url = await uploadFile(file)
-      setByKey(key, { file: url, fileUrl: url, uploadState: 'ready', error: '', fileObj: undefined })
+      setByKey(key, {
+        file: url,
+        fileUrl: url,
+        uploadState: 'ready',
+        error: '',
+        fileObj: undefined,
+      })
     } catch (uploadError) {
       setByKey(key, {
         uploadState: 'failed',
@@ -125,7 +131,12 @@ export function NamedDocumentsEditor({
   const removeDoc = (index: number) => {
     const doc = valueRef.current[index]
     // Confirm before dropping an already-saved doc (omission = delete on PUT).
-    if (doc?.id && !window.confirm(`Remove "${doc.name || 'Document'}" from this estate? The file will be deleted from storage on save.`)) {
+    if (
+      doc?.id &&
+      !window.confirm(
+        `Remove "${doc.name || 'Document'}" from this estate? The file will be deleted from storage on save.`,
+      )
+    ) {
       return
     }
     onChange(valueRef.current.filter((_, docIndex) => docIndex !== index))
@@ -142,7 +153,7 @@ export function NamedDocumentsEditor({
   return (
     <section
       className={`commercial-form-section specialized-inline-editor${
-        error ? ' commercial-field--invalid' : ''
+        error ? 'commercial-field--invalid' : ''
       }`}
     >
       <div className="commercial-form-section-heading">
@@ -210,7 +221,9 @@ export function NamedDocumentsEditor({
                   {status ? <span className="specialized-document-card-meta">{status}</span> : null}
                 </div>
                 <div className="specialized-document-card-actions">
-                  {fileUrl && document.uploadState !== 'failed' && document.uploadState !== 'uploading' ? (
+                  {fileUrl &&
+                  document.uploadState !== 'failed' &&
+                  document.uploadState !== 'uploading' ? (
                     <a
                       className="commercial-btn commercial-btn-ghost commercial-btn-compact"
                       href={fileUrl}
@@ -247,7 +260,9 @@ export function NamedDocumentsEditor({
         )}
       </div>
       {isUploading ? (
-        <div className="commercial-field-hint">Waiting for document upload to finish before saving…</div>
+        <div className="commercial-field-hint">
+          Waiting for document upload to finish before saving…
+        </div>
       ) : null}
     </section>
   )

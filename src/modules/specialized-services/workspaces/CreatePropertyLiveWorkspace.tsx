@@ -269,9 +269,7 @@ export function CreatePropertyLiveWorkspace({
 
               <div className="commercial-form-grid-pair">
                 <label className="commercial-field">
-                  <span>
-                    Plot number {selectedEstate ? <em>*</em> : null}
-                  </span>
+                  <span>Plot number {selectedEstate ? <em>*</em> : null}</span>
                   <input
                     className="commercial-number-input"
                     type="number"
@@ -291,7 +289,9 @@ export function CreatePropertyLiveWorkspace({
                     }}
                   />
                   {selectedEstate ? (
-                    <small>Must be unique in this estate. Name stays Plot {value.plotNumber || 'N'}.</small>
+                    <small>
+                      Must be unique in this estate. Name stays Plot {value.plotNumber || 'N'}.
+                    </small>
                   ) : null}
                 </label>
 

@@ -5,9 +5,7 @@ export function estatePlotName(sequence: number) {
   return `Plot ${sequence}`
 }
 
-export function nextEstatePlotNumber(
-  existing: Array<{ plotNumber: number | null | undefined }>,
-) {
+export function nextEstatePlotNumber(existing: Array<{ plotNumber: number | null | undefined }>) {
   const used = existing
     .map((item) => item.plotNumber)
     .filter((value): value is number => typeof value === 'number' && value > 0)
@@ -20,8 +18,7 @@ export function isEstatePlotNumberTaken(
   excludeId?: number | null,
 ) {
   return existing.some(
-    (item) =>
-      item.plotNumber === plotNumber && (excludeId == null || item.id !== excludeId),
+    (item) => item.plotNumber === plotNumber && (excludeId == null || item.id !== excludeId),
   )
 }
 

@@ -8,7 +8,11 @@ import { PropertyPriceField } from '../components/PropertyPriceField'
 import { PropertyTypePicker } from '../components/PropertyTypePicker'
 import { RealEstateFormDropdown } from '../components/RealEstateFormDropdown'
 import { realEstateApi } from '../real-estate/real-estate.api'
-import { buildPropertyBatch, estatePlotName, nextEstatePlotNumber } from '../real-estate/property-batch'
+import {
+  buildPropertyBatch,
+  estatePlotName,
+  nextEstatePlotNumber,
+} from '../real-estate/property-batch'
 import {
   commercialBuildingTypes,
   propertyStatuses,
@@ -246,9 +250,7 @@ export function BatchCreatePropertiesWorkspace({
         <header className="commercial-modal-header">
           <div>
             <h2>Add Estate Properties</h2>
-            <p>
-              {estateName} · Create one property or a batch of up to 1,000.
-            </p>
+            <p>{estateName} · Create one property or a batch of up to 1,000.</p>
           </div>
           <button
             type="button"

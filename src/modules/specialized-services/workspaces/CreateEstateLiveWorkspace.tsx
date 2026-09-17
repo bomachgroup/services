@@ -114,7 +114,11 @@ function inferFieldFromMessage(message: string): EstateFieldKey | null {
   ) {
     return 'documents'
   }
-  if (normalized.includes('boundary') || normalized.includes('latitude') || normalized.includes('longitude')) {
+  if (
+    normalized.includes('boundary') ||
+    normalized.includes('latitude') ||
+    normalized.includes('longitude')
+  ) {
     return 'boundary'
   }
   if (normalized.includes('estate code') || normalized.includes('estate_code')) return 'estateCode'
@@ -411,7 +415,7 @@ export function CreateEstateLiveWorkspace({
               <form.Field name="estateName">
                 {(field) => (
                   <label
-                    className={`commercial-field${fieldErrors.estateName ? ' commercial-field--invalid' : ''}`}
+                    className={`commercial-field${fieldErrors.estateName ? 'commercial-field--invalid' : ''}`}
                   >
                     <span>
                       Estate name <em>*</em>
@@ -437,7 +441,7 @@ export function CreateEstateLiveWorkspace({
               <form.Field name="estateCode">
                 {(field) => (
                   <label
-                    className={`commercial-field${fieldErrors.estateCode ? ' commercial-field--invalid' : ''}`}
+                    className={`commercial-field${fieldErrors.estateCode ? 'commercial-field--invalid' : ''}`}
                   >
                     <span>
                       Estate code <em>*</em>
@@ -488,7 +492,7 @@ export function CreateEstateLiveWorkspace({
               <form.Field name="developerCompanyName">
                 {(field) => (
                   <label
-                    className={`commercial-field${fieldErrors.developerCompanyName ? ' commercial-field--invalid' : ''}`}
+                    className={`commercial-field${fieldErrors.developerCompanyName ? 'commercial-field--invalid' : ''}`}
                   >
                     <span>
                       Developer / company <em>*</em>
@@ -518,7 +522,7 @@ export function CreateEstateLiveWorkspace({
                     ref={(node) => {
                       fieldRefs.current.pricePerSqm = node
                     }}
-                    className={`commercial-field${fieldErrors.pricePerSqm ? ' commercial-field--invalid' : ''}`}
+                    className={`commercial-field${fieldErrors.pricePerSqm ? 'commercial-field--invalid' : ''}`}
                   >
                     <span>
                       Price per sqm <em>*</em>
@@ -539,7 +543,7 @@ export function CreateEstateLiveWorkspace({
               <form.Field name="estateDescription">
                 {(field) => (
                   <label
-                    className={`commercial-field commercial-form-span${fieldErrors.estateDescription ? ' commercial-field--invalid' : ''}`}
+                    className={`commercial-field commercial-form-span${fieldErrors.estateDescription ? 'commercial-field--invalid' : ''}`}
                   >
                     <span>
                       Description <em>*</em>
@@ -623,7 +627,7 @@ export function CreateEstateLiveWorkspace({
                 <form.Field name="requestClaimHoldHours">
                   {(field) => (
                     <label
-                      className={`commercial-field${fieldErrors.requestClaimHoldHours ? ' commercial-field--invalid' : ''}`}
+                      className={`commercial-field${fieldErrors.requestClaimHoldHours ? 'commercial-field--invalid' : ''}`}
                     >
                       <span>Request claim hold (hours) *</span>
                       <input
@@ -694,7 +698,7 @@ export function CreateEstateLiveWorkspace({
                           <form.Field name="reservationPercent">
                             {(field) => (
                               <label
-                                className={`commercial-field${fieldErrors.reservationPercent ? ' commercial-field--invalid' : ''}`}
+                                className={`commercial-field${fieldErrors.reservationPercent ? 'commercial-field--invalid' : ''}`}
                               >
                                 <span>Deposit (%) *</span>
                                 <input
@@ -725,7 +729,7 @@ export function CreateEstateLiveWorkspace({
                           <form.Field name="reservationDurationHours">
                             {(field) => (
                               <label
-                                className={`commercial-field${fieldErrors.reservationDurationHours ? ' commercial-field--invalid' : ''}`}
+                                className={`commercial-field${fieldErrors.reservationDurationHours ? 'commercial-field--invalid' : ''}`}
                               >
                                 <span>Hold duration (hours) *</span>
                                 <input
@@ -777,7 +781,7 @@ export function CreateEstateLiveWorkspace({
                               <form.Field name="reservationRetentionPercent">
                                 {(field) => (
                                   <label
-                                    className={`commercial-field${fieldErrors.reservationRetentionPercent ? ' commercial-field--invalid' : ''}`}
+                                    className={`commercial-field${fieldErrors.reservationRetentionPercent ? 'commercial-field--invalid' : ''}`}
                                   >
                                     <span>Retention on cancellation (%) *</span>
                                     <input
@@ -850,7 +854,7 @@ export function CreateEstateLiveWorkspace({
                           <form.Field name="installmentDownPaymentPercent">
                             {(field) => (
                               <label
-                                className={`commercial-field${fieldErrors.installmentDownPaymentPercent ? ' commercial-field--invalid' : ''}`}
+                                className={`commercial-field${fieldErrors.installmentDownPaymentPercent ? 'commercial-field--invalid' : ''}`}
                               >
                                 <span>Down payment (%) *</span>
                                 <input
@@ -881,7 +885,7 @@ export function CreateEstateLiveWorkspace({
                           <form.Field name="installmentMonths">
                             {(field) => (
                               <label
-                                className={`commercial-field${fieldErrors.installmentMonths ? ' commercial-field--invalid' : ''}`}
+                                className={`commercial-field${fieldErrors.installmentMonths ? 'commercial-field--invalid' : ''}`}
                               >
                                 <span>Term (months) *</span>
                                 <input
@@ -1006,7 +1010,7 @@ export function CreateEstateLiveWorkspace({
               <form.Field name="preciseAddress">
                 {(field) => (
                   <label
-                    className={`commercial-field${fieldErrors.preciseAddress ? ' commercial-field--invalid' : ''}`}
+                    className={`commercial-field${fieldErrors.preciseAddress ? 'commercial-field--invalid' : ''}`}
                   >
                     <span>
                       Precise address <em>*</em>
@@ -1095,7 +1099,13 @@ export function CreateEstateLiveWorkspace({
             className="commercial-btn commercial-btn-primary"
             disabled={saving || docsUploading}
           >
-            {saving ? 'Saving...' : docsUploading ? 'Uploading…' : isEdit ? 'Save Estate' : 'Create Estate'}
+            {saving
+              ? 'Saving...'
+              : docsUploading
+                ? 'Uploading…'
+                : isEdit
+                  ? 'Save Estate'
+                  : 'Create Estate'}
           </button>
         </footer>
       </form>
