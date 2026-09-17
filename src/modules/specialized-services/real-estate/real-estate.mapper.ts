@@ -16,6 +16,7 @@ import type {
   PaginatedProperties,
   PricingHistoryEvent,
   PropertyFeeConfig,
+  PortfolioStats,
   Property,
 } from './real-estate.types'
 
@@ -214,6 +215,35 @@ export function mapEstateStats(payload: unknown): EstateStats {
     notForSale: num(v.not_for_sale),
     totalValue: num(v.total_value),
     soldValue: num(v.sold_value),
+  }
+}
+
+export function mapPortfolioStats(payload: unknown): PortfolioStats {
+  const v = row(payload)
+  const units = row(v.units)
+  const properties = row(v.properties)
+  const withPlots = row(v.estates_with_plots)
+  const ids = (x: unknown) =>
+    Array.isArray(x) ? x.filter((n): n is number => typeof n === 'number') : []
+  return {
+    units: {
+      total: num(units.total),
+      available: num(units.available),
+      underOffer: num(units.under_offer),
+      reserved: num(units.reserved),
+      sold: num(units.sold),
+    },
+    properties: {
+      total: num(properties.total),
+      inEstate: num(properties.in_estate),
+      standalone: num(properties.standalone),
+    },
+    estatesWithPlots: {
+      available: ids(withPlots.available),
+      underOffer: ids(withPlots.under_offer),
+      reserved: ids(withPlots.reserved),
+      sold: ids(withPlots.sold),
+    },
   }
 }
 

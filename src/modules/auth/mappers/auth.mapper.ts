@@ -59,6 +59,7 @@ export function mapAuthenticatedUser(
     initials: getInitials(user.first_name, user.last_name, user.username),
     role: normaliseRoleName(role.name),
     roleLabel: role.name || 'Staff User',
+    backendRoleId: typeof role.id === 'number' ? role.id : null,
     kind: 'staff',
     permissions,
     backendPermissions,

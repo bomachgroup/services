@@ -134,6 +134,7 @@ export const billingApi = {
         payment_schedule: input.paymentSchedule,
         payment_instructions: input.paymentInstructions,
         notes: input.notes,
+        finance_account_id: input.financeAccountId,
       }),
     )
   },
@@ -172,6 +173,10 @@ export const billingApi = {
 
   async cancel(invoiceId: number): Promise<Invoice> {
     return mapInvoice(await apiClient.post<unknown>(`/invoices/${invoiceId}/cancel`, {}))
+  },
+
+  async settleNoCharge(invoiceId: number): Promise<Invoice> {
+    return mapInvoice(await apiClient.post<unknown>(`/invoices/${invoiceId}/no-charge`, {}))
   },
 
   async payments(invoiceId: number): Promise<PaginatedPayments> {

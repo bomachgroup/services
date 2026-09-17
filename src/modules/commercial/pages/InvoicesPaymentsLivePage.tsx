@@ -21,6 +21,7 @@ import {
 } from '@/shared/ui/module-controls'
 
 import { serviceRequestQueries } from '../api/service-requests.queries'
+import { serviceRequestsApi } from '../api/service-requests.api'
 import { billingApi } from '../billing/billing.api'
 import { billingKeys } from '../billing/billing.keys'
 import { billingQueries } from '../billing/billing.queries'
@@ -284,6 +285,60 @@ export function InvoicesPaymentsLivePage({ recordSearch }: { recordSearch: AppSe
     },
   })
 
+  const settleNoChargeMutation = useMutation({
+    mutationFn: (invoiceId: number) => billingApi.settleNoCharge(invoiceId),
+    onSuccess: async (invoice) => {
+      await invalidateInvoices(invoice.id, invoice.quoteId)
+      toast.success('Invoice closed as no-charge', {
+        description: 'The service order step is now unlocked.',
+      })
+    },
+    onError: async (error) => {
+      toast.error('Invoice could not be closed as no-charge', {
+        description: presentError(error, 'background-action').message,
+      })
+      if (selectedInvoiceId) {
+        await queryClient.invalidateQueries({
+          queryKey: billingKeys.invoiceDetail(selectedInvoiceId),
+        })
+      }
+    },
+  })
+
+  const reservationPlanMutation = useMutation({
+    mutationFn: ({
+      requestId,
+      mode,
+    }: {
+      requestId: number
+      mode: 'full_payment' | 'installment'
+    }) => serviceRequestsApi.setBalancePlan(requestId, mode),
+    onSuccess: async () => {
+      if (selectedInvoiceId) await refreshPaymentFlow(selectedInvoiceId)
+      toast.success('Balance plan updated')
+    },
+    onError: (error) => {
+      toast.error('Balance plan could not be updated', {
+        description: presentError(error, 'background-action').message,
+      })
+    },
+  })
+
+  const cancelReservationMutation = useMutation({
+    mutationFn: (requestId: number) => serviceRequestsApi.cancelReservation(requestId),
+    onSuccess: async () => {
+      if (selectedInvoiceId) await refreshPaymentFlow(selectedInvoiceId)
+      toast.success('Reservation hold cancelled', {
+        description: 'Property released. Finance handles any refund manually.',
+      })
+    },
+    onError: (error) => {
+      toast.error('Reservation could not be cancelled', {
+        description: presentError(error, 'background-action').message,
+      })
+    },
+  })
+
   const createPaymentSubmissionMutation = useMutation({
     mutationFn: (input: CreatePaymentSubmissionInput) => billingApi.createPaymentSubmission(input),
     onSuccess: async (submission, input) => {
@@ -436,21 +491,30 @@ export function InvoicesPaymentsLivePage({ recordSearch }: { recordSearch: AppSe
     if (!sourceQuotationId || !handoffQuotationQuery.data) return
     let cancelled = false
 
-    void billingApi.invoiceForQuote(sourceQuotationId).then((invoice) => {
-      if (cancelled || !invoice) return
-      setBuilderOpen(false)
-      void navigate({
-        to: '/app/$section',
-        params: { section: 'invoices-payments' },
-        search: { invoice: String(invoice.id) },
-        replace: true,
+    void billingApi
+      .invoiceForQuote(sourceQuotationId)
+      .then((invoice) => {
+        if (cancelled || !invoice) return
+        setBuilderOpen(false)
+        void navigate({
+          to: '/app/$section',
+          params: { section: 'invoices-payments' },
+          search: { invoice: String(invoice.id) },
+          replace: true,
+        })
       })
-    })
+      .catch((error) => {
+        if (cancelled) return
+        setBuilderQuotationLoading(false)
+        toast.error('Could not check for an existing invoice', {
+          description: presentError(error, 'background-action').message,
+        })
+      })
 
     return () => {
       cancelled = true
     }
-  }, [handoffQuotationQuery.data, navigate, sourceQuotationId])
+  }, [handoffQuotationQuery.data, navigate, sourceQuotationId, toast])
 
   const beginDirectCreate = async () => {
     setBuilderOpen(true)
@@ -877,6 +941,7 @@ export function InvoicesPaymentsLivePage({ recordSearch }: { recordSearch: AppSe
             updateInvoiceMutation.isPending ||
             sendInvoiceMutation.isPending ||
             cancelInvoiceMutation.isPending ||
+            settleNoChargeMutation.isPending ||
             createPaymentSubmissionMutation.isPending ||
             reviewSubmissionMutation.isPending
           }
@@ -919,6 +984,22 @@ export function InvoicesPaymentsLivePage({ recordSearch }: { recordSearch: AppSe
           }
           onSend={() => sendInvoiceMutation.mutate(detailInvoice)}
           onCancel={() => cancelInvoiceMutation.mutate(detailInvoice.id)}
+          onSettleNoCharge={() => settleNoChargeMutation.mutate(detailInvoice.id)}
+          canManageReservation={hasPermission(user, PERMISSIONS.serviceRequestsUpdate)}
+          reservationSaving={
+            reservationPlanMutation.isPending || cancelReservationMutation.isPending
+          }
+          onSetBalancePlan={(mode) => {
+            if (!detailInvoice.serviceRequestId) return
+            reservationPlanMutation.mutate({
+              requestId: detailInvoice.serviceRequestId,
+              mode,
+            })
+          }}
+          onCancelReservation={() => {
+            if (!detailInvoice.serviceRequestId) return
+            cancelReservationMutation.mutate(detailInvoice.serviceRequestId)
+          }}
           onSubmitPaymentProof={(input) => createPaymentSubmissionMutation.mutateAsync(input)}
           onReviewPaymentSubmission={(submission, input) =>
             reviewSubmissionMutation.mutate({

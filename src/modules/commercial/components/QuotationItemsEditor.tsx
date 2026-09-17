@@ -38,11 +38,15 @@ function normalizeItem(item: QuotationItem): QuotationItem {
 export function QuotationItemsEditor({
   items,
   error,
+  primaryLocked = false,
+  lockedPrimaryTotal,
   onChange,
   onClearError,
 }: {
   items: QuotationItem[]
   error?: string | undefined
+  primaryLocked?: boolean
+  lockedPrimaryTotal?: number | undefined
   onChange: (items: QuotationItem[]) => void
   onClearError: () => void
 }) {
@@ -52,9 +56,15 @@ export function QuotationItemsEditor({
   }
 
   const updateItem = (index: number, patch: Partial<QuotationItem>) => {
+    // Locked primaries keep the estimate price: quantity/unitPrice edits are
+    // dropped, description edits still pass through.
+    const nextPatch =
+      primaryLocked && items[index]?.kind === 'primary'
+        ? { ...patch, quantity: items[index].quantity, unitPrice: items[index].unitPrice }
+        : patch
     commit(
       items.map((item, itemIndex) =>
-        itemIndex === index ? normalizeItem({ ...item, ...patch, kind: item.kind }) : item,
+        itemIndex === index ? normalizeItem({ ...item, ...nextPatch, kind: item.kind }) : item,
       ),
     )
   }
@@ -102,6 +112,7 @@ export function QuotationItemsEditor({
         </div>
         {items.map((item, index) => {
           const isPrimary = item.kind === 'primary'
+          const isLockedPrimary = isPrimary && primaryLocked
           return (
             <div className="commercial-line-editor-row" key={`${item.id ?? 'new'}-${index}`}>
               <input
@@ -110,7 +121,16 @@ export function QuotationItemsEditor({
                 onChange={(event) => updateItem(index, { description: event.target.value })}
               />
               {isPrimary ? (
-                <span className="commercial-line-editor-cell">Deposit based</span>
+                <span
+                  className="commercial-line-editor-cell"
+                  title={
+                    isLockedPrimary
+                      ? `Locked to estimate${lockedPrimaryTotal != null ? ` ${formatCurrency(lockedPrimaryTotal)}` : ''}`
+                      : undefined
+                  }
+                >
+                  Deposit based{isLockedPrimary ? ' · locked' : ''}
+                </span>
               ) : (
                 <DropdownSelect
                   compact
@@ -131,6 +151,8 @@ export function QuotationItemsEditor({
                 min="0.01"
                 step="0.01"
                 value={formatNumberFieldValue(item.quantity)}
+                readOnly={isLockedPrimary}
+                title={isLockedPrimary ? 'Locked to estimate' : undefined}
                 onChange={(event) =>
                   updateItem(index, { quantity: parseNumberFieldValue(event.target.value) })
                 }
@@ -140,6 +162,8 @@ export function QuotationItemsEditor({
                 type="text"
                 inputMode="decimal"
                 value={formatGroupedNumberFieldValue(item.unitPrice)}
+                readOnly={isLockedPrimary}
+                title={isLockedPrimary ? 'Locked to estimate' : undefined}
                 onChange={(event) =>
                   updateItem(index, {
                     unitPrice: parseGroupedNumberFieldValue(event.target.value),

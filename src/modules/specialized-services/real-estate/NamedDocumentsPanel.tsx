@@ -1,10 +1,17 @@
-import { IconFile, IconFileSpreadsheet, IconFileText, IconFileTypePdf, IconPhoto } from '@tabler/icons-react'
+import {
+  IconFile,
+  IconFileSpreadsheet,
+  IconFileText,
+  IconFileTypePdf,
+  IconPhoto,
+} from '@tabler/icons-react'
 import { useState, type ReactNode } from 'react'
 
 import {
   DocumentPreviewModal,
   type PreviewDocument,
 } from '@/modules/commercial/request-intake/DocumentPreviewModal'
+import { fileNameFromUrl } from '@/modules/commercial/request-intake/file-presentation.utils'
 
 import type { NamedDocument } from './real-estate.types'
 
@@ -50,7 +57,7 @@ export function NamedDocumentsPanel({ documents }: { documents: NamedDocument[] 
               onClick={() =>
                 setPreviewDocument({
                   fileUrl: document.file,
-                  fileName: document.file,
+                  fileName: fileNameFromUrl(document.file),
                   label: document.name || 'Document',
                 })
               }

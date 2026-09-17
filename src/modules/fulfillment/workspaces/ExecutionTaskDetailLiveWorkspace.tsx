@@ -369,7 +369,9 @@ export function ExecutionTaskDetailLiveWorkspace({
             </header>
 
             <div className="commercial-modal-body">
-              {error ? <div className="commercial-notice commercial-notice-red">{error}</div> : null}
+              {error ? (
+                <div className="commercial-notice commercial-notice-red">{error}</div>
+              ) : null}
 
               <section className="commercial-form-section">
                 <h3>Task details</h3>
@@ -395,9 +397,7 @@ export function ExecutionTaskDetailLiveWorkspace({
                         fieldClassName="commercial-field"
                         options={mapDropdownOptions(executionTaskPriorities)}
                         value={field.state.value}
-                        onChange={(value) =>
-                          field.handleChange(value as typeof field.state.value)
-                        }
+                        onChange={(value) => field.handleChange(value as typeof field.state.value)}
                       />
                     )}
                   </form.Field>

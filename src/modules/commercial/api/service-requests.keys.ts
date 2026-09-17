@@ -18,7 +18,5 @@ export const serviceRequestKeys = {
   services: () => [...serviceRequestKeys.all, 'services'] as const,
   employees: () => [...serviceRequestKeys.all, 'employees'] as const,
   intake: (id: number) => [...serviceRequestKeys.all, 'intake', id] as const,
-  pricingConfig: (serviceId: number) =>
-    [...serviceRequestKeys.all, 'pricing-config', serviceId] as const,
   summary: () => [...serviceRequestKeys.all, 'summary'] as const,
 }

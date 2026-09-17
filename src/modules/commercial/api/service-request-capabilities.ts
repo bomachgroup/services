@@ -32,9 +32,27 @@ export function getServiceRequestCapabilities(request: ServiceRequestDetail) {
   const quotedOrBeyond = POST_QUOTE_STATUSES.has(request.status)
   const commerciallyAdvanced = quotedOrBeyond || hasCommercialMilestone(request)
   const mobilisationReady = paymentThresholdMet(request)
+  const needsEstimate = request.pricingMode === 'calculator'
+  const hasEstimate = request.estimatedValue > 0
+  const isDirectPath = request.commercialPath === 'direct_invoice'
+  const isCalculator = request.pricingMode === 'calculator'
 
   return {
-    canPrepareQuotation: !request.quoteId && !terminal && !commerciallyAdvanced,
+    canPrepareQuotation:
+      !isDirectPath &&
+      !request.quoteId &&
+      !terminal &&
+      !commerciallyAdvanced &&
+      (!needsEstimate || hasEstimate),
+    canCreateInvoiceDirect:
+      isDirectPath &&
+      !request.quoteId &&
+      !terminal &&
+      !commerciallyAdvanced &&
+      (!needsEstimate || hasEstimate),
+    canSwitchBillingPath: isCalculator && !request.quoteId && !terminal && !commerciallyAdvanced,
+    needsEstimate,
+    hasEstimate,
     canScheduleAssessment: !terminal && !commerciallyAdvanced,
     canEditControlPanel: !terminal,
     controlPanelLocked: commerciallyAdvanced && !terminal,
@@ -48,9 +66,7 @@ export function getServiceRequestCapabilities(request: ServiceRequestDetail) {
       ? ''
       : mobilisationReady
         ? 'Mobilisation payment received. Create the service order from the invoice, or update owner and follow-up fields here.'
-        : commerciallyAdvanced
-          ? 'This request has moved into quotation or billing. Status cannot be rolled back to assessment or intake stages.'
-          : '',
+        : '',
   }
 }
 

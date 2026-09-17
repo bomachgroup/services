@@ -7,6 +7,7 @@ export interface QuotationPricingInput {
   discount: number
   taxRate: number
   depositPercent: number
+  allowZeroServiceFee?: boolean
 }
 
 const money = (value: number) => Math.round(value * 100) / 100
@@ -86,12 +87,12 @@ export function calculateQuotationPreview(input: QuotationPricingInput) {
 export function validateQuotationPricing(input: QuotationPricingInput) {
   const errors: Partial<Record<keyof QuotationPricingInput, string>> = {}
   const subtotal = Number(input.serviceFee) + Number(input.otherCharges)
-  if (!Number.isFinite(input.serviceFee) || input.serviceFee <= 0)
+  if (!Number.isFinite(input.serviceFee) || (!input.allowZeroServiceFee && input.serviceFee <= 0))
     errors.serviceFee = 'Service fee must be greater than zero.'
   if (input.items && input.items.filter((item) => item.kind === 'primary').length < 1)
-    errors.serviceFee = 'Add at least one primary quote item.'
+    errors.items = 'Add at least one primary quote item.'
   if (input.items?.some((item) => item.quantity <= 0 || item.unitPrice < 0))
-    errors.serviceFee = 'Quote item quantity and price must be valid.'
+    errors.items = 'Quote item quantity and price must be valid.'
   if (!Number.isFinite(input.otherCharges) || input.otherCharges < 0)
     errors.otherCharges = 'Other charges cannot be negative.'
   if (!Number.isFinite(input.discount) || input.discount < 0)

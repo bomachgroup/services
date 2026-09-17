@@ -234,9 +234,7 @@ export function PropertyDetailLiveWorkspace({
                     </div>
                     <div className="commercial-info-full">
                       <div className="commercial-kl">Description</div>
-                      <p>
-                        {commercialEmptyLabel(property.description, 'No description recorded')}
-                      </p>
+                      <p>{commercialEmptyLabel(property.description, 'No description recorded')}</p>
                     </div>
                   </div>
                 </section>
@@ -276,9 +274,7 @@ export function PropertyDetailLiveWorkspace({
                     </div>
                     <div className="commercial-info-full">
                       <div className="commercial-kl">Description</div>
-                      <p>
-                        {commercialEmptyLabel(property.description, 'No description recorded')}
-                      </p>
+                      <p>{commercialEmptyLabel(property.description, 'No description recorded')}</p>
                     </div>
                   </div>
                 </section>
@@ -314,9 +310,7 @@ export function PropertyDetailLiveWorkspace({
                     </div>
                     <div className="commercial-info-full">
                       <div className="commercial-kl">Description</div>
-                      <p>
-                        {commercialEmptyLabel(property.description, 'No description recorded')}
-                      </p>
+                      <p>{commercialEmptyLabel(property.description, 'No description recorded')}</p>
                     </div>
                   </div>
                 </section>
@@ -364,7 +358,10 @@ export function PropertyDetailLiveWorkspace({
                   <h3>Price history</h3>
                   <div className="specialized-property-history-list">
                     {priceHistory.map((event, index) => (
-                      <div key={`${event.at}-${index}`} className="specialized-property-history-row">
+                      <div
+                        key={`${event.at}-${index}`}
+                        className="specialized-property-history-row"
+                      >
                         <div>
                           <strong>{historyEventTitle(event)}</strong>
                           <small>
@@ -488,10 +485,7 @@ export function PropertyDetailLiveWorkspace({
       </section>
 
       {previewDocument ? (
-        <DocumentPreviewModal
-          document={previewDocument}
-          onClose={() => setPreviewDocument(null)}
-        />
+        <DocumentPreviewModal document={previewDocument} onClose={() => setPreviewDocument(null)} />
       ) : null}
     </div>
   )

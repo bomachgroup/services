@@ -19,6 +19,12 @@ function paymentMethodLabel(method: string) {
   return paymentMethodOptions.find((item) => item.value === method)?.label ?? method
 }
 
+function purposeLabel(purpose: string) {
+  if (purpose === 'reservation_fee') return 'Reservation fee'
+  if (purpose === 'property') return 'Property payment'
+  return purpose
+}
+
 function submittedByLabel(submission: PaymentSubmission) {
   if (submission.submittedByType === 'staff') return 'Staff upload'
   if (submission.submittedByType === 'client') return 'Client upload'
@@ -66,7 +72,7 @@ export function PendingPaymentSubmissionCard({
     <>
       <article
         className={`commercial-payment-proof-card commercial-payment-proof-card--foldable${
-          expanded ? ' is-expanded' : ' is-collapsed'
+          expanded ? 'is-expanded' : 'is-collapsed'
         }`}
       >
         <button
@@ -79,12 +85,16 @@ export function PendingPaymentSubmissionCard({
             <div>
               <div className="commercial-payment-proof-reference">{submission.reference}</div>
               <div className="commercial-payment-proof-meta">
-                {submission.clientName || 'Client'} · Submitted {formatDateTime(submission.createdAt)}
+                {submission.clientName || 'Client'} · Submitted{' '}
+                {formatDateTime(submission.createdAt)}
               </div>
             </div>
             <div className="commercial-payment-proof-header-side">
               <span className="commercial-pill commercial-pill-yellow">
                 {submission.statusDisplay || 'Pending review'}
+              </span>
+              <span className={`commercial-pill commercial-pill-blue commercial-purpose-pill`}>
+                {purposeLabel(submission.purpose)}
               </span>
               <strong>{formatPreciseCurrency(submission.amount)}</strong>
             </div>
@@ -116,6 +126,12 @@ export function PendingPaymentSubmissionCard({
               <div>
                 <div className="commercial-kl">Submitted by</div>
                 <b>{submittedByLabel(submission)}</b>
+              </div>
+              <div>
+                <div className="commercial-kl">Purpose</div>
+                <span className={`commercial-pill commercial-pill-blue commercial-purpose-pill`}>
+                  {purposeLabel(submission.purpose ?? 'property')}
+                </span>
               </div>
               <div>
                 <div className="commercial-kl">Invoice</div>

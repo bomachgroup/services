@@ -1,4 +1,5 @@
 import {
+  IconCheck,
   IconChevronDown,
   IconDownload,
   IconRefresh,
@@ -45,7 +46,8 @@ type ProofUploadState = {
   error: string
 } | null
 
-type InvoiceConfirmAction = 'send' | 'cancel' | 'create-order' | null
+type InvoiceConfirmAction =
+  'send' | 'cancel' | 'create-order' | 'no-charge' | 'cancel-reservation' | null
 
 function formatPreciseCurrency(value: number) {
   const amount = Number(value) || 0
@@ -79,18 +81,6 @@ function amountDueNow(invoice: Invoice) {
   return Math.max(0, invoice.balance)
 }
 
-function scheduleStatusLabel(status: string) {
-  if (status === 'paid') return 'Paid'
-  if (status === 'partial') return 'Partial'
-  return 'Due'
-}
-
-function scheduleStatusClass(status: string) {
-  if (status === 'paid') return 'commercial-pill-green'
-  if (status === 'partial') return 'commercial-pill-yellow'
-  return 'commercial-pill-blue'
-}
-
 export function InvoiceDetailLiveWorkspace({
   invoice,
   payments,
@@ -114,8 +104,13 @@ export function InvoiceDetailLiveWorkspace({
   onUpdate,
   onSend,
   onCancel,
+  onSettleNoCharge,
   onSubmitPaymentProof,
   onReviewPaymentSubmission,
+  canManageReservation = false,
+  reservationSaving = false,
+  onSetBalancePlan,
+  onCancelReservation,
 }: {
   invoice: Invoice
   payments: Payment[]
@@ -139,11 +134,16 @@ export function InvoiceDetailLiveWorkspace({
   onUpdate: (input: UpdateInvoiceInput) => void
   onSend: () => void
   onCancel: () => void
+  onSettleNoCharge: () => void
   onSubmitPaymentProof: (input: CreatePaymentSubmissionInput) => void | Promise<unknown>
   onReviewPaymentSubmission: (
     submission: PaymentSubmission,
     input: ReviewPaymentSubmissionInput,
   ) => void
+  canManageReservation?: boolean
+  reservationSaving?: boolean
+  onSetBalancePlan?: (mode: 'full_payment' | 'installment') => void
+  onCancelReservation?: () => void
 }) {
   const toast = useToast()
   const capabilities = getInvoiceCapabilities(invoice)
@@ -167,6 +167,21 @@ export function InvoiceDetailLiveWorkspace({
     }
     return line.amount
   }
+
+  const todayKey = new Date().toISOString().slice(0, 10)
+  const scheduleTotal = scheduleLines.reduce((sum, line) => sum + line.amount, 0)
+  const schedulePaidTotal = scheduleLines.reduce((sum, line) => {
+    const remaining =
+      line.amountRemaining == null
+        ? line.status === 'paid'
+          ? 0
+          : line.amount
+        : Math.max(0, Number(line.amountRemaining))
+    return sum + Math.max(0, line.amount - remaining)
+  }, 0)
+  const scheduleRemaining = Math.max(0, scheduleTotal - schedulePaidTotal)
+  const scheduleProgress =
+    scheduleTotal > 0 ? Math.min(100, Math.round((schedulePaidTotal / scheduleTotal) * 100)) : 0
 
   const editForm = useForm({
     defaultValues: {
@@ -406,6 +421,10 @@ export function InvoiceDetailLiveWorkspace({
                       : 'No payment threshold set'}
                   </b>
                 </div>
+                <div>
+                  <div className="commercial-kl">Receiving account</div>
+                  <b>{invoice.financeAccountName || 'Not specified'}</b>
+                </div>
                 <div className="commercial-info-full">
                   <div className="commercial-kl">Payment instructions</div>
                   <p>{invoice.paymentInstructions || 'No payment instructions recorded'}</p>
@@ -429,6 +448,35 @@ export function InvoiceDetailLiveWorkspace({
                 ) : null}
               </article>
             </div>
+            {(paymentDue?.phase === 'reservation' || paymentDue?.phase === 'reserved') &&
+            paymentDue?.feeThreshold != null ? (
+              <div
+                className={`commercial-notice ${
+                  paymentDue.phase === 'reserved'
+                    ? 'commercial-notice-green'
+                    : 'commercial-notice-yellow'
+                }`}
+              >
+                {paymentDue.phase === 'reservation' ? (
+                  <>
+                    Reservation fee {formatPreciseCurrency(paymentDue.feePaid ?? 0)} of{' '}
+                    {formatPreciseCurrency(paymentDue.feeThreshold)} paid. Pay the fee to reserve
+                    this property.
+                  </>
+                ) : (
+                  <>
+                    Reservation fee complete
+                    {paymentDue.reservationExpiresAt
+                      ? ` — hold expires ${new Date(paymentDue.reservationExpiresAt).toLocaleString()}`
+                      : ''}
+                    . Nothing due until you continue to full payment.
+                    {paymentDue.reservationRefundable === false
+                      ? ` If you cancel, the fee is non-refundable${paymentDue.reservationRetentionPercent != null ? ` (${paymentDue.reservationRetentionPercent}% retained)` : ''}.`
+                      : ' If you cancel, the fee is refundable — finance refunds manually.'}
+                  </>
+                )}
+              </div>
+            ) : null}
           </section>
 
           <section className="commercial-form-section">
@@ -471,36 +519,48 @@ export function InvoiceDetailLiveWorkspace({
                   aria-expanded={scheduleOpen}
                   onClick={() => setScheduleOpen((current) => !current)}
                 >
-                  <div className="commercial-payment-proof-header">
+                  <div className="commercial-payment-proof-header commercial-schedule-header">
                     <div>
                       <div className="commercial-payment-proof-reference">
                         {nextScheduleLine ? nextScheduleLine.label : 'All payments completed'}
                       </div>
                       <div className="commercial-payment-proof-meta">
                         {nextScheduleLine
-                          ? `${paidScheduleLines} of ${scheduleLines.length} paid${
-                              nextScheduleLine.dueDate ? ` · Due ${nextScheduleLine.dueDate}` : ''
-                            }`
-                          : `${scheduleLines.length} of ${scheduleLines.length} paid · Nothing outstanding`}
+                          ? nextScheduleLine.dueDate
+                            ? `Due ${nextScheduleLine.dueDate}`
+                            : 'Due date to be set'
+                          : 'Nothing outstanding'}
                       </div>
                     </div>
-                    <div className="commercial-payment-proof-header-side">
+                    <div className="commercial-schedule-progress-block">
+                      <div className="commercial-schedule-progress-meta">
+                        <span>
+                          {formatPreciseCurrency(schedulePaidTotal)} of{' '}
+                          {formatPreciseCurrency(scheduleTotal)}
+                        </span>
+                        <span>{scheduleProgress}%</span>
+                      </div>
                       <span
-                        className={`commercial-pill ${
-                          nextScheduleLine
-                            ? scheduleStatusClass(nextScheduleLine.status)
-                            : 'commercial-pill-green'
-                        }`}
+                        className="commercial-schedule-progress commercial-schedule-progress--lg"
+                        role="progressbar"
+                        aria-valuenow={scheduleProgress}
+                        aria-valuemin={0}
+                        aria-valuemax={100}
+                        aria-label={`${scheduleProgress}% paid`}
                       >
-                        {nextScheduleLine
-                          ? nextScheduleLine.status === 'partial'
-                            ? 'Partial'
-                            : 'Next payment'
-                          : 'Settled'}
+                        <span style={{ width: `${scheduleProgress}%` }} />
+                      </span>
+                      <div className="commercial-schedule-progress-sub">
+                        {paidScheduleLines} of {scheduleLines.length} paid
+                      </div>
+                    </div>
+                    <div className="commercial-schedule-amount">
+                      <span className="commercial-schedule-amount-caption">
+                        {nextScheduleLine ? 'Next payment' : 'Total paid'}
                       </span>
                       <strong>
                         {formatPreciseCurrency(
-                          nextScheduleLine ? lineAmountDue(nextScheduleLine) : 0,
+                          nextScheduleLine ? lineAmountDue(nextScheduleLine) : schedulePaidTotal,
                         )}
                       </strong>
                     </div>
@@ -511,7 +571,7 @@ export function InvoiceDetailLiveWorkspace({
                 </button>
                 {scheduleOpen ? (
                   <div className="commercial-payment-proof-body">
-                    <div className="commercial-payment-schedule">
+                    <ol className="commercial-payment-schedule commercial-schedule-timeline">
                       {scheduleLines.map((line) => {
                         const remaining =
                           line.amountRemaining == null
@@ -521,59 +581,83 @@ export function InvoiceDetailLiveWorkspace({
                             : Math.max(0, Number(line.amountRemaining))
                         const paidToward = Math.max(0, line.amount - remaining)
                         const isNext = nextScheduleLine?.sequence === line.sequence
+                        const isPaid = line.status === 'paid'
+                        const isPartial = line.status === 'partial'
+                        const isOverdue = !isPaid && line.dueDate != null && line.dueDate < todayKey
                         return (
-                          <article
+                          <li
                             key={`${line.sequence}-${line.label}`}
-                            className={
-                              isNext
-                                ? 'commercial-payment-schedule-row commercial-payment-schedule-row--next'
-                                : 'commercial-payment-schedule-row'
-                            }
+                            className={[
+                              'commercial-payment-schedule-row',
+                              'commercial-schedule-item',
+                              isNext ? 'commercial-payment-schedule-row--next' : '',
+                              isPaid ? 'is-paid' : '',
+                              isOverdue ? 'is-overdue' : '',
+                            ]
+                              .filter(Boolean)
+                              .join(' ')}
                           >
+                            <span className="commercial-schedule-dot" aria-hidden="true">
+                              {isPaid ? <IconCheck size={12} stroke={3} /> : null}
+                            </span>
                             <div>
                               <b>
                                 {line.label}
-                                {isNext ? (
+                                {isPaid ? (
+                                  <span className="commercial-pill commercial-pill-green">
+                                    Paid
+                                  </span>
+                                ) : isNext ? (
                                   <span className="commercial-pill commercial-pill-blue">Next</span>
+                                ) : isPartial ? (
+                                  <span className="commercial-pill commercial-pill-yellow">
+                                    Partial
+                                  </span>
                                 ) : null}
-                                <span
-                                  className={`commercial-pill ${scheduleStatusClass(line.status)}`}
-                                >
-                                  {scheduleStatusLabel(line.status)}
-                                </span>
                               </b>
-                              <small>
+                              <small
+                                className={isOverdue ? 'commercial-schedule-overdue' : undefined}
+                              >
                                 {line.dueDate ? `Due ${line.dueDate}` : 'No due date'}
-                                {line.status === 'partial' && paidToward > 0
+                                {isOverdue ? ' · Overdue' : ''}
+                                {isPartial && paidToward > 0
                                   ? ` · Paid ${formatPreciseCurrency(paidToward)}`
                                   : ''}
                               </small>
                             </div>
                             <strong>
-                              {line.status === 'partial'
-                                ? formatPreciseCurrency(remaining)
-                                : formatPreciseCurrency(line.amount)}
+                              {formatPreciseCurrency(isPaid ? line.amount : remaining)}
                             </strong>
-                          </article>
+                          </li>
                         )
                       })}
+                    </ol>
+                    <div className="commercial-schedule-foot">
+                      <span>
+                        Paid <b>{formatPreciseCurrency(schedulePaidTotal)}</b>
+                      </span>
+                      <span>
+                        Remaining <b>{formatPreciseCurrency(scheduleRemaining)}</b>
+                      </span>
                     </div>
                     {invoice.paymentSchedule ? (
                       <p className="commercial-form-note">{invoice.paymentSchedule}</p>
                     ) : null}
                   </div>
                 ) : null}
+                {invoice.activationThresholdMetAt ? (
+                  <div className="commercial-schedule-threshold">
+                    <span className="commercial-schedule-threshold-icon" aria-hidden="true">
+                      <IconCheck size={13} stroke={3} />
+                    </span>
+                    <p>
+                      Mobilisation threshold met on{' '}
+                      {new Date(invoice.activationThresholdMetAt).toLocaleString('en-GB')}. This
+                      invoice is ready for the Service Order stage.
+                    </p>
+                  </div>
+                ) : null}
               </article>
-            </section>
-          ) : null}
-
-          {invoice.activationThresholdMetAt ? (
-            <section className="commercial-form-section">
-              <div className="commercial-notice commercial-notice-blue">
-                Required mobilisation/payment threshold was met on{' '}
-                {new Date(invoice.activationThresholdMetAt).toLocaleString('en-GB')}. This invoice
-                is ready for the Service Order stage.
-              </div>
             </section>
           ) : null}
 
@@ -806,6 +890,40 @@ export function InvoiceDetailLiveWorkspace({
               </button>
             ) : null}
 
+            {paymentDue?.phase === 'reserved' && canManageReservation && onSetBalancePlan ? (
+              <>
+                <button
+                  type="button"
+                  className="commercial-btn commercial-btn-green"
+                  disabled={saving || reservationSaving}
+                  onClick={() => onSetBalancePlan('full_payment')}
+                >
+                  {reservationSaving ? 'Saving...' : 'Continue to full payment'}
+                </button>
+                {paymentDue?.allowInstallment && onSetBalancePlan ? (
+                  <button
+                    type="button"
+                    className="commercial-btn commercial-btn-primary"
+                    disabled={saving || reservationSaving}
+                    onClick={() => onSetBalancePlan('installment')}
+                  >
+                    {reservationSaving ? 'Saving...' : 'Continue via installment'}
+                  </button>
+                ) : null}
+              </>
+            ) : null}
+
+            {paymentDue?.phase === 'reserved' && canManageReservation && onCancelReservation ? (
+              <button
+                type="button"
+                className="commercial-btn"
+                disabled={saving || reservationSaving}
+                onClick={() => setConfirmAction('cancel-reservation')}
+              >
+                Cancel reservation
+              </button>
+            ) : null}
+
             {capabilities.edit && canUpdate && !editing ? (
               <button
                 type="button"
@@ -825,6 +943,17 @@ export function InvoiceDetailLiveWorkspace({
                 onClick={() => setConfirmAction('cancel')}
               >
                 Cancel Invoice
+              </button>
+            ) : null}
+
+            {capabilities.settleNoCharge && canUpdate ? (
+              <button
+                type="button"
+                className="commercial-btn commercial-btn-green"
+                disabled={saving}
+                onClick={() => setConfirmAction('no-charge')}
+              >
+                Close as No-Charge
               </button>
             ) : null}
 
@@ -900,6 +1029,30 @@ export function InvoiceDetailLiveWorkspace({
       />
 
       <ConfirmDialog
+        open={confirmAction === 'no-charge'}
+        tone="success"
+        title="Close this invoice as no-charge?"
+        description="This invoice totals zero and can never receive a payment, so it cannot move forward on the payment path. Closing it marks the invoice settled without recording any money movement."
+        impact="No payment will be recorded. The service order step unlocks and the request can convert normally. This is written to the request journal."
+        detailsTitle="Invoice summary"
+        detailRows={[
+          { label: 'Invoice', value: invoice.invoiceNumber, highlight: true },
+          { label: 'Client', value: invoice.clientName || '—' },
+          { label: 'Total amount', value: formatPreciseCurrency(invoice.totalAmount) },
+          { label: 'Amount paid', value: formatPreciseCurrency(invoice.amountPaid) },
+          { label: 'Current status', value: invoice.statusDisplay || invoice.status },
+        ]}
+        confirmLabel="Close as no-charge"
+        cancelLabel="Keep invoice"
+        isConfirming={saving}
+        onCancel={() => setConfirmAction(null)}
+        onConfirm={() => {
+          onSettleNoCharge()
+          setConfirmAction(null)
+        }}
+      />
+
+      <ConfirmDialog
         open={confirmAction === 'create-order'}
         tone="success"
         title="Create service order?"
@@ -923,6 +1076,36 @@ export function InvoiceDetailLiveWorkspace({
         onCancel={() => setConfirmAction(null)}
         onConfirm={() => {
           onCreateServiceOrder()
+          setConfirmAction(null)
+        }}
+      />
+
+      <ConfirmDialog
+        open={confirmAction === 'cancel-reservation'}
+        tone="danger"
+        title="Cancel this reservation hold?"
+        description={
+          paymentDue?.reservationRefundable === false
+            ? 'The property hold will be released. The reservation fee is non-refundable.'
+            : 'The property hold will be released. The reservation fee is refundable — finance refunds manually.'
+        }
+        impact="Confirmed fee payments stay recorded and labeled. Finance handles any refund outside this screen."
+        detailsTitle="Reservation summary"
+        detailRows={[
+          { label: 'Invoice', value: invoice.invoiceNumber, highlight: true },
+          {
+            label: 'Fee paid',
+            value: formatPreciseCurrency(paymentDue?.feePaid ?? 0),
+            highlight: true,
+          },
+          { label: 'Balance', value: formatPreciseCurrency(invoice.balance) },
+        ]}
+        confirmLabel="Cancel reservation"
+        cancelLabel="Keep hold"
+        isConfirming={reservationSaving}
+        onCancel={() => setConfirmAction(null)}
+        onConfirm={() => {
+          onCancelReservation?.()
           setConfirmAction(null)
         }}
       />

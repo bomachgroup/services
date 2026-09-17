@@ -15,22 +15,6 @@ export const FULFILLMENT_MODE_OPTIONS: DropdownOption[] = [
   { value: 'Supply order', label: 'Supply order' },
 ]
 
-export const PRICING_METHOD_OPTIONS_CREATE: DropdownOption[] = [
-  { value: '', label: 'Select pricing method' },
-  { value: 'Fixed', label: 'Fixed' },
-  { value: 'Unit rate', label: 'Unit rate' },
-  { value: 'Area rate', label: 'Area rate' },
-  { value: 'Percentage', label: 'Percentage' },
-]
-
-export const PRICING_METHOD_OPTIONS_CONFIGURE: DropdownOption[] = [
-  { value: 'Fixed', label: 'Fixed' },
-  { value: 'Unit rate', label: 'Unit rate' },
-  { value: 'Area rate', label: 'Area rate' },
-  { value: 'Percentage', label: 'Percentage' },
-  { value: 'Custom formula', label: 'Custom formula' },
-]
-
 export const SERVICE_STATUS_OPTIONS: DropdownOption[] = [
   { value: 'draft', label: 'Draft' },
   { value: 'active', label: 'Active' },

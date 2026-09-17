@@ -106,6 +106,7 @@ export function InvoiceBuilderLiveWorkspace({
         paymentSchedule: value.paymentSchedule.trim(),
         paymentInstructions: value.paymentInstructions.trim(),
         notes: value.notes.trim(),
+        financeAccountId: value.financeAccountId,
       })
     },
   })

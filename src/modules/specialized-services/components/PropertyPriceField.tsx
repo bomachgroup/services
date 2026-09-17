@@ -40,9 +40,7 @@ export function PropertyPriceField({
       }
     >
       <div className="specialized-property-price-heading">
-        <span>
-          Property price {isManual ? <em>*</em> : null}
-        </span>
+        <span>Property price {isManual ? <em>*</em> : null}</span>
         {hasEstate ? (
           <label
             className={
@@ -87,7 +85,9 @@ export function PropertyPriceField({
           {rateHint ?? 'Enter size to price from estate rate'}
         </small>
       ) : hasEstate && isManual ? (
-        <small className="specialized-property-price-hint">Manual override of the estate rate.</small>
+        <small className="specialized-property-price-hint">
+          Manual override of the estate rate.
+        </small>
       ) : null}
     </div>
   )

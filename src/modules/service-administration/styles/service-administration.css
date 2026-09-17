@@ -60,6 +60,12 @@
   gap: 12px;
 }
 
+.service-admin-column-stack {
+  display: grid;
+  gap: 12px;
+  align-content: start;
+}
+
 .service-admin-service-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
@@ -132,6 +138,90 @@
   display: flex;
   flex-direction: column;
   gap: 10px;
+}
+
+.service-admin-calculator-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+  align-items: start;
+}
+
+.service-admin-calculator-card {
+  margin-bottom: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+}
+
+.service-admin-calculator-card:hover {
+  box-shadow: 0 8px 25px #1420401c;
+}
+
+.service-admin-calculator-top {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.service-admin-calculator-top .service-admin-service-icon {
+  margin-bottom: 0;
+  flex: none;
+}
+
+.service-admin-calculator-identity {
+  min-width: 0;
+  flex: 1;
+}
+
+.service-admin-calculator-toggle {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  padding: 7px 8px;
+  color: var(--service-admin-foreground);
+  font-size: 10.5px;
+  font-weight: 800;
+  text-align: left;
+  cursor: pointer;
+}
+
+.service-admin-calculator-toggle:hover {
+  background: var(--service-admin-surface-muted);
+}
+
+.service-admin-calculator-toggle-icon {
+  display: grid;
+  place-items: center;
+  color: var(--service-admin-foreground-muted);
+}
+
+.service-admin-calculator-services {
+  border-top: 1px solid var(--service-admin-border);
+}
+
+.service-admin-calculator-pricebook {
+  border-top: 1px dashed var(--service-admin-border);
+  padding-top: 9px;
+}
+
+.service-admin-calculator-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  border-top: 1px solid var(--service-admin-border);
+  padding-top: 11px;
+}
+
+.service-admin-pricebook-card {
+  margin-top: 12px;
+}
+
+.service-admin-table-row--inactive td {
+  color: var(--service-admin-foreground-subtle);
 }
 
 .service-admin-parent-group {
@@ -336,6 +426,95 @@
   font-size: 8.5px;
 }
 
+.service-admin-progress-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 2px;
+  border-bottom: 1px solid var(--service-admin-border);
+}
+
+.service-admin-progress-row:last-child {
+  border-bottom: 0;
+}
+
+.service-admin-progress-row > div {
+  flex: 1;
+  min-width: 0;
+}
+
+.service-admin-progress-row b {
+  font-size: 10.5px;
+}
+
+.service-admin-progress-dot {
+  flex: none;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--service-admin-foreground-subtle);
+}
+
+.service-admin-progress-dot--success {
+  background: #1f8f4a;
+}
+
+.service-admin-progress-dot--failed {
+  background: #d6292d;
+}
+
+.service-admin-progress-dot--running {
+  background: var(--service-admin-brand);
+  animation: service-admin-pulse 1.1s ease-in-out infinite;
+}
+
+.service-admin-progress-dot--skipped {
+  background: #b6c0cf;
+}
+
+@keyframes service-admin-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.35;
+  }
+}
+
+.service-admin-state-pill {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 9px;
+  border-radius: 999px;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  background: var(--service-admin-surface-muted);
+  color: var(--service-admin-foreground-subtle);
+}
+
+.service-admin-state-pill--success {
+  background: #e5f6ec;
+  color: #1f8f4a;
+}
+
+.service-admin-state-pill--failed {
+  background: #fdecec;
+  color: #b42323;
+}
+
+.service-admin-state-pill--running {
+  background: #e8eefb;
+  color: var(--service-admin-brand);
+}
+
+.service-admin-state-pill--skipped {
+  background: var(--service-admin-surface-muted);
+  color: var(--service-admin-foreground-subtle);
+}
+
 .service-admin-button {
   display: inline-flex;
   align-items: center;
@@ -367,6 +546,14 @@
 .service-admin-button-small {
   padding: 5px 8px;
   font-size: 9px;
+}
+
+.service-admin-segmented {
+  display: inline-flex;
+  padding: 2px;
+  border-radius: 10px;
+  background: var(--service-admin-surface-muted);
+  gap: 2px;
 }
 
 .service-admin-field {
@@ -550,6 +737,10 @@
 @media (max-width: 1100px) {
   .service-admin-service-grid {
     grid-template-columns: repeat(2, 1fr);
+  }
+
+  .service-admin-calculator-grid {
+    grid-template-columns: 1fr;
   }
 
   .service-admin-grid-2-1 {
@@ -1003,6 +1194,49 @@ button.service-admin-wizard-step.service-admin-wizard-step--reachable:not(:disab
   font-size: 9px;
 }
 
+.service-admin-toggle-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  border: 1px solid var(--service-admin-border);
+  border-radius: 10px;
+  background: var(--service-admin-surface-muted);
+  padding: 10px 12px;
+  cursor: pointer;
+}
+
+.service-admin-toggle-row--on {
+  border-color: #a9c0f6;
+  background: #f7faff;
+  box-shadow: inset 0 0 0 1px #dbe7ff;
+}
+
+.service-admin-modal .service-admin-toggle-row input[type='checkbox'],
+.service-admin-form-grid .service-admin-toggle-row input[type='checkbox'] {
+  width: auto;
+  flex: none;
+  margin-top: 2px;
+  padding: 0;
+  border: 0;
+  background: none;
+  accent-color: var(--service-admin-brand);
+}
+
+.service-admin-toggle-row b {
+  display: block;
+  color: var(--service-admin-foreground);
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.service-admin-toggle-row small {
+  display: block;
+  margin-top: 2px;
+  color: var(--service-admin-foreground-subtle);
+  font-size: 9px;
+  line-height: 1.45;
+}
+
 .service-admin-publish-grid {
   margin-top: 12px;
 }
@@ -1057,6 +1291,20 @@ button.service-admin-wizard-step.service-admin-wizard-step--reachable:not(:disab
 .service-admin-notice-yellow {
   border: 1px solid #fde68a;
   background: #fffbeb;
+}
+
+.service-admin-attach-map {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 6px;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.service-admin-attach-map .service-admin-attach-map-arrow {
+  color: var(--service-admin-foreground-subtle);
+  font-weight: 400;
 }
 
 .service-admin-field-error {
@@ -2263,40 +2511,6 @@ button.service-admin-wizard-step.service-admin-wizard-step--reachable:not(:disab
 
 .service-admin-workflow-table thead th {
   background: #f7f9fc;
-}
-
-.service-admin-calculator-table th:first-child,
-.service-admin-calculator-table td:first-child {
-  background: linear-gradient(90deg, #f7faff 0%, #fbfcfe 100%);
-  border-right: 2px solid #d6deea;
-  box-shadow: 1px 0 0 #f5f7fb;
-}
-
-.service-admin-calculator-table th,
-.service-admin-calculator-table td {
-  border-right: 1px solid #e8edf4;
-}
-
-.service-admin-calculator-table th:last-child,
-.service-admin-calculator-table td:last-child {
-  border-right: 0;
-}
-
-.service-admin-calculator-table thead th {
-  background: #f7f9fc;
-}
-
-.service-admin-calculator-table tbody tr.service-admin-table-row--active td {
-  background: #edf2ff;
-  color: #234b9e;
-}
-
-.service-admin-calculator-table tbody tr.service-admin-table-row--active td:first-child {
-  background: linear-gradient(90deg, #dfe9ff 0%, #edf2ff 100%);
-}
-
-.service-admin-calculator-table tbody tr.service-admin-table-row--active {
-  box-shadow: inset 3px 0 0 var(--service-admin-brand);
 }
 
 .service-admin-calculator-test-button--active {

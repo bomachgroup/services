@@ -1,12 +1,16 @@
 import {
   IconArrowLeft,
+  IconArrowUpRight,
   IconBuildingStore,
   IconChevronDown,
   IconFilePlus,
+  IconFileText,
+  IconFiles,
   IconHistory,
   IconHome,
   IconMap2,
   IconPlus,
+  IconReceipt,
   IconRefresh,
   IconTrash,
   IconX,
@@ -117,47 +121,102 @@ function TypeIcon({ property }: { property: Property }) {
 }
 
 /**
- * Card that starts folded and expands on header click, matching the
- * commercial foldable-card pattern (is-expanded / is-collapsed toggle).
+ * Side-by-side accordion: two headers in a row, single-open, content spans
+ * full width underneath. Opening one closes the other.
  */
-function FoldableEstateCard({
-  title,
-  subtitle,
-  summary,
-  children,
+function LocationDocumentsAccordion({
+  locationSummary,
+  documentsSummary,
+  locationContent,
+  documentsContent,
+  showLocation,
+  showDocuments,
 }: {
-  title: string
-  subtitle: string
-  summary?: string | undefined
-  children: ReactNode
+  locationSummary?: string | undefined
+  documentsSummary?: string | undefined
+  locationContent: ReactNode
+  documentsContent: ReactNode
+  showLocation: boolean
+  showDocuments: boolean
 }) {
-  const [expanded, setExpanded] = useState(false)
+  const [openSection, setOpenSection] = useState<'location' | 'documents' | null>(null)
 
-  return (
-    <section
-      className={`specialized-card specialized-foldable-card${expanded ? ' is-expanded' : ' is-collapsed'}`}
-    >
+  // If a section disappears (e.g. no boundary), close it.
+  const effectiveOpen =
+    (openSection === 'location' && !showLocation) || (openSection === 'documents' && !showDocuments)
+      ? null
+      : openSection
+
+  const toggle = (section: 'location' | 'documents') => {
+    setOpenSection((current) => (current === section ? null : section))
+  }
+
+  if (!showLocation && !showDocuments) return null
+
+  const renderHeader = (
+    key: 'location' | 'documents',
+    title: string,
+    subtitle: string,
+    summary?: string,
+  ) => {
+    const expanded = effectiveOpen === key
+    const Icon = key === 'location' ? IconMap2 : IconFiles
+    return (
       <button
+        key={key}
         type="button"
-        className="specialized-foldable-toggle"
+        className={`specialized-card specialized-accordion-header specialized-accordion-header--${key}${expanded ? 'is-expanded' : 'is-collapsed'}`}
         aria-expanded={expanded}
-        onClick={() => setExpanded((current) => !current)}
+        onClick={() => toggle(key)}
       >
-        <div className="specialized-card-header specialized-foldable-header">
-          <div>
-            <div className="specialized-card-title">{title}</div>
-            <div className="specialized-card-subtitle">{subtitle}</div>
-          </div>
-          {summary ? (
-            <span className="specialized-foldable-summary">{summary}</span>
-          ) : null}
-        </div>
+        <span
+          className={`specialized-accordion-icon specialized-accordion-icon--${key}`}
+          aria-hidden="true"
+        >
+          <Icon size={18} stroke={1.9} />
+        </span>
+        <span className="specialized-accordion-text">
+          <span className="specialized-accordion-title-row">
+            <span className="specialized-card-title">{title}</span>
+            {summary ? <span className="specialized-accordion-count">{summary}</span> : null}
+          </span>
+          <span className="specialized-card-subtitle">{subtitle}</span>
+        </span>
         <span className="specialized-foldable-toggle-icon" aria-hidden="true">
           <IconChevronDown size={16} stroke={2} />
         </span>
       </button>
-      {expanded ? <div className="specialized-foldable-body">{children}</div> : null}
-    </section>
+    )
+  }
+
+  return (
+    <div className="specialized-location-documents-accordion">
+      <div className="specialized-location-documents-row">
+        {showLocation
+          ? renderHeader(
+              'location',
+              'Estate Location',
+              'Boundary shown on the map. Hover a plot outline for its status.',
+              locationSummary,
+            )
+          : null}
+        {showDocuments
+          ? renderHeader(
+              'documents',
+              'Estate Documents',
+              'Collected estate documents — select one to open it.',
+              documentsSummary,
+            )
+          : null}
+      </div>
+      {effectiveOpen ? (
+        <section className="specialized-card specialized-foldable-card is-expanded specialized-accordion-body">
+          <div className="specialized-foldable-body">
+            {effectiveOpen === 'location' ? locationContent : documentsContent}
+          </div>
+        </section>
+      ) : null}
+    </div>
   )
 }
 
@@ -231,6 +290,215 @@ function propertyAreaSqm(property: Property) {
   return property.totalAreaCommercial
 }
 
+/**
+ * Status-aware next action. Available → Create Request.
+ * Sold → View Invoice (primary). Reserved → invoice or request.
+ * Under offer → View Request. Hold / not-for-sale → hidden by caller.
+ */
+function PropertyNextStep({
+  status,
+  statusDisplay,
+  clientName,
+  canCreateServiceRequest,
+  historyLoading,
+  requestId,
+  requestNumber,
+  quoteNumber,
+  invoiceNumber,
+  onCreateRequest,
+}: {
+  status: Property['status']
+  statusDisplay: string
+  clientName: string
+  canCreateServiceRequest: boolean
+  historyLoading: boolean
+  requestId: number | null
+  requestNumber: string
+  quoteNumber: string
+  invoiceNumber: string
+  onCreateRequest: () => void
+}) {
+  const navigate = useNavigate()
+
+  const goRequest = () =>
+    requestId
+      ? void navigate({
+          to: '/app/$section',
+          params: { section: 'service-requests' },
+          search: { request: String(requestId) },
+        })
+      : undefined
+  const goInvoice = () =>
+    invoiceNumber.trim()
+      ? void navigate({
+          to: '/app/$section',
+          params: { section: 'invoices-payments' },
+          search: { search: invoiceNumber.trim() },
+        })
+      : undefined
+  const goQuote = () =>
+    quoteNumber.trim()
+      ? void navigate({
+          to: '/app/$section',
+          params: { section: 'quotations' },
+          search: { search: quoteNumber.trim() },
+        })
+      : undefined
+
+  if (status === 'available') {
+    const allowed = canCreateServiceRequest
+    return (
+      <div className={`specialized-property-next-step${allowed ? '' : 'is-muted'}`}>
+        <div className="specialized-property-next-step-copy">
+          <span>Next step</span>
+          <strong>Start a service request</strong>
+          <small>
+            {allowed
+              ? 'Opens the request flow with this property selected.'
+              : 'You do not have permission to create service requests.'}
+          </small>
+        </div>
+        <button
+          type="button"
+          className="commercial-btn commercial-btn-primary"
+          disabled={!allowed}
+          onClick={onCreateRequest}
+        >
+          Create Request
+        </button>
+      </div>
+    )
+  }
+
+  if (status === 'sold') {
+    return (
+      <div className="specialized-property-next-step">
+        <div className="specialized-property-next-step-copy">
+          <span>Next step</span>
+          <strong>Sold — view closing invoice</strong>
+          <small>
+            Sold{clientName?.trim() ? ` to ${clientName.trim()}` : ''}. New requests are blocked to
+            prevent double-sell.
+            {historyLoading
+              ? ' Loading records…'
+              : invoiceNumber.trim()
+                ? ` Invoice ${invoiceNumber.trim()}.`
+                : ''}
+          </small>
+        </div>
+        <div className="specialized-property-next-step-actions">
+          <button
+            type="button"
+            className="commercial-btn commercial-btn-primary"
+            disabled={!invoiceNumber.trim()}
+            onClick={goInvoice}
+          >
+            <IconReceipt size={14} />
+            View Invoice
+          </button>
+          {requestId ? (
+            <button type="button" className="commercial-btn" onClick={goRequest}>
+              <IconFileText size={14} />
+              View Request
+            </button>
+          ) : null}
+        </div>
+      </div>
+    )
+  }
+
+  if (status === 'reserved') {
+    return (
+      <div className="specialized-property-next-step">
+        <div className="specialized-property-next-step-copy">
+          <span>Next step</span>
+          <strong>Reserved — check hold records</strong>
+          <small>
+            {clientName?.trim() ? `Held for ${clientName.trim()}. ` : ''}
+            {historyLoading
+              ? 'Loading records…'
+              : invoiceNumber.trim()
+                ? `Reservation invoice ${invoiceNumber.trim()}.`
+                : requestNumber.trim()
+                  ? `Request ${requestNumber.trim()}.`
+                  : 'See who holds it before releasing.'}
+          </small>
+        </div>
+        <div className="specialized-property-next-step-actions">
+          {invoiceNumber.trim() ? (
+            <button
+              type="button"
+              className="commercial-btn commercial-btn-primary"
+              onClick={goInvoice}
+            >
+              <IconReceipt size={14} />
+              View Invoice
+            </button>
+          ) : requestId ? (
+            <button
+              type="button"
+              className="commercial-btn commercial-btn-primary"
+              onClick={goRequest}
+            >
+              <IconFileText size={14} />
+              View Request
+            </button>
+          ) : null}
+          {invoiceNumber.trim() && requestId ? (
+            <button type="button" className="commercial-btn" onClick={goRequest}>
+              <IconFileText size={14} />
+              View Request
+            </button>
+          ) : null}
+        </div>
+      </div>
+    )
+  }
+
+  if (status === 'under_offer') {
+    return (
+      <div className="specialized-property-next-step">
+        <div className="specialized-property-next-step-copy">
+          <span>Next step</span>
+          <strong>Under offer — follow the live request</strong>
+          <small>
+            {requestNumber.trim()
+              ? `Locked to request ${requestNumber.trim()}.`
+              : 'Locked to another live request.'}
+          </small>
+        </div>
+        <div className="specialized-property-next-step-actions">
+          <button
+            type="button"
+            className="commercial-btn commercial-btn-primary"
+            disabled={!requestId}
+            onClick={goRequest}
+          >
+            <IconFileText size={14} />
+            View Service Request
+          </button>
+          {quoteNumber.trim() ? (
+            <button type="button" className="commercial-btn" onClick={goQuote}>
+              View Quote
+              <IconArrowUpRight size={13} />
+            </button>
+          ) : null}
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="specialized-property-next-step is-muted">
+      <div className="specialized-property-next-step-copy">
+        <span>Next step</span>
+        <strong>{statusDisplay}</strong>
+        <small>This status can’t start a request. See details for what’s next.</small>
+      </div>
+    </div>
+  )
+}
+
 function SelectedPropertyForm({
   selectedEstateName,
   estatePricePerSqm,
@@ -267,22 +535,41 @@ function SelectedPropertyForm({
   )
   const [pricingMode, setPricingMode] = useState<PricingMode>(selectedProperty.pricingMode)
   const [price, setPrice] = useState<number | null>(selectedProperty.price)
+  const needsHistory =
+    selectedProperty.status === 'sold' ||
+    selectedProperty.status === 'reserved' ||
+    selectedProperty.status === 'under_offer'
+  const historyQuery = useQuery({
+    ...realEstateQueries.propertyCommercialHistory(selectedProperty.id),
+    enabled: needsHistory,
+    retry: false,
+  })
+  // Best pick: latest non-cancelled record, fallback to latest overall.
+  // Prefer records carrying an invoice for sold/reserved.
+  const bestHistory = (() => {
+    const items = historyQuery.data ?? []
+    if (!items.length) return null
+    const byDate = [...items].sort(
+      (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+    )
+    const active = byDate.filter((i) => !/cancel/i.test(i.requestStatus ?? ''))
+    const pool = active.length ? active : byDate
+    if (selectedProperty.status === 'sold' || selectedProperty.status === 'reserved') {
+      return pool.find((i) => i.invoiceNumber?.trim()) ?? pool[0] ?? null
+    }
+    return pool[0] ?? null
+  })()
   const statusLocked =
     selectedProperty.status === 'under_offer' ||
     selectedProperty.status === 'reserved' ||
     selectedProperty.status === 'sold'
   const editableStatuses = propertyStatuses.filter(
     (option) =>
-      option.value !== 'under_offer' &&
-      option.value !== 'reserved' &&
-      option.value !== 'sold',
+      option.value !== 'under_offer' && option.value !== 'reserved' && option.value !== 'sold',
   )
   const priceHistory = selectedProperty.pricingHistory.slice().reverse()
-  const canStartRequest =
-    canCreateServiceRequest && selectedProperty.status === 'available'
   const areaSqm = propertyAreaSqm(selectedProperty)
-  const estateRate =
-    estatePricePerSqm ?? selectedProperty.effectivePricing?.estateRate ?? null
+  const estateRate = estatePricePerSqm ?? selectedProperty.effectivePricing?.estateRate ?? null
   const computedEstatePrice =
     estateRate != null && areaSqm != null && areaSqm > 0 ? estateRate * areaSqm : null
 
@@ -334,9 +621,7 @@ function SelectedPropertyForm({
             </div>
             <div>
               <div className="commercial-kl">Pricing</div>
-              <b>
-                {pricingMode === 'estate_rate' ? 'Estate rate' : 'Manual override'}
-              </b>
+              <b>{pricingMode === 'estate_rate' ? 'Estate rate' : 'Manual override'}</b>
             </div>
             <div>
               <div className="commercial-kl">Current price</div>
@@ -351,35 +636,20 @@ function SelectedPropertyForm({
           </div>
         </section>
 
-        <div
-          className={
-            canStartRequest
-              ? 'specialized-property-next-step'
-              : 'specialized-property-next-step is-muted'
-          }
-        >
-          <div className="specialized-property-next-step-copy">
-            <span>Next step</span>
-            <strong>Start a service request</strong>
-            <small>
-              {canStartRequest
-                ? 'Opens the request flow with this property selected.'
-                : selectedProperty.status === 'under_offer'
-                  ? 'This property is under offer on another request.'
-                  : selectedProperty.status !== 'available'
-                    ? 'Only available inventory can start a request.'
-                    : 'You do not have permission to create service requests.'}
-            </small>
-          </div>
-          <button
-            type="button"
-            className="commercial-btn commercial-btn-primary"
-            disabled={!canStartRequest}
-            onClick={onCreateRequest}
-          >
-            Create Request
-          </button>
-        </div>
+        {selectedProperty.status === 'hold' || selectedProperty.status === 'not-for-sale' ? null : (
+          <PropertyNextStep
+            status={selectedProperty.status}
+            statusDisplay={selectedProperty.statusDisplay || selectedProperty.status}
+            clientName={selectedProperty.clientName}
+            canCreateServiceRequest={canCreateServiceRequest}
+            historyLoading={historyQuery.isLoading}
+            requestId={bestHistory?.requestId ?? null}
+            requestNumber={bestHistory?.requestNumber ?? ''}
+            quoteNumber={bestHistory?.quoteNumber ?? ''}
+            invoiceNumber={bestHistory?.invoiceNumber ?? ''}
+            onCreateRequest={onCreateRequest}
+          />
+        )}
 
         <section className="commercial-form-section">
           <div className="commercial-form-section-heading">
@@ -393,10 +663,7 @@ function SelectedPropertyForm({
             {statusLocked ? (
               <label className="commercial-field">
                 <span>Status</span>
-                <input
-                  value={selectedProperty.statusDisplay || selectedProperty.status}
-                  disabled
-                />
+                <input value={selectedProperty.statusDisplay || selectedProperty.status} disabled />
               </label>
             ) : (
               <RealEstateFormDropdown
@@ -835,18 +1102,13 @@ export function RealEstateInventoryLivePage({ recordSearch }: { recordSearch: Ap
       }
     >
       <main className="specialized-content">
-        <div className="specialized-kpi-grid">
+        <div className="specialized-kpi-grid specialized-kpi-grid--compact">
           {(
             [
               ['total', 'Total Properties', statsQuery.data?.total, '' as const],
               ['sold', 'Sold', statsQuery.data?.sold, 'sold' as const],
               ['reserved', 'Reserved', statsQuery.data?.reserved, 'reserved' as const],
-              [
-                'under_offer',
-                'Under offer',
-                statsQuery.data?.underOffer,
-                'under_offer' as const,
-              ],
+              ['under_offer', 'Under offer', statsQuery.data?.underOffer, 'under_offer' as const],
               ['available', 'Available', statsQuery.data?.available, 'available' as const],
             ] as const
           ).map(([key, label, value, filterValue]) => {
@@ -923,27 +1185,20 @@ export function RealEstateInventoryLivePage({ recordSearch }: { recordSearch: Ap
           </header>
         </section>
 
-        {selectedEstate!.boundary.length ? (
-          <FoldableEstateCard
-            title="Estate Location"
-            subtitle="Boundary shown on the map. Hover a plot outline for its status."
-            summary={properties.length ? `${properties.length} plots` : undefined}
-          >
+        <LocationDocumentsAccordion
+          showLocation={Boolean(selectedEstate!.boundary.length)}
+          showDocuments={Boolean(selectedEstate!.documents.length)}
+          locationSummary={properties.length ? `${properties.length} plots` : undefined}
+          documentsSummary={`${selectedEstate!.documents.length} collected`}
+          locationContent={
             <EstateLocationMap
               estateBoundary={selectedEstate!.boundary}
               properties={properties}
+              estateName={selectedEstate!.estateName}
             />
-          </FoldableEstateCard>
-        ) : null}
-        {selectedEstate!.documents.length ? (
-          <FoldableEstateCard
-            title="Estate Documents"
-            subtitle="Collected estate documents — select one to open it."
-            summary={`${selectedEstate!.documents.length} collected`}
-          >
-            <NamedDocumentsPanel documents={selectedEstate!.documents} />
-          </FoldableEstateCard>
-        ) : null}
+          }
+          documentsContent={<NamedDocumentsPanel documents={selectedEstate!.documents} />}
+        />
 
         <div className="specialized-grid-1">
           <section className="specialized-card">
