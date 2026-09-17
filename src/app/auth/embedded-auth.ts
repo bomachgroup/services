@@ -37,7 +37,11 @@ export function getTrustedParentOrigin(referrer: string | undefined | null): str
 function isAuthTokenMessage(value: unknown): value is AuthTokenMessage {
   if (!value || typeof value !== 'object') return false
   const payload = value as Record<string, unknown>
-  return payload.type === 'BOMACH_AUTH_TOKEN' && typeof payload.token === 'string' && payload.token.length > 0
+  return (
+    payload.type === 'BOMACH_AUTH_TOKEN' &&
+    typeof payload.token === 'string' &&
+    payload.token.length > 0
+  )
 }
 
 export function isTrustedAuthTokenMessage(
