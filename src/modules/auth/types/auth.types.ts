@@ -18,6 +18,7 @@ export interface AuthenticatedUser {
   initials: string
   role: AppRole
   roleLabel: string
+  backendRoleId: number | null
   kind: AuthUserKind
   permissions: AppPermission[]
   backendPermissions: string[]
