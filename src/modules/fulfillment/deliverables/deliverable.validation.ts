@@ -1,11 +1,7 @@
 import type { CreateDeliverableInput, UpdateDeliverableInput } from './deliverable.types'
 
 export type DeliverableCreateField =
-  | 'title'
-  | 'version'
-  | 'fileUrl'
-  | 'fileSizeBytes'
-  | 'clientVisible'
+  'title' | 'version' | 'fileUrl' | 'fileSizeBytes' | 'clientVisible'
 
 export type DeliverableFieldError = {
   field: DeliverableCreateField
@@ -21,7 +17,9 @@ function validDocumentUrl(value: string) {
   }
 }
 
-export function validateDeliverableCreate(input: CreateDeliverableInput): DeliverableFieldError | null {
+export function validateDeliverableCreate(
+  input: CreateDeliverableInput,
+): DeliverableFieldError | null {
   if (!input.title.trim()) return { field: 'title', message: 'Deliverable title is required.' }
   if (!input.version.trim()) return { field: 'version', message: 'Version is required.' }
   if (!input.fileUrl.trim()) return { field: 'fileUrl', message: 'Document is required.' }

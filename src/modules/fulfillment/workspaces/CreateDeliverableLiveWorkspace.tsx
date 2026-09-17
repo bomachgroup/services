@@ -534,7 +534,9 @@ export function CreateDeliverableLiveWorkspace({
                           : 'Show this deliverable on the client-facing record.'}
                       </small>
                       {fieldErrors.clientVisible ? (
-                        <small className="commercial-field-error">{fieldErrors.clientVisible}</small>
+                        <small className="commercial-field-error">
+                          {fieldErrors.clientVisible}
+                        </small>
                       ) : null}
                     </span>
                   </label>
@@ -548,7 +550,7 @@ export function CreateDeliverableLiveWorkspace({
             <div
               ref={documentFieldRef}
               className={`commercial-field commercial-field--full commercial-upload-field${
-                fieldErrors.fileUrl ? ' commercial-upload-field--error' : ''
+                fieldErrors.fileUrl ? 'commercial-upload-field--error' : ''
               }`}
             >
               <span>
@@ -604,9 +606,7 @@ export function CreateDeliverableLiveWorkspace({
                           <div className="commercial-upload-progress-bar" />
                         </div>
                       ) : null}
-                      {documentUpload.status === 'uploaded' ? (
-                        <small>Ready to save</small>
-                      ) : null}
+                      {documentUpload.status === 'uploaded' ? <small>Ready to save</small> : null}
                       {documentUpload.status === 'error' ? (
                         <small>{documentUpload.error}</small>
                       ) : null}
