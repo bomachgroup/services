@@ -32,9 +32,9 @@ export function mapBackendPermissions(
     Boolean(options?.isSuperUser) ||
     Boolean(
       options?.roleName &&
-        options.roleName
-          .toLowerCase()
-          .match(/ceo|founder|admin|super|tochukwu|anigbo|director|executive/),
+      options.roleName
+        .toLowerCase()
+        .match(/ceo|founder|admin|super|tochukwu|anigbo|director|executive/),
     ) ||
     Boolean(permissions['*']?.some((a) => a === '*' || a === 'all')) ||
     Boolean(permissions['all']?.some((a) => a === '*' || a === 'all')) ||
@@ -90,10 +90,7 @@ export function mapBackendPermissions(
     granted.add(PERMISSIONS.servicesView)
   }
 
-  if (
-    backendPermissions.includes('stats.view') ||
-    backendPermissions.includes('dashboard.view')
-  ) {
+  if (backendPermissions.includes('stats.view') || backendPermissions.includes('dashboard.view')) {
     granted.add(PERMISSIONS.commandCenterView)
     granted.add(PERMISSIONS.dashboardView)
     granted.add(PERMISSIONS.reportsView)

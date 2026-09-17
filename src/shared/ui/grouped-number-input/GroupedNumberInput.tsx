@@ -15,6 +15,18 @@ type GroupedNumberInputProps = {
   id?: string
 }
 
+function syncGroupedDisplayValue(
+  value: number | null | undefined,
+  displayValue: string,
+  setDisplayValue: (value: string) => void,
+) {
+  const sanitized = sanitizeGroupedNumberInput(displayValue)
+  const currentNum = parseGroupedNumberFieldValue(sanitized)
+  if (value !== currentNum) {
+    setDisplayValue(formatGroupedNumberFieldValue(value))
+  }
+}
+
 export function GroupedNumberInput({
   value,
   onChange,
@@ -28,11 +40,7 @@ export function GroupedNumberInput({
   const [displayValue, setDisplayValue] = useState(() => formatGroupedNumberFieldValue(value))
 
   useEffect(() => {
-    const sanitized = sanitizeGroupedNumberInput(displayValue)
-    const currentNum = parseGroupedNumberFieldValue(sanitized)
-    if (value !== currentNum) {
-      setDisplayValue(formatGroupedNumberFieldValue(value))
-    }
+    syncGroupedDisplayValue(value, displayValue, setDisplayValue)
   }, [value, displayValue])
 
   useLayoutEffect(() => {

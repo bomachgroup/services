@@ -73,16 +73,18 @@ export function AuthProvider({ children }: PropsWithChildren) {
     const searchParams = new URLSearchParams(window.location.search)
     const urlToken = searchParams.get('token') || searchParams.get('access_token')
     const urlRefreshToken = searchParams.get('refreshToken') || searchParams.get('refresh_token')
-    if (urlToken) {
-      tokenStore.set({
-        accessToken: urlToken,
-        refreshToken: urlRefreshToken ?? urlToken,
-      })
+
+    const acceptEmbeddedAuth = (token: string, refreshToken: string) => {
+      tokenStore.set({ accessToken: token, refreshToken })
       setEmbedAuthReady(true)
       setAuthBootstrapError(null)
       void queryClient.invalidateQueries({
         queryKey: currentUserQueryOptions.queryKey,
       })
+    }
+
+    if (urlToken) {
+      acceptEmbeddedAuth(urlToken, urlRefreshToken ?? urlToken)
     }
 
     const parentOrigin = getTrustedParentOrigin(document.referrer)
@@ -96,15 +98,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
       if (!isTrustedAuthTokenMessage(event, window.parent, parentOrigin)) return
 
       const { token, refreshToken } = event.data
-      tokenStore.set({
-        accessToken: token,
-        refreshToken: refreshToken ?? token,
-      })
-      setEmbedAuthReady(true)
-      setAuthBootstrapError(null)
-      void queryClient.invalidateQueries({
-        queryKey: currentUserQueryOptions.queryKey,
-      })
+      acceptEmbeddedAuth(token, refreshToken ?? token)
     }
 
     window.addEventListener('message', handleMessage)

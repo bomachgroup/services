@@ -1,4 +1,3 @@
-
 const dateFormatter = new Intl.DateTimeFormat('en-NG', {
   day: '2-digit',
   month: 'short',
@@ -9,19 +8,21 @@ const dateFormatter = new Intl.DateTimeFormat('en-NG', {
  * Formats any number or numeric string with standard commas.
  * E.g. 1000000 -> "1,000,000", 1234.56 -> "1,234.56"
  */
-export function formatNumber(
-  value: number | string | undefined | null,
-  decimals?: number
-): string {
+export function formatNumber(value: number | string | undefined | null, decimals?: number): string {
   if (value === undefined || value === null || value === '') return '0'
   const num = typeof value === 'string' ? parseFloat(value.replace(/,/g, '')) : Number(value)
   if (!Number.isFinite(num)) return '0'
-  return num.toLocaleString('en-NG', decimals !== undefined ? {
-    minimumFractionDigits: decimals,
-    maximumFractionDigits: decimals,
-  } : {
-    maximumFractionDigits: 2,
-  })
+  return num.toLocaleString(
+    'en-NG',
+    decimals !== undefined
+      ? {
+          minimumFractionDigits: decimals,
+          maximumFractionDigits: decimals,
+        }
+      : {
+          maximumFractionDigits: 2,
+        },
+  )
 }
 
 /**
@@ -38,7 +39,7 @@ export function formatCount(value: number | string | undefined | null): string {
  */
 export function formatCurrency(
   value: number | string | undefined | null,
-  options?: { compact?: boolean; decimals?: number }
+  options?: { compact?: boolean; decimals?: number },
 ): string {
   if (value === undefined || value === null || value === '') return '₦0'
   const amount = typeof value === 'string' ? parseFloat(value.replace(/,/g, '')) : Number(value)

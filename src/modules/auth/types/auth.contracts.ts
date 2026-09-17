@@ -38,6 +38,7 @@ export interface UserResponseDto {
   last_name: string | null
   phone_number: string | null
   is_verified: boolean
+  is_superuser?: boolean
   created_at: string
 }
 

@@ -1,5 +1,12 @@
 import { z } from 'zod'
 
+type LocationWithAncestorOrigins = Location & {
+  readonly ancestorOrigins?: {
+    readonly length: number
+    item(index: number): string | null
+  }
+}
+
 function isLiveShellOrigin(originOrUrl: string): boolean {
   const lower = originOrUrl.toLowerCase()
   return (
@@ -27,16 +34,19 @@ function getDefaultApiBaseUrl(): string {
     let isLiveEnvironment = isLiveShellOrigin(hostname) || isLiveShellOrigin(referrer)
 
     try {
-      const ancestors = (window.location as any).ancestorOrigins
+      const ancestors = (window.location as LocationWithAncestorOrigins).ancestorOrigins
       if (ancestors && ancestors.length > 0) {
         for (let i = 0; i < ancestors.length; i++) {
-          if (isLiveShellOrigin(ancestors[i])) {
+          const ancestor = ancestors.item(i)
+          if (ancestor && isLiveShellOrigin(ancestor)) {
             isLiveEnvironment = true
             break
           }
         }
       }
-    } catch {}
+    } catch {
+      // Some browsers do not expose ancestorOrigins.
+    }
 
     if (isLiveEnvironment) {
       return 'https://bomachauth.bgbot.app/api/v1'
