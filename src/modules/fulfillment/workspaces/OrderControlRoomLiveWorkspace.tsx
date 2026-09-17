@@ -390,7 +390,7 @@ export function OrderControlRoomLiveWorkspace({
                   </div>
                   <div
                     className={`fulfillment-metric fulfillment-metric--blue${
-                      (order.taskCounts.in_progress ?? 0) === 0 ? ' fulfillment-metric--muted' : ''
+                      (order.taskCounts.in_progress ?? 0) === 0 ? 'fulfillment-metric--muted' : ''
                     }`}
                   >
                     <b>{order.taskCounts.in_progress ?? 0}</b>
@@ -398,7 +398,7 @@ export function OrderControlRoomLiveWorkspace({
                   </div>
                   <div
                     className={`fulfillment-metric fulfillment-metric--yellow${
-                      (order.taskCounts.review ?? 0) === 0 ? ' fulfillment-metric--muted' : ''
+                      (order.taskCounts.review ?? 0) === 0 ? 'fulfillment-metric--muted' : ''
                     }`}
                   >
                     <b>{order.taskCounts.review ?? 0}</b>
@@ -407,7 +407,7 @@ export function OrderControlRoomLiveWorkspace({
                   <div
                     className={`fulfillment-metric fulfillment-metric--green${
                       (order.taskCounts.done ?? order.taskCounts.completed ?? 0) === 0
-                        ? ' fulfillment-metric--muted'
+                        ? 'fulfillment-metric--muted'
                         : ''
                     }`}
                   >
@@ -464,7 +464,7 @@ export function OrderControlRoomLiveWorkspace({
                   <div
                     className={`fulfillment-metric fulfillment-metric--yellow${
                       (order.deliverableCounts.under_review ?? 0) === 0
-                        ? ' fulfillment-metric--muted'
+                        ? 'fulfillment-metric--muted'
                         : ''
                     }`}
                   >
@@ -474,7 +474,7 @@ export function OrderControlRoomLiveWorkspace({
                   <div
                     className={`fulfillment-metric fulfillment-metric--green${
                       (order.deliverableCounts.approved ?? 0) === 0
-                        ? ' fulfillment-metric--muted'
+                        ? 'fulfillment-metric--muted'
                         : ''
                     }`}
                   >
@@ -484,7 +484,7 @@ export function OrderControlRoomLiveWorkspace({
                   <div
                     className={`fulfillment-metric fulfillment-metric--red${
                       (order.deliverableCounts.rejected ?? 0) === 0
-                        ? ' fulfillment-metric--muted'
+                        ? 'fulfillment-metric--muted'
                         : ''
                     }`}
                   >
@@ -509,8 +509,8 @@ export function OrderControlRoomLiveWorkspace({
                         <div className="fulfillment-linked-row-main">
                           <b>{deliverable.title}</b>
                           <span>
-                            {deliverable.deliverableNumber} · {statusLabel(deliverable.deliverableType)}{' '}
-                            · {deliverable.version}
+                            {deliverable.deliverableNumber} ·{' '}
+                            {statusLabel(deliverable.deliverableType)} · {deliverable.version}
                           </span>
                         </div>
                         <span
@@ -830,11 +830,7 @@ export function OrderControlRoomLiveWorkspace({
             </div>
 
             <footer className="commercial-modal-footer">
-              <button
-                type="button"
-                className="commercial-btn"
-                onClick={() => setEditing(false)}
-              >
+              <button type="button" className="commercial-btn" onClick={() => setEditing(false)}>
                 Cancel
               </button>
               <div className="commercial-modal-footer-actions">
