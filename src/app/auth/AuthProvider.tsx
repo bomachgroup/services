@@ -69,6 +69,22 @@ export function AuthProvider({ children }: PropsWithChildren) {
 
     if (!isEmbedded || window.parent === window) return
 
+    // Embedded credentials may be delivered via URL query parameters or postMessage
+    const searchParams = new URLSearchParams(window.location.search)
+    const urlToken = searchParams.get('token') || searchParams.get('access_token')
+    const urlRefreshToken = searchParams.get('refreshToken') || searchParams.get('refresh_token')
+    if (urlToken) {
+      tokenStore.set({
+        accessToken: urlToken,
+        refreshToken: urlRefreshToken ?? urlToken,
+      })
+      setEmbedAuthReady(true)
+      setAuthBootstrapError(null)
+      void queryClient.invalidateQueries({
+        queryKey: currentUserQueryOptions.queryKey,
+      })
+    }
+
     const parentOrigin = getTrustedParentOrigin(document.referrer)
     let readyAnnouncements = 0
     const announceReady = () => {

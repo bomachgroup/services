@@ -1,5 +1,15 @@
 import { z } from 'zod'
 
+function isLiveShellOrigin(originOrUrl: string): boolean {
+  const lower = originOrUrl.toLowerCase()
+  return (
+    lower.includes('bomachosapp') ||
+    lower.includes('bomach-os-app') ||
+    lower.includes('bomachauthapp') ||
+    lower.includes('bomachauth.bgbot.app')
+  )
+}
+
 function getDefaultApiBaseUrl(): string {
   if (typeof window !== 'undefined') {
     const searchParams = new URLSearchParams(window.location.search)
@@ -13,36 +23,30 @@ function getDefaultApiBaseUrl(): string {
     const hostname = window.location.hostname.toLowerCase()
     const referrer = (document.referrer || '').toLowerCase()
 
-    // 1. Test environments (bomach-os-test.web.app or localhost) -> test backend
-    const isTestEnvironment =
-      hostname.includes('bomach-os-test') ||
-      hostname.includes('-test.web.app') ||
-      referrer.includes('bomach-os-test') ||
-      hostname === 'localhost' ||
-      hostname === '127.0.0.1' ||
-      hostname === '[::1]' ||
-      hostname.endsWith('.local')
+    // The ONLY time live backend is used is when viewing from the live shell
+    let isLiveEnvironment = isLiveShellOrigin(hostname) || isLiveShellOrigin(referrer)
 
-    if (isTestEnvironment) {
-      return 'https://bomachauthtest.bgbot.app/api/v1'
-    }
+    try {
+      const ancestors = (window.location as any).ancestorOrigins
+      if (ancestors && ancestors.length > 0) {
+        for (let i = 0; i < ancestors.length; i++) {
+          if (isLiveShellOrigin(ancestors[i])) {
+            isLiveEnvironment = true
+            break
+          }
+        }
+      }
+    } catch {}
 
-    // 2. Production app environments (bomach-os-app.web.app) -> production backend without test
-    const isProdAppEnvironment =
-      hostname.includes('bomach-os-app') ||
-      referrer.includes('bomach-os-app') ||
-      hostname === 'bomachauth.bgbot.app'
-
-    if (isProdAppEnvironment) {
+    if (isLiveEnvironment) {
       return 'https://bomachauth.bgbot.app/api/v1'
     }
-  }
 
-  if (import.meta.env.DEV) {
+    // In all other cases (standalone on its own, localhost, test shell), use test backend
     return 'https://bomachauthtest.bgbot.app/api/v1'
   }
 
-  return 'https://bomachauth.bgbot.app/api/v1'
+  return 'https://bomachauthtest.bgbot.app/api/v1'
 }
 
 const envSchema = z.object({
