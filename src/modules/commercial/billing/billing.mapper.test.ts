@@ -64,6 +64,14 @@ describe('mapInvoice paymentDue', () => {
       label: 'Installment 1',
       dueDate: '2026-10-01',
       phase: 'installment',
+      feeThreshold: null,
+      feePaid: null,
+      propertyPaid: null,
+      reservationExpiresAt: null,
+      reservationRefundable: null,
+      reservationRetentionPercent: null,
+      reservationDurationHours: null,
+      allowInstallment: null,
       scheduleLines: [
         {
           sequence: 0,

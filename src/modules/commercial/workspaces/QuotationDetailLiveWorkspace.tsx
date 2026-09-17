@@ -19,6 +19,7 @@ export function QuotationDetailLiveWorkspace({
   linkedInvoice,
   saving,
   canApprove,
+  approveBlocker,
   canAcceptForClient,
   canEdit,
   canRevise,
@@ -34,6 +35,7 @@ export function QuotationDetailLiveWorkspace({
   linkedInvoice?: Invoice | null
   saving: boolean
   canApprove: boolean
+  approveBlocker?: string | null
   canAcceptForClient: boolean
   canEdit: boolean
   canRevise: boolean
@@ -149,19 +151,13 @@ export function QuotationDetailLiveWorkspace({
                   <div>
                     <div className="commercial-kl">Request</div>
                     <b>
-                      {commercialEmptyLabel(
-                        quotation.serviceRequestNumber,
-                        'No request linked',
-                      )}
+                      {commercialEmptyLabel(quotation.serviceRequestNumber, 'No request linked')}
                     </b>
                   </div>
                   <div>
                     <div className="commercial-kl">Previous quote</div>
                     <b>
-                      {commercialEmptyLabel(
-                        quotation.previousQuoteNumber,
-                        'No previous quote',
-                      )}
+                      {commercialEmptyLabel(quotation.previousQuoteNumber, 'No previous quote')}
                     </b>
                   </div>
                   <div>
@@ -367,14 +363,22 @@ export function QuotationDetailLiveWorkspace({
               </button>
             ) : null}
             {capabilities.approve && canApprove ? (
-              <button
-                type="button"
-                className="commercial-btn commercial-btn-primary"
-                disabled={saving}
-                onClick={() => setApproveConfirmOpen(true)}
-              >
-                {saving ? 'Approving...' : 'Approve Quote'}
-              </button>
+              <>
+                {approveBlocker ? (
+                  <span className="commercial-form-note" role="note">
+                    {approveBlocker}
+                  </span>
+                ) : null}
+                <button
+                  type="button"
+                  className="commercial-btn commercial-btn-primary"
+                  disabled={saving || Boolean(approveBlocker)}
+                  title={approveBlocker ?? undefined}
+                  onClick={() => setApproveConfirmOpen(true)}
+                >
+                  {saving ? 'Approving...' : 'Approve Quote'}
+                </button>
+              </>
             ) : null}
             {capabilities.clientRespond && canAcceptForClient ? (
               <button
@@ -432,6 +436,11 @@ export function QuotationDetailLiveWorkspace({
           { label: 'Client', value: quotation.clientName || '—' },
           { label: 'Service', value: quotation.serviceName || '—' },
           { label: 'Total amount', value: formatCurrency(quotation.amount), highlight: true },
+          {
+            label: 'Required approver',
+            value: quotation.requiredApproverRoleName || '—',
+            highlight: Boolean(approveBlocker),
+          },
           ...(quotation.validUntil ? [{ label: 'Valid until', value: quotation.validUntil }] : []),
         ]}
         confirmLabel="Approve & send"

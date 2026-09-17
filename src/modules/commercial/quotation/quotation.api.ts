@@ -60,9 +60,7 @@ function quotePayload(input: UpdateQuotationInput, options?: { omitIds?: boolean
     description: input.description,
     scope_summary: input.scopeSummary,
     terms: input.terms,
-    ...(input.items
-      ? { items: input.items.map((item) => quoteItemPayload(item, options)) }
-      : {}),
+    ...(input.items ? { items: input.items.map((item) => quoteItemPayload(item, options)) } : {}),
     ...(input.attachments
       ? {
           attachments: input.attachments.map((attachment) =>

@@ -128,14 +128,14 @@ export function InvoiceBuilderWorkspace({
                   <form.Field name="dueAt">
                     {(field) => (
                       <DatePicker
-                    label="Due date"
-                    required
-                    value={field.state.value}
-                    onChange={(value) => field.handleChange(value)}
-                    fieldClassName="commercial-field"
-                    invalid={Boolean(errors.dueAt)}
-                    error={errors.dueAt}
-                  />
+                        label="Due date"
+                        required
+                        value={field.state.value}
+                        onChange={(value) => field.handleChange(value)}
+                        fieldClassName="commercial-field"
+                        invalid={Boolean(errors.dueAt)}
+                        error={errors.dueAt}
+                      />
                     )}
                   </form.Field>
                 </div>

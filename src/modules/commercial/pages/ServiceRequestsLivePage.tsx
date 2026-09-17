@@ -1,5 +1,5 @@
 import { IconFilePlus, IconPlus, IconSearch } from '@tabler/icons-react'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { queryOptions, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 
@@ -24,6 +24,7 @@ import { serviceRequestsApi } from '../api/service-requests.api'
 import { serviceRequestKeys } from '../api/service-requests.keys'
 import { serviceRequestQueries } from '../api/service-requests.queries'
 import type {
+  CreateDirectInvoiceInput,
   CreateServiceRequestActivityInput,
   CreateServiceRequestAttachmentInput,
   CreateServiceRequestInput,
@@ -118,6 +119,32 @@ export function ServiceRequestsLivePage({ recordSearch }: { recordSearch: AppSec
     ...serviceRequestQueries.detail(selectedRequestId ?? 0),
     enabled: Boolean(selectedRequestId) && hasPermission(user, PERMISSIONS.serviceRequestsView),
   })
+  const [estimateError, setEstimateError] = useState<{ requestId: number; message: string } | null>(
+    null,
+  )
+  const detail = detailQuery.data
+  const detailIsCalculator =
+    detail?.pricingMode === 'calculator' && detail.calculatorCode.trim() !== ''
+
+  const categoriesQuery = useQuery(
+    queryOptions({
+      queryKey: [...serviceRequestKeys.detail(detail?.id ?? 0), 'engineering-categories'],
+      queryFn: () => serviceRequestsApi.engineeringCategories(),
+      enabled:
+        detailIsCalculator &&
+        (detail?.calculatorCode === 'ARCHITECTURAL-DRAWING' ||
+          detail?.calculatorCode === 'BUILDING-CONSTRUCTION'),
+      staleTime: 300_000,
+    }),
+  )
+  const unitPriceQuery = useQuery(
+    queryOptions({
+      queryKey: [...serviceRequestKeys.detail(detail?.id ?? 0), 'restablishment-unit-price'],
+      queryFn: () => serviceRequestsApi.restablishmentUnitPrice(),
+      enabled: detailIsCalculator && detail?.calculatorCode === 'RESTABLISHMENT-SURVEY',
+      staleTime: 300_000,
+    }),
+  )
 
   const invalidate = async (requestId?: number) => {
     await Promise.all([
@@ -194,6 +221,51 @@ export function ServiceRequestsLivePage({ recordSearch }: { recordSearch: AppSec
     },
   })
 
+  const invoiceMutation = useMutation({
+    mutationFn: async ({
+      requestId,
+      input,
+    }: {
+      requestId: number
+      input: CreateDirectInvoiceInput
+    }) => {
+      // Persist the billing draft first so issue reads the latest figures.
+      await serviceRequestsApi.update(requestId, {
+        directExtraCharges: input.billing.extraCharges.map((charge, index) => ({
+          description: charge.description,
+          quantity: charge.quantity ?? 1,
+          unitPrice: charge.unitPrice,
+          paymentTiming: charge.paymentTiming ?? 'upfront',
+          sourceContext: {},
+          sortOrder: index * 10,
+        })),
+        directDiscount: input.billing.discount,
+        directTaxRate: input.billing.taxRate,
+        directThreshold: input.billing.threshold,
+      })
+      return serviceRequestsApi.createInvoiceFromRequest(requestId, {
+        dueDate: input.dueDate,
+        paymentInstructions: input.paymentInstructions,
+      })
+    },
+    onSuccess: async (invoice) => {
+      await invalidate(detailQuery.data?.id ?? 0)
+      toast.success(`Invoice ${invoice.invoiceNumber} created`, {
+        description: 'Quotation and approvals skipped. Review it, then send it to the client.',
+      })
+      await navigate({
+        to: '/app/$section',
+        params: { section: 'invoices-payments' },
+        search: { invoice: String(invoice.id) },
+      })
+    },
+    onError: (error) => {
+      toast.error('Invoice could not be created', {
+        description: presentError(error, 'form-submit').message,
+      })
+    },
+  })
+
   const activityMutation = useMutation({
     mutationFn: ({
       requestId,
@@ -210,6 +282,73 @@ export function ServiceRequestsLivePage({ recordSearch }: { recordSearch: AppSec
       toast.error('Activity could not be recorded', {
         description: presentError(error, 'background-action').message,
       })
+    },
+  })
+
+  const estimateMutation = useMutation({
+    mutationFn: async ({
+      requestId,
+      serviceId,
+      calculatorCode,
+      inputs,
+    }: {
+      requestId: number
+      serviceId: number
+      calculatorCode: string
+      inputs: Record<string, unknown>
+    }) => {
+      const textInput = (value: unknown) => (typeof value === 'string' ? value : '')
+      const total =
+        calculatorCode === 'BOUNDARY-SURVEY'
+          ? (
+              await serviceRequestsApi.estimateBoundary(serviceId, {
+                area: Number(inputs.area ?? 0),
+                unit: inputs.unit === 'ha' ? 'ha' : 'sqm',
+                customer_type: inputs.customer_type === 'corporate' ? 'corporate' : 'individual',
+                boundary_registration: Boolean(inputs.boundary_registration ?? true),
+                plots: Math.max(1, Math.floor(Number(inputs.plots ?? 1))),
+                single_plan: typeof inputs.single_plan === 'boolean' ? inputs.single_plan : null,
+                state: textInput(inputs.state),
+                lga: textInput(inputs.lga),
+                country: textInput(inputs.country),
+              })
+            ).total
+          : calculatorCode === 'RESTABLISHMENT-SURVEY'
+            ? (
+                await serviceRequestsApi.estimateRestablishment(serviceId, {
+                  number_of_beacons: Math.max(1, Math.floor(Number(inputs.number_of_beacons ?? 0))),
+                })
+              ).total
+            : (
+                await serviceRequestsApi.estimateEngineering(serviceId, {
+                  category_name: textInput(inputs.category_name),
+                  number_of_bedrooms: Math.max(
+                    0,
+                    Math.floor(Number(inputs.number_of_bedrooms ?? 0)),
+                  ),
+                  number_of_floors: Math.max(0, Math.floor(Number(inputs.number_of_floors ?? 0))),
+                  ...(inputs.area_sqm != null && inputs.area_sqm !== ''
+                    ? { area_sqm: Number(inputs.area_sqm) }
+                    : {}),
+                  ...(inputs.timeline_days != null && inputs.timeline_days !== ''
+                    ? { timeline_days: Math.floor(Number(inputs.timeline_days)) }
+                    : {}),
+                })
+              ).total
+      return serviceRequestsApi.update(requestId, {
+        calculatorInputs: inputs,
+        estimatedValue: total,
+      })
+    },
+    onSuccess: async (request) => {
+      setEstimateError(null)
+      await invalidate(request.id)
+      toast.success(`Estimate updated: ${request.requestNumber}`)
+    },
+    onError: (error, variables) => {
+      const message = presentError(error, 'form-submit').message
+      setEstimateError({ requestId: variables.requestId, message })
+      toast.error('Estimate could not be computed', { description: message })
     },
   })
 
@@ -691,9 +830,18 @@ export function ServiceRequestsLivePage({ recordSearch }: { recordSearch: AppSec
           request={detailQuery.data}
           choices={choices}
           employees={employeesQuery.data ?? []}
-          saving={updateMutation.isPending}
+          saving={updateMutation.isPending || invoiceMutation.isPending}
           activitySaving={activityMutation.isPending}
           attachmentSaving={attachmentMutation.isPending}
+          estimating={estimateMutation.isPending}
+          estimateError={
+            estimateError && estimateError.requestId === detailQuery.data.id
+              ? estimateError.message
+              : ''
+          }
+          categories={categoriesQuery.data ?? []}
+          categoriesLoading={Boolean(categoriesQuery.isPending)}
+          unitPrice={unitPriceQuery.data ?? null}
           onClose={() =>
             void navigate({
               to: '/app/$section',
@@ -726,6 +874,21 @@ export function ServiceRequestsLivePage({ recordSearch }: { recordSearch: AppSec
               search: { request: String(detailQuery.data.id) },
             })
           }
+          onCreateInvoice={(input) =>
+            invoiceMutation.mutate({
+              requestId: detailQuery.data.id,
+              input,
+            })
+          }
+          onEstimate={async (inputs) => {
+            setEstimateError(null)
+            await estimateMutation.mutateAsync({
+              requestId: detailQuery.data.id,
+              serviceId: detailQuery.data.serviceId,
+              calculatorCode: detailQuery.data.calculatorCode,
+              inputs,
+            })
+          }}
         />
       ) : null}
     </ModulePageFrame>

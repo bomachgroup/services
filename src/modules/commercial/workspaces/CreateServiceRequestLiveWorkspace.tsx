@@ -1,6 +1,7 @@
 import {
   IconAlertCircle,
   IconArrowLeft,
+  IconCheck,
   IconChevronDown,
   IconLoader2,
   IconSearch,
@@ -526,6 +527,7 @@ export function CreateServiceRequestLiveWorkspace({
   const parentServiceOptions = useMemo(() => buildParentServiceOptions(services), [services])
   const [parentServiceKey, setParentServiceKey] = useState('')
   const [serviceId, setServiceId] = useState(0)
+  const [commercialPath, setCommercialPath] = useState<'quotation' | 'direct_invoice'>('quotation')
   const [error, setError] = useState('')
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
   const [showInternalDetails, setShowInternalDetails] = useState(false)
@@ -874,6 +876,7 @@ export function CreateServiceRequestLiveWorkspace({
             scopeSummary: derivedScopeSummary,
             answers: normalizedAnswers,
             ...(crmLeadIdRef.current ? { crmLeadId: crmLeadIdRef.current } : {}),
+            ...(selectedService?.calculatorCode ? { commercialPath } : {}),
           },
           attachments,
         )
@@ -1807,22 +1810,84 @@ export function CreateServiceRequestLiveWorkspace({
                     }
                     searchable
                     options={mapDropdownOptions(
-                      childServices.map((service) => ({
-                        value: service.id,
-                        label: service.code ? `${service.name} (${service.code})` : service.name,
-                        ...(service.specializedDomain
-                          ? {
-                              description:
-                                service.specializedDomain === 'real_estate'
-                                  ? 'Specialized service · Estate sales flow'
-                                  : `Specialized service · ${service.specializedDomain.replace(/_/g, ' ')}`,
-                            }
-                          : {}),
-                      })),
+                      childServices.map((service) => {
+                        const details: string[] = []
+                        if (service.calculatorCode) {
+                          details.push(
+                            service.calculatorName &&
+                              service.calculatorName !== service.calculatorCode
+                              ? `Calculator · ${service.calculatorName} (${service.calculatorCode})`
+                              : `Calculator · ${service.calculatorCode}`,
+                          )
+                        }
+                        if (service.specializedDomain) {
+                          details.push(
+                            service.specializedDomain === 'real_estate'
+                              ? 'Specialized service · Estate sales flow'
+                              : `Specialized service · ${service.specializedDomain.replace(/_/g, ' ')}`,
+                          )
+                        }
+                        return {
+                          value: service.id,
+                          label: service.code ? `${service.name} (${service.code})` : service.name,
+                          ...(details.length > 0 ? { description: details.join(' · ') } : {}),
+                        }
+                      }),
                     )}
                     value={String(serviceId || 0)}
                     onChange={(nextValue) => chooseService(Number(nextValue))}
                   />
+
+                  {selectedService?.calculatorCode && !usesSpecializedFlow ? (
+                    <div className="commercial-field commercial-field--full">
+                      <span>Billing route</span>
+                      <p className="commercial-form-note">
+                        Fixed package price — choose how this request is billed.
+                      </p>
+                      <div
+                        className="commercial-path-pick"
+                        role="radiogroup"
+                        aria-label="Billing route"
+                      >
+                        <button
+                          type="button"
+                          role="radio"
+                          aria-checked={commercialPath === 'quotation'}
+                          className={`commercial-path-card${commercialPath === 'quotation' ? 'is-selected' : ''}`}
+                          onClick={() => setCommercialPath('quotation')}
+                        >
+                          <span className="commercial-path-radio" aria-hidden="true">
+                            {commercialPath === 'quotation' ? (
+                              <IconCheck size={12} stroke={3} />
+                            ) : null}
+                          </span>
+                          <span className="commercial-path-text">
+                            <b>Quotation + approvals</b>
+                            <small>
+                              Review and approve a quotation, then send it to the client to accept.
+                            </small>
+                          </span>
+                        </button>
+                        <button
+                          type="button"
+                          role="radio"
+                          aria-checked={commercialPath === 'direct_invoice'}
+                          className={`commercial-path-card${commercialPath === 'direct_invoice' ? 'is-selected' : ''}`}
+                          onClick={() => setCommercialPath('direct_invoice')}
+                        >
+                          <span className="commercial-path-radio" aria-hidden="true">
+                            {commercialPath === 'direct_invoice' ? (
+                              <IconCheck size={12} stroke={3} />
+                            ) : null}
+                          </span>
+                          <span className="commercial-path-text">
+                            <b>Direct invoice</b>
+                            <small>Bill the package price plus extra charges immediately.</small>
+                          </span>
+                        </button>
+                      </div>
+                    </div>
+                  ) : null}
 
                   {selectedService ? (
                     branches.length === 0 ? (

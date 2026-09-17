@@ -95,7 +95,17 @@ export function QuotationBuilderLiveWorkspace({
   const [fieldErrors, setFieldErrors] = useState<
     Partial<Record<QuotationBuilderFieldName, string>>
   >({})
+  // Phase 4: calculator-mode quotes lock the primary to the request estimate.
+  // Quotation mode, real-estate flows and tax/deposit/discount are untouched.
+  const isCalculatorMode =
+    request.pricingMode === 'calculator' && request.calculatorCode.trim() !== ''
+  const lockedPrimaryTotal = isCalculatorMode ? request.estimatedValue : null
+  // The request popup gates quotation behind Estimate, but this builder can be
+  // opened directly via URL — block submission here too when no estimate exists.
+  const missingEstimate = isCalculatorMode && request.estimatedValue <= 0
+  const isRealEstateRequest = request.specializedDomain === 'real_estate'
   const [quoteItems, setQuoteItems] = useState(() => (quote?.items.length ? quote.items : []))
+  const [zeroArmed, setZeroArmed] = useState(false)
   const [attachments, setAttachments] = useState(() => quote?.attachments ?? [])
   const [documentsBusy, setDocumentsBusy] = useState(false)
   const fieldRefs = useRef<Record<string, HTMLElement | null>>({})
@@ -127,19 +137,50 @@ export function QuotationBuilderLiveWorkspace({
       : suggestedRealEstateItems.length > 0
         ? suggestedRealEstateItems
         : buildDefaultQuoteItems({
-            description: request.scopeSummary || request.serviceName,
-            serviceFee: quote?.serviceFee || request.estimatedValue || request.budget || 0,
+            description: request.serviceName,
+            serviceFee:
+              quote?.serviceFee ||
+              (isCalculatorMode
+                ? request.estimatedValue
+                : request.estimatedValue || request.budget || 0),
             otherCharges: quote?.otherCharges,
           })
+  // Property sales quote the asset package itself — free-text scope makes no sense.
+  const isRealEstateSale = suggestedRealEstateItems.length > 0
+  const realEstateContextLoading = isRealEstateRequest && realEstateContextQuery.isPending
+  const realEstateAssetNames = suggestedRealEstateItems
+    .filter((item) => item.kind === 'primary')
+    .map((item) => item.description)
+    .join(', ')
+  const realEstateScopeFallback =
+    quote?.scopeSummary || realEstateAssetNames || request.scopeSummary
+  // Phase 4: in calculator mode the primary always equals the live estimate —
+  // create, edit and revision alike. Additional rows pass through untouched.
+  const effectiveQuoteItems =
+    lockedPrimaryTotal == null
+      ? activeQuoteItems
+      : activeQuoteItems.map((item) =>
+          item.kind === 'primary'
+            ? { ...item, quantity: 1, unitPrice: lockedPrimaryTotal, total: lockedPrimaryTotal }
+            : item,
+        )
 
   const form = useForm({
     defaultValues: {
-      description: quote?.description || `Quotation for ${request.serviceName}`,
+      description:
+        quote?.description ||
+        (isRealEstateSale && realEstateAssetNames
+          ? `Offer for ${realEstateAssetNames}`
+          : `Quotation for ${request.serviceName}`),
       scopeSummary: quote?.scopeSummary || request.scopeSummary,
       terms:
         quote?.terms ||
-        'Work begins after the required mobilisation payment and approved documents are received.',
-      serviceFee: quote?.serviceFee || request.estimatedValue || request.budget || 0,
+        (isRealEstateSale
+          ? 'This offer covers the property package priced below. The reservation fee secures the property for the stated hold period; ownership transfers after full payment and confirmed settlement.'
+          : 'Work begins after the required mobilisation payment and approved documents are received.'),
+      serviceFee:
+        quote?.serviceFee ||
+        (isCalculatorMode ? request.estimatedValue : request.estimatedValue || request.budget || 0),
       otherCharges: quote?.otherCharges ?? 0,
       discount: quote?.discount ?? 0,
       taxRate: quote?.taxRate ?? 0,
@@ -151,21 +192,24 @@ export function QuotationBuilderLiveWorkspace({
       const depositPercent = realEstateDeposit
         ? realEstateDeposit.percent
         : Number(value.depositPercent)
+      const submittedServiceFee =
+        lockedPrimaryTotal == null ? Number(value.serviceFee) : lockedPrimaryTotal
       const nextErrors: Partial<Record<QuotationBuilderFieldName, string>> = {
         ...validateQuotationPricing({
-          serviceFee: Number(value.serviceFee),
+          serviceFee: submittedServiceFee,
           otherCharges: Number(value.otherCharges),
-          items: activeQuoteItems,
+          items: effectiveQuoteItems,
           discount: Number(value.discount),
           taxRate: Number(value.taxRate),
           depositPercent,
+          allowZeroServiceFee: !isCalculatorMode,
         }),
       }
 
       if (!value.description.trim()) {
         nextErrors.description = 'Description is required.'
       }
-      if (!value.scopeSummary.trim()) {
+      if (!isRealEstateSale && !value.scopeSummary.trim()) {
         nextErrors.scopeSummary = 'Scope of work is required.'
       }
       if (!value.terms.trim()) {
@@ -174,11 +218,11 @@ export function QuotationBuilderLiveWorkspace({
       if (!value.validUntil) {
         nextErrors.validUntil = 'Validity date is required.'
       }
-      if (!value.requiredApproverRoleId) {
-        nextErrors.requiredApproverRoleId = 'Select the required approver role.'
-      }
       if (documentsBusy) {
         nextErrors.items = 'Wait for document uploads to finish before submitting.'
+      }
+      if (realEstateContextLoading) {
+        nextErrors.items = 'Loading the property package before submitting.'
       }
 
       const firstErrorField = (
@@ -198,19 +242,28 @@ export function QuotationBuilderLiveWorkspace({
 
       if (firstErrorField) {
         setFieldErrors(nextErrors)
+        setZeroArmed(false)
         focusField(fieldRefs, firstErrorField)
         return
       }
 
+      // Warn-don't-block for zero-value quotes in quotation mode: first submit
+      // arms an explicit confirm step instead of submitting silently.
+      if (!isCalculatorMode && submittedServiceFee <= 0 && !zeroArmed) {
+        setZeroArmed(true)
+        return
+      }
+
       setFieldErrors({})
+      setZeroArmed(false)
 
       const payload = {
         description: value.description.trim(),
-        scopeSummary: value.scopeSummary.trim(),
+        scopeSummary: isRealEstateSale ? realEstateScopeFallback : value.scopeSummary.trim(),
         terms: value.terms.trim(),
-        serviceFee: Number(value.serviceFee),
+        serviceFee: submittedServiceFee,
         otherCharges: Number(value.otherCharges),
-        items: activeQuoteItems.map((item, index) => ({
+        items: effectiveQuoteItems.map((item, index) => ({
           ...item,
           description: item.description.trim(),
           sortOrder: item.sortOrder || index * 10,
@@ -248,6 +301,8 @@ export function QuotationBuilderLiveWorkspace({
     !requestSelectionLocked &&
     Boolean(onRequestChange) &&
     (eligibleRequests?.length ?? 0) > 1
+  const primaryTotal = effectiveQuoteItems.find((item) => item.kind === 'primary')?.total ?? 0
+  const showZeroHint = !isCalculatorMode && primaryTotal <= 0
 
   return (
     <div className="commercial-modal-backdrop" role="presentation" onMouseDown={onClose}>
@@ -356,7 +411,7 @@ export function QuotationBuilderLiveWorkspace({
                 {(field) => (
                   <label className="commercial-field commercial-field--full">
                     <span>
-                      Description <em>*</em>
+                      {isRealEstateSale ? 'Offer title' : 'Description'} <em>*</em>
                     </span>
                     <input
                       ref={(node) => {
@@ -380,40 +435,47 @@ export function QuotationBuilderLiveWorkspace({
                 )}
               </form.Field>
 
-              <form.Field name="scopeSummary">
-                {(field) => (
-                  <label className="commercial-field commercial-field--full">
-                    <span>
-                      Scope of work <em>*</em>
-                    </span>
-                    <textarea
-                      ref={(node) => {
-                        fieldRefs.current.scopeSummary = node
-                      }}
-                      rows={4}
-                      value={field.state.value}
-                      onChange={(event) => {
-                        setFieldErrors((current) => {
-                          if (!current.scopeSummary) return current
-                          const next = { ...current }
-                          delete next.scopeSummary
-                          return next
-                        })
-                        field.handleChange(event.target.value)
-                      }}
-                    />
-                    {fieldErrors.scopeSummary ? (
-                      <small className="commercial-field-error">{fieldErrors.scopeSummary}</small>
-                    ) : null}
-                  </label>
-                )}
-              </form.Field>
+              {isRealEstateSale ? null : (
+                <form.Field name="scopeSummary">
+                  {(field) => (
+                    <label className="commercial-field commercial-field--full">
+                      <span>
+                        Scope of work <em>*</em>
+                      </span>
+                      <textarea
+                        ref={(node) => {
+                          fieldRefs.current.scopeSummary = node
+                        }}
+                        rows={4}
+                        value={field.state.value}
+                        onChange={(event) => {
+                          setFieldErrors((current) => {
+                            if (!current.scopeSummary) return current
+                            const next = { ...current }
+                            delete next.scopeSummary
+                            return next
+                          })
+                          field.handleChange(event.target.value)
+                        }}
+                      />
+                      {fieldErrors.scopeSummary ? (
+                        <small className="commercial-field-error">{fieldErrors.scopeSummary}</small>
+                      ) : null}
+                    </label>
+                  )}
+                </form.Field>
+              )}
 
               <form.Field name="validUntil">
                 {(field) => (
                   <DatePicker
                     label="Valid until"
                     required
+                    helpText={
+                      isRealEstateSale
+                        ? 'Offer expiry for the client — the reservation hold starts separately when the fee is paid.'
+                        : undefined
+                    }
                     value={field.state.value}
                     invalid={Boolean(fieldErrors.validUntil)}
                     error={fieldErrors.validUntil}
@@ -435,19 +497,15 @@ export function QuotationBuilderLiveWorkspace({
 
               {rolesQuery.isPending ? (
                 <label className="commercial-field">
-                  <span>
-                    Approver role <em>*</em>
-                  </span>
+                  <span>Approver role</span>
                   <input value="Loading roles..." readOnly />
                 </label>
               ) : rolesQuery.isError ? (
                 <div className="commercial-field">
-                  <span>
-                    Approver role <em>*</em>
-                  </span>
+                  <span>Approver role</span>
                   <EmptyState
                     title="Approver roles unavailable"
-                    description="Quotation submission is unavailable until approver roles are loaded."
+                    description="You can still submit without admin approval, or retry loading roles."
                     action={
                       <Button variant="outline" size="sm" onClick={() => void rolesQuery.refetch()}>
                         Retry
@@ -459,21 +517,24 @@ export function QuotationBuilderLiveWorkspace({
                 <form.Field name="requiredApproverRoleId">
                   {(field) => (
                     <DropdownSelect
-                      label="Approver role"
-                      required
+                      label="Admin approval"
                       fieldClassName="commercial-field"
-                      placeholder="Select role"
+                      placeholder="No approval needed"
+                      helpText="Leave empty to send straight to the client."
                       invalid={Boolean(fieldErrors.requiredApproverRoleId)}
                       error={fieldErrors.requiredApproverRoleId}
                       containerRef={(node) => {
                         fieldRefs.current.requiredApproverRoleId = node
                       }}
-                      options={mapDropdownOptions(
-                        rolesQuery.data.map((role) => ({
-                          value: role.id,
-                          label: role.name,
-                        })),
-                      )}
+                      options={[
+                        { value: '', label: 'No approval needed' },
+                        ...mapDropdownOptions(
+                          rolesQuery.data.map((role) => ({
+                            value: role.id,
+                            label: role.name,
+                          })),
+                        ),
+                      ]}
                       value={field.state.value ? String(field.state.value) : ''}
                       onChange={(value) => {
                         setFieldErrors((current) => {
@@ -500,14 +561,63 @@ export function QuotationBuilderLiveWorkspace({
             <div className="commercial-form-section-heading">
               <div>
                 <h3>Pricing and approval</h3>
+                {missingEstimate ? (
+                  <p>
+                    This request needs an estimate first — open the request and press Estimate value
+                    before quoting.
+                  </p>
+                ) : isCalculatorMode && lockedPrimaryTotal != null ? (
+                  <p>
+                    Primary locked to estimate {formatCurrency(lockedPrimaryTotal)} — add extra work
+                    as additional charges. Tax, discount and deposit stay editable.
+                  </p>
+                ) : null}
               </div>
             </div>
+            {missingEstimate ? (
+              <div className="commercial-notice commercial-notice-red">
+                No estimate on this request yet. Quotation is locked until the calculator estimate
+                has been run.
+              </div>
+            ) : null}
+            {showZeroHint && !missingEstimate ? (
+              zeroArmed ? (
+                <div className="commercial-notice commercial-notice-red">
+                  You are about to submit a quote totalling {formatCurrency(primaryTotal)}. Confirm
+                  this is intentional.
+                  <div className="commercial-status-confirm">
+                    <button
+                      type="button"
+                      className="commercial-btn commercial-btn-danger"
+                      onClick={() => void form.handleSubmit()}
+                    >
+                      Confirm Zero-Value Quote
+                    </button>
+                    <button
+                      type="button"
+                      className="commercial-btn"
+                      onClick={() => setZeroArmed(false)}
+                    >
+                      Keep Editing
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div className="commercial-notice commercial-notice-yellow">
+                  Primary totals {formatCurrency(primaryTotal)} — submitting will ask you to confirm
+                  a zero-value quote.
+                </div>
+              )
+            ) : null}
             <QuotationItemsEditor
-              items={activeQuoteItems}
+              items={effectiveQuoteItems}
+              primaryLocked={isCalculatorMode}
+              lockedPrimaryTotal={lockedPrimaryTotal ?? undefined}
               error={fieldErrors.items}
               onChange={(items) => {
                 const nextItems = ensureSinglePrimary(items)
                 setQuoteItems(nextItems)
+                setZeroArmed(false)
                 form.setFieldValue(
                   'serviceFee',
                   nextItems.find((item) => item.kind === 'primary')?.total ?? 0,
@@ -646,12 +756,12 @@ export function QuotationBuilderLiveWorkspace({
           </section>
 
           <section className="commercial-form-section">
-            <h3>Commercial terms</h3>
+            <h3>{isRealEstateSale ? 'Sale terms' : 'Commercial terms'}</h3>
             <form.Field name="terms">
               {(field) => (
                 <label className="commercial-field commercial-field--full">
                   <span>
-                    Terms <em>*</em>
+                    {isRealEstateSale ? 'Sale terms' : 'Terms'} <em>*</em>
                   </span>
                   <textarea
                     ref={(node) => {
@@ -681,7 +791,7 @@ export function QuotationBuilderLiveWorkspace({
             selector={(state) => ({
               serviceFee: state.values.serviceFee,
               otherCharges: state.values.otherCharges,
-              items: activeQuoteItems,
+              items: effectiveQuoteItems,
               discount: state.values.discount,
               taxRate: state.values.taxRate,
               depositPercent: state.values.depositPercent,
@@ -728,21 +838,27 @@ export function QuotationBuilderLiveWorkspace({
           <button type="button" className="commercial-btn" onClick={onClose} disabled={saving}>
             Cancel
           </button>
-          <button
-            type="submit"
-            className="commercial-btn commercial-btn-primary"
-            disabled={
-              saving || rolesQuery.isPending || rolesQuery.isError || requestSelectionLoading
-            }
-          >
-            {saving
-              ? 'Saving...'
-              : mode === 'edit'
-                ? 'Save Changes'
-                : mode === 'revision'
-                  ? 'Submit Revision for Approval'
-                  : 'Submit for Approval'}
-          </button>
+          <form.Subscribe selector={(state) => state.values.requiredApproverRoleId}>
+            {(requiredApproverRoleId) => (
+              <button
+                type="submit"
+                className="commercial-btn commercial-btn-primary"
+                disabled={
+                  saving || requestSelectionLoading || missingEstimate || realEstateContextLoading
+                }
+              >
+                {saving
+                  ? 'Saving...'
+                  : mode === 'edit'
+                    ? 'Save Changes'
+                    : mode === 'revision'
+                      ? 'Submit Revision for Approval'
+                      : requiredApproverRoleId
+                        ? 'Submit for Approval'
+                        : 'Send to Client'}
+              </button>
+            )}
+          </form.Subscribe>
         </footer>
       </form>
     </div>

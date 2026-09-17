@@ -70,6 +70,7 @@ export function mapInvoice(payload: unknown): Invoice {
     taxRate: number(value.tax_rate),
     taxAmount: number(value.tax_amount),
     totalAmount: number(value.total_amount),
+    discount: number(value.discount),
     amountPaid: number(value.amount_paid),
     balance: number(value.balance),
     paymentProgress: number(value.payment_progress),
@@ -79,6 +80,8 @@ export function mapInvoice(payload: unknown): Invoice {
     paymentSchedule: text(value.payment_schedule),
     paymentInstructions: text(value.payment_instructions),
     activationThresholdAmount: number(value.activation_threshold_amount),
+    financeAccountId: nullableNumber(value.finance_account_id),
+    financeAccountName: text(value.finance_account_name),
     activationThresholdMetAt: nullableText(value.activation_threshold_met_at),
     paymentDue: (() => {
       const due = record(value.payment_due)
@@ -87,6 +90,23 @@ export function mapInvoice(payload: unknown): Invoice {
         label: text(due.label),
         dueDate: nullableText(due.due_date),
         phase: text(due.phase, 'balance') as InvoicePaymentDuePhase,
+        feeThreshold:
+          due.fee_threshold == null || due.fee_threshold === '' ? null : number(due.fee_threshold),
+        feePaid: due.fee_paid == null || due.fee_paid === '' ? null : number(due.fee_paid),
+        propertyPaid:
+          due.property_paid == null || due.property_paid === '' ? null : number(due.property_paid),
+        reservationExpiresAt: nullableText(due.reservation_expires_at),
+        reservationRefundable:
+          due.reservation_refundable == null ? null : Boolean(due.reservation_refundable),
+        reservationRetentionPercent:
+          due.reservation_retention_percent == null || due.reservation_retention_percent === ''
+            ? null
+            : number(due.reservation_retention_percent),
+        reservationDurationHours:
+          due.reservation_duration_hours == null || due.reservation_duration_hours === ''
+            ? null
+            : number(due.reservation_duration_hours),
+        allowInstallment: due.allow_installment == null ? null : Boolean(due.allow_installment),
         scheduleLines: array(due.schedule_lines).map((item) => {
           const row = record(item)
           return {
@@ -164,6 +184,7 @@ export function mapPayment(payload: unknown): Payment {
     updatedAt: text(value.updated_at),
     createdById: number(value.created_by_id),
     createdByName: text(value.created_by_name ?? value.recorded_by_name),
+    purpose: text(value.purpose, 'property'),
   }
 }
 
@@ -202,6 +223,7 @@ export function mapPaymentSubmission(payload: unknown): PaymentSubmission {
     statusDisplay: rawStatus,
     rejectionReason: text(value.rejection_reason),
     createdAt: text(value.created_at),
+    purpose: text(value.purpose, 'property'),
   }
 }
 

@@ -61,8 +61,7 @@ export function DocumentPreviewModal({
 }) {
   // Clean display name: never show raw URLs or uuid prefixes in the UI.
   const cleanFileName = document.fileName?.trim() || fileNameFromUrl(document.fileUrl)
-  const contentType =
-    document.contentType?.trim() || contentTypeFromFileName(cleanFileName) || ''
+  const contentType = document.contentType?.trim() || contentTypeFromFileName(cleanFileName) || ''
   const friendlyType = fileTypeLabel(cleanFileName)
   const title = document.label?.trim() || cleanFileName
   const isImage = isImageContentType(contentType, cleanFileName)
@@ -91,7 +90,8 @@ export function DocumentPreviewModal({
             <div>
               <h2>{title}</h2>
               <p>
-                {cleanFileName} <span className="commercial-document-type-badge">{friendlyType}</span>
+                {cleanFileName}{' '}
+                <span className="commercial-document-type-badge">{friendlyType}</span>
               </p>
             </div>
           </div>
@@ -121,8 +121,8 @@ export function DocumentPreviewModal({
               <strong>{title}</strong>
               <span className="commercial-document-type-badge">{friendlyType}</span>
               <p>
-                This file couldn’t be loaded for inline viewing. Open it in a new tab or download
-                it instead.
+                This file couldn’t be loaded for inline viewing. Open it in a new tab or download it
+                instead.
               </p>
             </div>
           ) : (
