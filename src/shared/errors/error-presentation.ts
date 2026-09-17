@@ -127,11 +127,7 @@ function fieldKeyFromLoc(loc: unknown): string | undefined {
 function extractPydanticFieldErrors(details: unknown): Record<string, string> | undefined {
   if (!details || typeof details !== 'object') return undefined
   const detail = (details as { detail?: unknown }).detail
-  const items = Array.isArray(detail)
-    ? detail
-    : Array.isArray(details)
-      ? details
-      : null
+  const items = Array.isArray(detail) ? detail : Array.isArray(details) ? details : null
   if (!items) return undefined
 
   const entries: Array<[string, string]> = []

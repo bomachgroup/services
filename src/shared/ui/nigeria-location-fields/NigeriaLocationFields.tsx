@@ -32,9 +32,12 @@ export function NigeriaLocationFields({
   const lgaOptions = lgasQuery.data?.items ?? []
   const cityOptions = citiesQuery.data?.items ?? []
   const citySelectionDisabled = !state || !lga
-  const useCityFallback = !citySelectionDisabled && !citiesQuery.isLoading && cityOptions.length === 0
+  const useCityFallback =
+    !citySelectionDisabled && !citiesQuery.isLoading && cityOptions.length === 0
   const locationError =
-    statesQuery.isError || (Boolean(state) && lgasQuery.isError) || (Boolean(lga) && citiesQuery.isError)
+    statesQuery.isError ||
+    (Boolean(state) && lgasQuery.isError) ||
+    (Boolean(lga) && citiesQuery.isError)
 
   return (
     <div className="commercial-form-grid-location">

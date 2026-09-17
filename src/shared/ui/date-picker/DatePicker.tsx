@@ -415,13 +415,7 @@ export function DatePicker({
   }
 
   return (
-    <label
-      className={cn(
-        'ui-dropdown-field commercial-field',
-        fieldClassName,
-      )}
-      htmlFor={fieldId}
-    >
+    <label className={cn('ui-dropdown-field commercial-field', fieldClassName)} htmlFor={fieldId}>
       <span>
         {label}
         {required ? <em className="commercial-required">*</em> : null}
