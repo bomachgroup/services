@@ -121,11 +121,15 @@ export async function runLiveServiceSetup(
 
     try {
       if (stage === 'pricing') {
-        // Legacy ServicePricingConfig create was removed. Persist estimate on the service;
-        // attach a PricingCalculator separately when needed.
-        await serviceAdministrationBackendApi.updateService(serviceId, {
-          base_price: input.pricing.rate,
-        })
+        // Phase 1 pricing: quotation mode stores nothing; calculator mode
+        // attaches the selected calculator (code required by wizard validation).
+        const calculatorCode = input.pricing.calculatorCode?.trim() ?? ''
+        if (input.pricing.mode === 'calculator' && calculatorCode) {
+          await serviceAdministrationBackendApi.attachCalculator(serviceId, calculatorCode)
+        } else {
+          emit('pricing', 'skipped', 'No calculator selected.')
+          continue
+        }
       } else if (stage === 'request-form') {
         await serviceAdministrationBackendApi.createRequestForm(serviceId, {
           name: `${input.name} Request Form`,

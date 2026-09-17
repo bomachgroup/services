@@ -254,12 +254,18 @@ export interface DuplicateServiceInput {
   id: string
 }
 
+export type ServicePricingMode = 'quotation' | 'calculator'
+
 export interface ServicePricingSetup {
   method: string
   rate: number
   depositPercent: number
   taxPercent: number
   discountApprovalPercent: number
+  /** Phase 1: how this service is priced. Optional until the edit workspace is migrated. */
+  mode?: ServicePricingMode
+  /** Phase 1: selected calculator code when mode is 'calculator'. '' otherwise. */
+  calculatorCode?: string
 }
 
 export interface CreateServiceWizardInput {

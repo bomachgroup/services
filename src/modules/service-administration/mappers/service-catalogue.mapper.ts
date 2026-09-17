@@ -40,6 +40,14 @@ export function mapServiceCatalogueCard(dto: ServiceCatalogueCardDto): ServiceCa
     specializedDomain: dto.specialized_domain,
     specializedConfig: dto.specialized_config,
     ...(dto.active_calculator?.name ? { calculatorName: dto.active_calculator.name } : {}),
+    ...(dto.active_calculator
+      ? {
+          activeCalculator: mapCalculatorDto(dto.active_calculator, {
+            id: dto.id,
+            name: dto.name,
+          }),
+        }
+      : {}),
     ...(dto.active_request_form?.name ? { requestFormName: dto.active_request_form.name } : {}),
     ...(dto.active_workflow?.name ? { workflowName: dto.active_workflow.name } : {}),
     readiness: calculateReadiness(dto),

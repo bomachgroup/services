@@ -1,19 +1,18 @@
 import { IconFilePlus, IconPlus } from '@tabler/icons-react'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { queryOptions, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
 import { useState } from 'react'
 
 import { useAuth } from '@/app/auth'
 import { SectionLoadingState } from '@/app/loading/SectionLoadingState'
 
-import { CalculatorEditor, RequestFormEditor } from '../editors/ServiceAdministrationEditors'
+import { RequestFormEditor } from '../editors/ServiceAdministrationEditors'
 import {
   ConfigureServiceWorkspace,
   CreateServiceWizard,
 } from '../workspaces/ServiceCatalogueWorkspaces'
 
 import { presentError } from '@/shared/errors'
-import { ApiError } from '@/shared/api/api-error'
 import { ErrorState, useToast } from '@/shared/ui'
 import {
   AccessLockIcon,
@@ -26,11 +25,16 @@ import {
 import { serviceAdministrationBackendApi } from '../api/service-administration.backend-api'
 import { serviceAdministrationKeys } from '../api/service-administration.keys'
 import {
-  saveLivePricingConfig,
   saveLiveRequestForm,
   saveLiveWorkflow,
   publishLiveService,
 } from '../api/service-administration.live-mutations'
+import { serviceRequestsApi } from '@/modules/commercial/api/service-requests.api'
+import type {
+  EngineeringCategoryInput,
+  EngineeringCategoryOption,
+} from '@/modules/commercial/api/calculator-estimate.types'
+import type { PricingCalculator } from '../types/service-administration.types'
 import { serviceAdministrationQueries } from '../api/service-administration.queries'
 import { runLiveServiceSetup } from '../api/service-setup.orchestrator'
 import { readSpecializedRequestContext, specializedPayload } from '../api/specialized-service.utils'
@@ -48,14 +52,12 @@ import type {
   ServiceSetupStageProgress,
   ServiceSetupStageId,
   CreateServiceStageAccess,
-  PricingCalculator,
   RequestFieldTypeOption,
   ServiceCatalogueItem,
   ServiceRequestForm,
   ServiceWorkflow,
   WorkflowOwnerRoleOption,
   SaveBranchActivationMatrixInput,
-  SaveCalculatorInput,
   SaveRequestFormInput,
   SaveWorkflowInput,
 } from '../types/service-administration.types'
@@ -130,6 +132,10 @@ export function ServiceAdministrationSectionPage({
     publish: capabilities.canPublishService,
     ownerRoles: capabilities.canListRoles,
   }
+  // Declared early: pricingQuery below loads the calculator list while the wizard
+  // or the configure workspace is open.
+  const [newServiceOpen, setNewServiceOpen] = useState(false)
+  const [selectedService, setSelectedService] = useState<ServiceCatalogueItem | null>(null)
   const catalogueQuery = useQuery({
     ...serviceAdministrationQueries.catalogueList({
       ...(section === 'service-catalogue' && catalogueSearch ? { search: catalogueSearch } : {}),
@@ -159,7 +165,9 @@ export function ServiceAdministrationSectionPage({
   })
   const pricingQuery = useQuery({
     ...serviceAdministrationQueries.pricingConfigs(capabilities.canViewPricingConfig),
-    enabled: section === 'calculator-library' && capabilities.canListPricingConfigs,
+    enabled:
+      capabilities.canListPricingConfigs &&
+      (section === 'calculator-library' || newServiceOpen || selectedService != null),
   })
   const branchesQuery = useQuery({
     ...serviceAdministrationQueries.branches(),
@@ -182,13 +190,10 @@ export function ServiceAdministrationSectionPage({
     ...serviceAdministrationQueries.branchActivationMatrix(),
     enabled: section === 'branch-activation' && capabilities.canListBranchActivations,
   })
-  const [selectedService, setSelectedService] = useState<ServiceCatalogueItem | null>(null)
-  const [newServiceOpen, setNewServiceOpen] = useState(false)
   const [serviceSetupProgress, setServiceSetupProgress] = useState<ServiceSetupStageProgress[]>([])
   const [serviceSetupId, setServiceSetupId] = useState<number | null>(null)
   const [lastServiceSetupInput, setLastServiceSetupInput] =
     useState<CreateServiceWizardInput | null>(null)
-  const [calculatorEditor, setCalculatorEditor] = useState<PricingCalculator | null | 'new'>(null)
   const [formEditor, setFormEditor] = useState<ServiceRequestForm | null | 'new'>(null)
   const [selectedRequestFormServiceId, setSelectedRequestFormServiceId] = useState('')
   const [selectedWorkflowServiceId, setSelectedWorkflowServiceId] = useState('')
@@ -306,30 +311,135 @@ export function ServiceAdministrationSectionPage({
     },
   })
 
-  const saveCalculator = useMutation({
-    mutationFn: (input: SaveCalculatorInput) => {
-      const existingCalculator = input.id
-        ? null
-        : (pricingQuery.data?.find((calculator) => calculator.serviceId === input.serviceId) ??
-          null)
-
-      return saveLivePricingConfig(
-        existingCalculator ? { ...input, id: existingCalculator.id } : input,
-      )
-    },
+  const attachCalculator = useMutation({
+    mutationFn: ({ serviceId, calculatorCode }: { serviceId: number; calculatorCode: string }) =>
+      serviceAdministrationBackendApi.attachCalculator(serviceId, calculatorCode),
     onSuccess: async () => {
       await queryClient.invalidateQueries({
         queryKey: serviceAdministrationKeys.pricingConfigs({}),
       })
       await queryClient.invalidateQueries({ queryKey: serviceAdministrationKeys.catalogue() })
-      setCalculatorEditor(null)
-      toast.success('Calculator saved')
+      toast.success('Calculator attached')
     },
     onError: (error) => {
-      const presented = presentError(error, 'background-action')
-      const description =
-        error instanceof Error && !(error instanceof ApiError) ? error.message : presented.message
-      toast.error('Calculator could not be saved', { description })
+      toast.error('Calculator could not be attached', {
+        description: presentError(error, 'background-action').message,
+      })
+    },
+  })
+
+  const detachCalculator = useMutation({
+    mutationFn: (serviceId: number) => serviceAdministrationBackendApi.detachCalculator(serviceId),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({
+        queryKey: serviceAdministrationKeys.pricingConfigs({}),
+      })
+      await queryClient.invalidateQueries({ queryKey: serviceAdministrationKeys.catalogue() })
+      toast.success('Calculator detached')
+    },
+    onError: (error) => {
+      toast.error('Calculator could not be detached', {
+        description: presentError(error, 'background-action').message,
+      })
+    },
+  })
+
+  const calculatorAdminQueriesEnabled = section === 'calculator-library'
+
+  const pricingAdminQuery = useQuery(
+    queryOptions({
+      queryKey: [...serviceAdministrationKeys.pricingConfigs({}), 'pricing-admin'] as const,
+      queryFn: async () => {
+        const [categories, unitPrice] = await Promise.all([
+          serviceRequestsApi.engineeringCategories(true),
+          serviceRequestsApi.restablishmentUnitPrice(),
+        ])
+        return { categories, unitPrice }
+      },
+      enabled: calculatorAdminQueriesEnabled && capabilities.canListPricingConfigs,
+      staleTime: 60_000,
+    }),
+  )
+  const pricingAdmin = pricingAdminQuery.data ?? { categories: [], unitPrice: null }
+
+  const invalidateCalculatorAdmin = async () => {
+    await queryClient.invalidateQueries({
+      queryKey: serviceAdministrationKeys.pricingConfigs({}),
+    })
+  }
+
+  const saveUnitPrice = useMutation({
+    mutationFn: (unitPrice: number) => serviceRequestsApi.setRestablishmentUnitPrice(unitPrice),
+    onSuccess: async () => {
+      await invalidateCalculatorAdmin()
+      toast.success('Unit price saved')
+    },
+    onError: (error) => {
+      toast.error('Unit price could not be saved', {
+        description: presentError(error, 'background-action').message,
+      })
+    },
+  })
+
+  const saveCategory = useMutation({
+    mutationFn: ({
+      categoryId,
+      input,
+    }: {
+      categoryId: number | null
+      input: EngineeringCategoryInput
+    }) =>
+      categoryId == null
+        ? serviceRequestsApi.createEngineeringCategory(input)
+        : serviceRequestsApi.updateEngineeringCategory(categoryId, input),
+    onSuccess: async () => {
+      await invalidateCalculatorAdmin()
+      toast.success('Category saved')
+    },
+    onError: (error) => {
+      toast.error('Category could not be saved', {
+        description: presentError(error, 'background-action').message,
+      })
+    },
+  })
+
+  const deactivateCategory = useMutation({
+    mutationFn: (categoryId: number) => serviceRequestsApi.deleteEngineeringCategory(categoryId),
+    onSuccess: async () => {
+      await invalidateCalculatorAdmin()
+      toast.success('Category deactivated')
+    },
+    onError: (error) => {
+      toast.error('Category could not be deactivated', {
+        description: presentError(error, 'background-action').message,
+      })
+    },
+  })
+
+  const reactivateCategory = useMutation({
+    mutationFn: (category: EngineeringCategoryOption) =>
+      serviceRequestsApi.updateEngineeringCategory(category.id, {
+        name: category.name,
+        category_type: category.categoryType,
+        unit_price: category.unitPrice,
+        max_bedrooms_default: category.maxBedrooms,
+        max_floors_default: category.maxFloors,
+        extra_bedroom_fee: category.extraBedroomFee,
+        extra_floor_fee: category.extraFloorFee,
+        max_area_default: category.maxArea,
+        area_fee: category.areaFee,
+        timeline_days_default: category.timelineDays,
+        timeline_fee: category.timelineFee,
+        is_active: true,
+      }),
+    onSuccess: async () => {
+      await invalidateCalculatorAdmin()
+      toast.success('Category reactivated')
+    },
+    onError: (error) => {
+      toast.error('Category could not be reactivated', {
+        description: presentError(error, 'background-action').message,
+      })
     },
   })
 
@@ -432,23 +542,13 @@ export function ServiceAdministrationSectionPage({
         'supply order': 'supply_order',
       }
 
-      const pricingTypeMap: Record<
-        string,
-        'fixed' | 'unit_rate' | 'area_rate' | 'percentage' | 'formula'
-      > = {
-        fixed: 'fixed',
-        'unit rate': 'unit_rate',
-        'area rate': 'area_rate',
-        percentage: 'percentage',
-        'custom formula': 'formula',
-      }
-
       await serviceAdministrationBackendApi.updateService(serviceId, {
         name: input.name,
         code: input.code || null,
         description: input.description,
         status: input.status,
-        base_price: input.pricing.rate,
+        // base_price intentionally untouched: quotation pricing lives per
+        // quotation, calculator pricing lives on the calculator.
         ...(ownerRole ? { owner_role_id: ownerRole.id } : {}),
         default_sla_days: input.slaDays,
         fulfillment_mode:
@@ -460,25 +560,15 @@ export function ServiceAdministrationSectionPage({
         ),
       })
 
-      // Attach only when the service already has a live PricingCalculator code.
-      // Formula pricing-config CRUD was removed; base_price is the pre-quote estimate.
-      if (selectedCalculator?.code) {
-        await saveLivePricingConfig({
-          name: selectedCalculator.name,
-          code: selectedCalculator.code,
-          serviceId: input.id,
-          description: selectedCalculator.description,
-          pricingType: pricingTypeMap[input.pricing.method.trim().toLowerCase()] ?? 'fixed',
-          status:
-            input.status === 'inactive'
-              ? 'inactive'
-              : input.status === 'active'
-                ? 'active'
-                : 'draft',
-          variables: selectedCalculator.variables,
-          charges: selectedCalculator.charges,
-          sampleTotal: input.pricing.rate,
-        })
+      // Phase 1 pricing: attach the newly selected calculator, or detach when
+      // leaving calculator mode so the backend stops auto-pricing enforcement.
+      const nextCalculatorCode = input.pricing.calculatorCode?.trim() ?? ''
+      if (input.pricing.mode === 'calculator' && nextCalculatorCode) {
+        if (nextCalculatorCode !== selectedCalculator?.code) {
+          await serviceAdministrationBackendApi.attachCalculator(serviceId, nextCalculatorCode)
+        }
+      } else if (selectedCalculator?.code) {
+        await serviceAdministrationBackendApi.detachCalculator(serviceId)
       }
 
       await saveLiveRequestForm(
@@ -750,9 +840,37 @@ export function ServiceAdministrationSectionPage({
         {section === 'calculator-library' ? (
           <CalculatorLibraryScreen
             calculators={pricingQuery.data ?? []}
+            services={catalogue?.items ?? []}
             hasServices={(catalogue?.items.length ?? 0) > 0}
-            createDisabled
-            createLocked
+            canAttach={capabilities.canUpdateService}
+            attachingServiceId={
+              attachCalculator.isPending ? (attachCalculator.variables?.serviceId ?? null) : null
+            }
+            detachingServiceId={
+              detachCalculator.isPending ? (detachCalculator.variables ?? null) : null
+            }
+            onAttach={(serviceId, calculatorCode) =>
+              attachCalculator.mutate({ serviceId, calculatorCode })
+            }
+            onDetach={(serviceId) => detachCalculator.mutate(serviceId)}
+            categories={pricingAdmin.categories}
+            categoriesLoading={Boolean(pricingAdminQuery.isPending)}
+            unitPrice={pricingAdmin.unitPrice}
+            unitPriceLoading={Boolean(pricingAdminQuery.isPending)}
+            canEditPricing={capabilities.canUpdateService}
+            canCreateCategory={capabilities.canCreateService}
+            canDeactivateCategory={capabilities.canDeleteService}
+            savingPricing={saveUnitPrice.isPending || saveCategory.isPending}
+            onSaveUnitPrice={(unitPrice) => saveUnitPrice.mutate(unitPrice)}
+            onSaveCategory={(categoryId, input) => saveCategory.mutate({ categoryId, input })}
+            onDeactivateCategory={(categoryId) => deactivateCategory.mutate(categoryId)}
+            deactivatingCategoryId={
+              deactivateCategory.isPending ? (deactivateCategory.variables ?? null) : null
+            }
+            onReactivateCategory={(category) => reactivateCategory.mutate(category)}
+            reactivatingCategoryId={
+              reactivateCategory.isPending ? (reactivateCategory.variables?.id ?? null) : null
+            }
           />
         ) : null}
 
@@ -860,6 +978,8 @@ export function ServiceAdministrationSectionPage({
               ownerRoles?: WorkflowOwnerRoleOption[]
               fieldTypes?: RequestFieldTypeOption[]
               calculator?: PricingCalculator
+              calculators?: PricingCalculator[]
+              calculatorsLoading?: boolean
               requestForm?: ServiceRequestForm
               workflow?: ServiceWorkflow
             } = {
@@ -889,20 +1009,12 @@ export function ServiceAdministrationSectionPage({
             configureWorkspaceProps.branches = createWizardBranchesQuery.data ?? []
             configureWorkspaceProps.ownerRoles = rolesQuery.data ?? []
             configureWorkspaceProps.fieldTypes = fieldTypesQuery.data ?? []
+            configureWorkspaceProps.calculators = pricingQuery.data ?? []
+            configureWorkspaceProps.calculatorsLoading = pricingQuery.isPending
 
             return <ConfigureServiceWorkspace {...configureWorkspaceProps} />
           })()
         : null}
-
-      {calculatorEditor ? (
-        <CalculatorEditor
-          {...(calculatorEditor === 'new' ? {} : { calculator: calculatorEditor })}
-          services={catalogue?.items ?? []}
-          onClose={() => setCalculatorEditor(null)}
-          onSave={(input) => saveCalculator.mutate(input)}
-          saving={saveCalculator.isPending}
-        />
-      ) : null}
 
       {formEditor ? (
         <RequestFormEditor
@@ -921,6 +1033,8 @@ export function ServiceAdministrationSectionPage({
           branches={createWizardBranchesQuery.data ?? []}
           ownerRoles={rolesQuery.data ?? []}
           fieldTypes={fieldTypesQuery.data ?? []}
+          calculators={pricingQuery.data ?? []}
+          calculatorsLoading={pricingQuery.isPending}
           stageAccess={createStageAccess}
           progress={serviceSetupProgress}
           setupServiceId={serviceSetupId}
