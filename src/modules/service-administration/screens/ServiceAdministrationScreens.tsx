@@ -833,6 +833,8 @@ export function CalculatorLibraryScreen({
   const [testLocked, setTestLocked] = useState(false)
   const testableServices = testFor ? (servicesByCalculator.get(testFor) ?? []) : []
   const testService = testableServices.find((service) => service.id === testServiceId) ?? null
+  const testCalculator = calculators.find((calculator) => calculator.code === testFor)
+  const attachCalculator = calculators.find((calculator) => calculator.code === attachFor)
 
   const [boundary, setBoundary] = useState({
     area: 0,
@@ -849,6 +851,7 @@ export function CalculatorLibraryScreen({
 
   const [unitPriceDraft, setUnitPriceDraft] = useState<number | null>(null)
   const [unitPriceOpen, setUnitPriceOpen] = useState(false)
+  const [categoryManagerOpen, setCategoryManagerOpen] = useState(false)
   const [categoryFormOpen, setCategoryFormOpen] = useState(false)
   const [editingCategoryId, setEditingCategoryId] = useState<number | null>(null)
   const [categoryForm, setCategoryForm] = useState<CategoryFormState>(emptyCategoryForm)
@@ -859,6 +862,11 @@ export function CalculatorLibraryScreen({
   const activeCategories = categories.filter((category) => category.active)
   const inactiveCategories = categories.filter((category) => !category.active)
   const visibleCategories = showInactiveCategories ? categories : activeCategories
+  const attachedServiceCount = services.filter((service) => service.activeCalculator != null).length
+  const unassignedServiceCount = services.length - attachedServiceCount
+  const hasEngineeringCalculators = calculators.some((calculator) =>
+    isEngineeringCode(calculator.code),
+  )
 
   const openAttachFor = (code: string) => {
     setAttachFor(code)
@@ -1020,26 +1028,38 @@ export function CalculatorLibraryScreen({
 
   return (
     <div className="service-admin-page service-admin-content">
-      <section className="service-admin-card">
-        <div className="service-admin-card-header">
-          <div>
-            <div className="service-admin-card-title">Service Calculator Library</div>
-            <div className="service-admin-card-subtitle">
-              Server-managed pricing — open a calculator to attach services and run a real estimate
-            </div>
+      <section className="service-admin-card service-admin-calculator-intro">
+        <div className="service-admin-calculator-intro-copy">
+          <div className="service-admin-eyebrow">Pricing operations</div>
+          <div className="service-admin-card-title">Service Calculator Library</div>
+          <div className="service-admin-card-subtitle">
+            Assign a server-managed calculator to a service. Open an assigned service to run a real
+            estimate.
+          </div>
+        </div>
+        <div className="service-admin-calculator-metrics" aria-label="Calculator library summary">
+          <div className="service-admin-calculator-metric">
+            <strong>{calculators.length}</strong>
+            <span>Calculators</span>
+          </div>
+          <div className="service-admin-calculator-metric">
+            <strong>{attachedServiceCount}</strong>
+            <span>Assigned services</span>
+          </div>
+          <div className="service-admin-calculator-metric">
+            <strong>{unassignedServiceCount}</strong>
+            <span>Unassigned</span>
           </div>
         </div>
       </section>
 
       {calculators.length === 0 ? (
-        <section className="service-admin-card col-span-full border-dashed p-6 sm:p-8">
-          <div className="mx-auto max-w-xl text-center">
-            <div className="service-admin-card-title">No calculators configured</div>
-            <div className="service-admin-card-subtitle mt-1">
-              {!hasServices
-                ? 'Create a service in the catalogue first.'
-                : 'Active calculators appear here once seeded on the server.'}
-            </div>
+        <section className="service-admin-card service-admin-calculator-empty">
+          <div className="service-admin-card-title">No calculators configured</div>
+          <div className="service-admin-card-subtitle">
+            {!hasServices
+              ? 'Create a service in the catalogue first.'
+              : 'Active calculators appear here once seeded on the server.'}
           </div>
         </section>
       ) : (
@@ -1053,7 +1073,7 @@ export function CalculatorLibraryScreen({
             return (
               <article
                 key={calculator.id}
-                className="service-admin-card service-admin-calculator-card"
+                className={`service-admin-card service-admin-calculator-card${expanded ? 'service-admin-calculator-card--expanded' : ''}`}
               >
                 <div className="service-admin-calculator-top">
                   <div
@@ -1062,6 +1082,7 @@ export function CalculatorLibraryScreen({
                     <IconCalculator size={18} />
                   </div>
                   <div className="service-admin-calculator-identity">
+                    <div className="service-admin-eyebrow">Calculator</div>
                     <div className="service-admin-card-title">{calculator.name}</div>
                     <div className="service-admin-card-subtitle">{calculator.code}</div>
                   </div>
@@ -1074,11 +1095,20 @@ export function CalculatorLibraryScreen({
                   </span>
                 </div>
 
-                <div className="service-admin-notice service-admin-notice-blue">
-                  <b>How it prices.</b> {rule.detail}
-                </div>
-                <div className="service-admin-card-subtitle">
-                  Needs: {rule.inputs.length > 0 ? rule.inputs.join(' · ') : '—'}
+                <div className="service-admin-calculator-rule">
+                  <span className="service-admin-calculator-section-label">How it prices</span>
+                  <p>{rule.detail}</p>
+                  <div className="service-admin-calculator-inputs">
+                    {rule.inputs.length > 0 ? (
+                      rule.inputs.map((input) => (
+                        <span key={input} className="service-admin-calculator-input">
+                          {input}
+                        </span>
+                      ))
+                    ) : (
+                      <span className="service-admin-calculator-input">Server-managed rules</span>
+                    )}
+                  </div>
                 </div>
 
                 <button
@@ -1087,87 +1117,100 @@ export function CalculatorLibraryScreen({
                   aria-expanded={expanded}
                   onClick={() => toggleCalculatorCard(calculator.code)}
                 >
-                  <span className="service-admin-calculator-toggle-icon" aria-hidden="true">
-                    {expanded ? <IconChevronDown size={16} /> : <IconChevronRight size={16} />}
+                  <span className="service-admin-calculator-toggle-copy">
+                    <span className="service-admin-calculator-toggle-icon" aria-hidden="true">
+                      {expanded ? <IconChevronDown size={16} /> : <IconChevronRight size={16} />}
+                    </span>
+                    <span>
+                      <strong>Assigned services</strong>
+                      <small>
+                        {attached.length === 0
+                          ? 'No services assigned yet'
+                          : `${attached.length} service${attached.length === 1 ? '' : 's'} ready for estimates`}
+                      </small>
+                    </span>
                   </span>
-                  <span>Attached services · {attached.length}</span>
+                  <span className="service-admin-calculator-count">{attached.length}</span>
                 </button>
 
                 {expanded ? (
-                  attached.length === 0 ? (
-                    <div className="service-admin-notice service-admin-notice-blue">
-                      Not attached to any service yet.
-                    </div>
-                  ) : (
-                    <div className="service-admin-calculator-services">
-                      {attached.map((service) => {
+                  <div className="service-admin-calculator-services">
+                    {attached.length === 0 ? (
+                      <div className="service-admin-calculator-empty-state">
+                        <strong>No services assigned</strong>
+                        <span>
+                          Attach this calculator to a catalogue service to enable estimates.
+                        </span>
+                      </div>
+                    ) : (
+                      attached.map((service) => {
                         const numericId = Number(service.id)
                         const detaching = detachingServiceId === numericId
                         return (
-                          <div key={service.id} className="service-admin-progress-row">
-                            <div>
-                              <b>{service.name}</b>
-                              {service.parentName ? (
-                                <div className="service-admin-row-subtitle">
-                                  {service.parentName}
-                                </div>
-                              ) : null}
+                          <div key={service.id} className="service-admin-calculator-service-row">
+                            <div className="service-admin-calculator-service-copy">
+                              <strong>{service.name}</strong>
+                              <span>{service.parentName || 'Catalogue service'}</span>
                             </div>
-                            <button
-                              type="button"
-                              className="service-admin-button service-admin-button-small"
-                              title={`Test estimate for ${service.name}`}
-                              onClick={() => openTestFor(calculator.code, service.id)}
-                            >
-                              <IconFlask size={13} />
-                              Estimate
-                            </button>
-                            {canAttach && onDetach ? (
+                            <div className="service-admin-calculator-service-actions">
                               <button
                                 type="button"
-                                className="service-admin-button service-admin-button-small"
-                                disabled={detaching}
-                                onClick={() => onDetach(numericId)}
+                                className="service-admin-button service-admin-button-small service-admin-button-primary"
+                                title={`Run an estimate for ${service.name}`}
+                                onClick={() => openTestFor(calculator.code, service.id)}
                               >
-                                {detaching ? 'Detaching…' : 'Detach'}
+                                <IconFlask size={13} />
+                                Estimate
                               </button>
-                            ) : null}
+                              {canAttach && onDetach ? (
+                                <button
+                                  type="button"
+                                  className="service-admin-button service-admin-button-small"
+                                  disabled={detaching}
+                                  onClick={() => onDetach(numericId)}
+                                >
+                                  {detaching ? 'Detaching…' : 'Detach'}
+                                </button>
+                              ) : null}
+                            </div>
                           </div>
                         )
-                      })}
-                    </div>
-                  )
+                      })
+                    )}
+                  </div>
                 ) : null}
 
                 {isRestablishment ? (
-                  <div className="service-admin-calculator-pricebook">
-                    <div className="service-admin-card-subtitle">
-                      Unit price ·{' '}
-                      {unitPriceLoading
-                        ? 'Loading…'
-                        : unitPrice == null
-                          ? 'Not set'
-                          : formatCurrency(unitPrice)}
+                  <div className="service-admin-calculator-config">
+                    <div>
+                      <span className="service-admin-calculator-section-label">
+                        Pricing configuration
+                      </span>
+                      <strong>
+                        {unitPriceLoading
+                          ? 'Loading unit price…'
+                          : unitPrice == null
+                            ? 'Unit price not set'
+                            : `${formatCurrency(unitPrice)} per beacon`}
+                      </strong>
                     </div>
                     {canEditPricing && onSaveUnitPrice ? (
-                      <div className="mt-2">
-                        <button
-                          type="button"
-                          className="service-admin-button"
-                          onClick={() => {
-                            setUnitPriceDraft(unitPrice ?? null)
-                            setUnitPriceOpen(true)
-                          }}
-                        >
-                          Edit unit price
-                        </button>
-                      </div>
+                      <button
+                        type="button"
+                        className="service-admin-button service-admin-button-small"
+                        onClick={() => {
+                          setUnitPriceDraft(unitPrice ?? null)
+                          setUnitPriceOpen(true)
+                        }}
+                      >
+                        Edit rate
+                      </button>
                     ) : null}
                   </div>
                 ) : null}
 
-                <div className="service-admin-calculator-actions">
-                  {canAttach && onAttach ? (
+                {canAttach && onAttach ? (
+                  <div className="service-admin-calculator-actions">
                     <button
                       type="button"
                       className="service-admin-button service-admin-button-primary"
@@ -1176,25 +1219,6 @@ export function CalculatorLibraryScreen({
                       <IconLinkPlus size={14} />
                       Attach service
                     </button>
-                  ) : null}
-                  <button
-                    type="button"
-                    className="service-admin-button"
-                    disabled={attached.length === 0}
-                    title={
-                      attached.length === 0
-                        ? 'Attach this calculator to a service first'
-                        : undefined
-                    }
-                    onClick={() => openTestFor(calculator.code, null)}
-                  >
-                    <IconFlask size={14} />
-                    Test estimate
-                  </button>
-                </div>
-                {attached.length === 0 ? (
-                  <div className="service-admin-notice service-admin-notice-blue">
-                    Attach this calculator to a service to run a test estimate.
                   </div>
                 ) : null}
               </article>
@@ -1205,7 +1229,7 @@ export function CalculatorLibraryScreen({
 
       {testFor ? (
         <LibraryModal
-          title={`Test ${testFor}`}
+          title={`Estimate ${testService?.name ?? testCalculator?.name ?? testFor}`}
           onClose={closeTest}
           footer={
             <>
@@ -1426,11 +1450,48 @@ export function CalculatorLibraryScreen({
         </LibraryModal>
       ) : null}
 
-      {showPricingAdmin ? (
-        <section className="service-admin-card service-admin-pricebook-card">
+      {hasEngineeringCalculators ? (
+        <section className="service-admin-card service-admin-shared-pricing-card">
+          <div className="service-admin-shared-pricing-copy">
+            <div className="service-admin-eyebrow">Shared configuration</div>
+            <div className="service-admin-card-title">Engineering price book</div>
+            <div className="service-admin-card-subtitle">
+              One category catalogue powers both Architectural Drawing and Building Construction.
+            </div>
+          </div>
+          <div className="service-admin-shared-pricing-summary">
+            <strong>{categoriesLoading ? 'Loading…' : activeCategories.length}</strong>
+            <span>active categories</span>
+          </div>
+          {showPricingAdmin ? (
+            <button
+              type="button"
+              className="service-admin-button service-admin-button-small"
+              onClick={() => setCategoryManagerOpen(true)}
+            >
+              Manage categories
+            </button>
+          ) : null}
+        </section>
+      ) : null}
+
+      {categoryManagerOpen && showPricingAdmin ? (
+        <LibraryModal
+          title="Engineering price book"
+          onClose={() => setCategoryManagerOpen(false)}
+          footer={
+            <button
+              type="button"
+              className="service-admin-button"
+              onClick={() => setCategoryManagerOpen(false)}
+            >
+              Close
+            </button>
+          }
+        >
           <div className="service-admin-card-header">
             <div>
-              <div className="service-admin-card-title">Engineering categories</div>
+              <div className="service-admin-card-title">Categories</div>
               <div className="service-admin-card-subtitle">
                 {categoriesLoading
                   ? 'Loading…'
@@ -1559,12 +1620,12 @@ export function CalculatorLibraryScreen({
               </tbody>
             </table>
           </div>
-        </section>
+        </LibraryModal>
       ) : null}
 
       {attachFor ? (
         <LibraryModal
-          title={`Attach ${attachFor}`}
+          title={`Attach a service to ${attachCalculator?.name ?? attachFor}`}
           onClose={closeAttach}
           footer={
             <>
