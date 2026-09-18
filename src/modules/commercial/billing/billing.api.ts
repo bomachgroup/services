@@ -94,6 +94,12 @@ export const billingApi = {
     return mapInvoice(await apiClient.get<unknown>(`/invoices/${invoiceId}`))
   },
 
+  async downloadPdf(invoiceId: number): Promise<Blob> {
+    return apiClient.getBlob(`/invoices/${invoiceId}/pdf`, {
+      headers: { Accept: 'application/pdf' },
+    })
+  },
+
   async summary(): Promise<InvoiceSummary> {
     const invoices = await listAllInvoices()
     return {
