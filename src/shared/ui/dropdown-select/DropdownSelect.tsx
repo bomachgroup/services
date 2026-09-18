@@ -40,6 +40,10 @@ type DropdownSelectBaseProps = {
   fieldClassName?: string | undefined
   containerRef?: ((node: HTMLDivElement | null) => void) | undefined
   onOpenChange?: ((open: boolean) => void) | undefined
+  onSearchChange?: ((value: string) => void) | undefined
+  hasMore?: boolean | undefined
+  loadingMore?: boolean | undefined
+  onLoadMore?: (() => void) | undefined
 }
 
 type SingleDropdownSelectProps = DropdownSelectBaseProps & {
@@ -134,6 +138,10 @@ export function DropdownSelect(props: DropdownSelectProps) {
     fieldClassName,
     containerRef,
     onOpenChange,
+    onSearchChange,
+    hasMore = false,
+    loadingMore = false,
+    onLoadMore,
   } = props
 
   const fallbackId = useId()
@@ -164,8 +172,9 @@ export function DropdownSelect(props: DropdownSelectProps) {
     setOpen(false)
     setMenuStyle(null)
     setSearchQuery('')
+    onSearchChange?.('')
     onOpenChange?.(false)
-  }, [onOpenChange])
+  }, [onOpenChange, onSearchChange])
 
   const openMenu = useCallback(() => {
     if (!positionMenu()) return
@@ -302,13 +311,28 @@ export function DropdownSelect(props: DropdownSelectProps) {
               ref={searchRef}
               value={searchQuery}
               placeholder={searchPlaceholder}
-              onChange={(event) => setSearchQuery(event.target.value)}
+              onChange={(event) => {
+                setSearchQuery(event.target.value)
+                onSearchChange?.(event.target.value)
+              }}
               onKeyDown={(event) => event.stopPropagation()}
             />
           </div>
         ) : null}
 
-        <div className="ui-dropdown-options">
+        <div
+          className="ui-dropdown-options"
+          onScroll={(event) => {
+            const target = event.currentTarget
+            if (
+              hasMore &&
+              !loadingMore &&
+              target.scrollHeight - target.scrollTop - target.clientHeight < 48
+            ) {
+              onLoadMore?.()
+            }
+          }}
+        >
           {loading ? (
             <div className="ui-dropdown-loading">{loadingMessage}</div>
           ) : filteredOptions.length === 0 ? (
@@ -343,6 +367,11 @@ export function DropdownSelect(props: DropdownSelectProps) {
               )
             })
           )}
+          {hasMore ? (
+            <div className="ui-dropdown-loading">
+              {loadingMore ? 'Loading more options...' : 'Scroll for more'}
+            </div>
+          ) : null}
         </div>
       </div>
     ) : null

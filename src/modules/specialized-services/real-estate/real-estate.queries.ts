@@ -1,8 +1,20 @@
-import { queryOptions } from '@tanstack/react-query'
+import { infiniteQueryOptions, queryOptions } from '@tanstack/react-query'
 import { realEstateApi } from './real-estate.api'
 import { realEstateKeys } from './real-estate.keys'
 import type { BrokerageFilters, EstateFilters, PropertyFilters } from './real-estate.types'
 export const realEstateQueries = {
+  estateDirectory: (search = '', limit = 20) =>
+    infiniteQueryOptions({
+      queryKey: realEstateKeys.estateDirectory(search, limit),
+      queryFn: ({ pageParam }) =>
+        realEstateApi.listEstates({ ...(search ? { search } : {}), page: pageParam, limit }),
+      initialPageParam: 1,
+      staleTime: 15_000,
+      getNextPageParam: (lastPage, pages) => {
+        const loaded = pages.reduce((total, page) => total + page.items.length, 0)
+        return loaded < lastPage.count ? pages.length + 1 : undefined
+      },
+    }),
   estates: (f: EstateFilters) =>
     queryOptions({
       queryKey: realEstateKeys.estateList(f),
@@ -47,6 +59,28 @@ export const realEstateQueries = {
       placeholderData: (p) => p,
       staleTime: 10_000,
     }),
+  propertyDetail: (estateId: number, id: number) =>
+    queryOptions({
+      queryKey: realEstateKeys.propertyDetail(estateId, id),
+      queryFn: () => realEstateApi.propertyDetail(estateId, id),
+      staleTime: 15_000,
+    }),
+  propertyDirectory: (estateId: number, search = '', limit = 20) =>
+    infiniteQueryOptions({
+      queryKey: realEstateKeys.propertyDirectory(estateId, search, limit),
+      queryFn: ({ pageParam }) =>
+        realEstateApi.listProperties(estateId, {
+          ...(search ? { search } : {}),
+          page: pageParam,
+          limit,
+        }),
+      initialPageParam: 1,
+      staleTime: 10_000,
+      getNextPageParam: (lastPage, pages) => {
+        const loaded = pages.reduce((total, page) => total + page.items.length, 0)
+        return loaded < lastPage.count ? pages.length + 1 : undefined
+      },
+    }),
   standaloneProperties: (f: PropertyFilters) =>
     queryOptions({
       queryKey: realEstateKeys.standalonePropertyList(f),
@@ -54,12 +88,52 @@ export const realEstateQueries = {
       placeholderData: (p) => p,
       staleTime: 10_000,
     }),
+  standalonePropertyDirectory: (search = '', limit = 20) =>
+    infiniteQueryOptions({
+      queryKey: realEstateKeys.standalonePropertyDirectory(search, limit),
+      queryFn: ({ pageParam }) =>
+        realEstateApi.listStandaloneProperties({
+          ...(search ? { search } : {}),
+          page: pageParam,
+          limit,
+        }),
+      initialPageParam: 1,
+      staleTime: 10_000,
+      getNextPageParam: (lastPage, pages) => {
+        const loaded = pages.reduce((total, page) => total + page.items.length, 0)
+        return loaded < lastPage.count ? pages.length + 1 : undefined
+      },
+    }),
+  standalonePropertyDetail: (id: number) =>
+    queryOptions({
+      queryKey: realEstateKeys.standalonePropertyDetail(id),
+      queryFn: () => realEstateApi.standalonePropertyDetail(id),
+      staleTime: 15_000,
+    }),
   brokerage: (f: BrokerageFilters) =>
     queryOptions({
       queryKey: realEstateKeys.brokerageList(f),
       queryFn: () => realEstateApi.listBrokerage(f),
       placeholderData: (p) => p,
       staleTime: 10_000,
+    }),
+  brokerageDirectory: (search = '', limit = 20) =>
+    infiniteQueryOptions({
+      queryKey: realEstateKeys.brokerageDirectory(search, limit),
+      queryFn: ({ pageParam }) =>
+        realEstateApi.listBrokerage({ ...(search ? { search } : {}), page: pageParam, limit }),
+      initialPageParam: 1,
+      staleTime: 10_000,
+      getNextPageParam: (lastPage, pages) => {
+        const loaded = pages.reduce((total, page) => total + page.items.length, 0)
+        return loaded < lastPage.count ? pages.length + 1 : undefined
+      },
+    }),
+  brokerageDetail: (id: number) =>
+    queryOptions({
+      queryKey: realEstateKeys.brokerageDetail(id),
+      queryFn: () => realEstateApi.brokerageDetail(id),
+      staleTime: 15_000,
     }),
   brokerageStats: () =>
     queryOptions({

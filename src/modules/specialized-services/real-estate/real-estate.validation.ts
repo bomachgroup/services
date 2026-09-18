@@ -7,6 +7,8 @@ import type {
   QuickUpdatePlotInput,
 } from './real-estate.types'
 
+const MANAGED_PROPERTY_STATUSES = new Set(['under_offer', 'reserved', 'sold'])
+
 function validateBoundary(boundary: BoundaryPoint[] | undefined) {
   const points = boundary ?? []
   if (!points.length) return ''
@@ -47,6 +49,12 @@ export function validateQuickPlotUpdate(i: QuickUpdatePlotInput) {
     return 'Reserved and sold status are set by the service-request payment flow, not inventory edits.'
   }
   return ''
+}
+
+export function validatePropertyStatus(status: string) {
+  return MANAGED_PROPERTY_STATUSES.has(status)
+    ? 'Under offer, reserved, and sold status are set by the commercial request and payment flow.'
+    : ''
 }
 export type EstateFieldKey =
   | 'estateName'
@@ -176,9 +184,13 @@ export function validateProperty(
     requirePlotNumber?: boolean
     takenPlotNumbers?: number[]
     excludePlotNumber?: number | null
+    currentStatus?: string
   },
 ) {
   if (!i.propertyName.trim()) return 'Property name is required.'
+  const statusError =
+    options?.currentStatus !== i.status ? validatePropertyStatus(i.status) : ''
+  if (statusError) return statusError
   if (i.pricingMode !== 'estate_rate' && (!Number.isFinite(i.price) || (i.price ?? 0) <= 0))
     return 'Property price must be greater than zero.'
   if (options?.requirePlotNumber) {
