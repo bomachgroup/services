@@ -9,7 +9,7 @@ export function getInvoiceCapabilities(
   const allowsServiceOrder = options?.allowsServiceOrder !== false
 
   return {
-    edit: invoice.status === 'draft' || invoice.status === 'sent',
+    edit: invoice.status === 'draft',
     send: invoice.status === 'draft' || invoice.status === 'sent',
     cancel: invoice.status !== 'cancelled' && !hasPayment,
     settleNoCharge:

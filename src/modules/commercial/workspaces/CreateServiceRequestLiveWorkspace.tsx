@@ -3,6 +3,8 @@ import {
   IconArrowLeft,
   IconCheck,
   IconChevronDown,
+  IconClipboardCheck,
+  IconFileInvoice,
   IconLoader2,
   IconSearch,
   IconUserPlus,
@@ -17,6 +19,7 @@ import { hasPermission, PERMISSIONS } from '@/app/permissions'
 
 import { presentError } from '@/shared/errors'
 import { ApiError } from '@/shared/api/api-error'
+import { cn } from '@/shared/lib/cn'
 import { parseNumberFieldValue } from '@/shared/lib/number-input'
 import { Button } from '@/shared/ui/button'
 import { DropdownSelect, mapDropdownOptions } from '@/shared/ui/dropdown-select'
@@ -1839,13 +1842,18 @@ export function CreateServiceRequestLiveWorkspace({
                   />
 
                   {selectedService?.calculatorCode && !usesSpecializedFlow ? (
-                    <div className="commercial-field commercial-field--full">
-                      <span>Billing route</span>
-                      <p className="commercial-form-note">
-                        Fixed package price — choose how this request is billed.
+                    <div className="commercial-field commercial-field--full commercial-billing-route">
+                      <div className="commercial-billing-route-heading">
+                        <div>
+                          <span className="commercial-billing-route-label">Billing route</span>
+                          <p className="commercial-billing-route-title">Fixed package price</p>
+                        </div>
+                      </div>
+                      <p className="commercial-billing-route-helper">
+                        Choose how this request should be billed.
                       </p>
                       <div
-                        className="commercial-path-pick"
+                        className="commercial-billing-route-options"
                         role="radiogroup"
                         aria-label="Billing route"
                       >
@@ -1853,36 +1861,54 @@ export function CreateServiceRequestLiveWorkspace({
                           type="button"
                           role="radio"
                           aria-checked={commercialPath === 'quotation'}
-                          className={`commercial-path-card${commercialPath === 'quotation' ? 'is-selected' : ''}`}
+                          className={cn(
+                            'commercial-billing-route-choice',
+                            commercialPath === 'quotation' && 'is-selected',
+                          )}
                           onClick={() => setCommercialPath('quotation')}
                         >
-                          <span className="commercial-path-radio" aria-hidden="true">
-                            {commercialPath === 'quotation' ? (
-                              <IconCheck size={12} stroke={3} />
-                            ) : null}
+                          <span className="commercial-billing-route-icon" aria-hidden="true">
+                            <IconClipboardCheck size={19} stroke={1.8} />
                           </span>
-                          <span className="commercial-path-text">
-                            <b>Quotation + approvals</b>
-                            <small>
-                              Review and approve a quotation, then send it to the client to accept.
-                            </small>
+                          <span className="commercial-billing-route-copy">
+                            <span className="commercial-billing-route-choice-title">
+                              Quotation + approvals
+                            </span>
+                            <span className="commercial-billing-route-choice-description">
+                              Review and approve the quotation before sending it to the client.
+                            </span>
+                          </span>
+                          <span className="commercial-billing-route-check" aria-hidden="true">
+                            {commercialPath === 'quotation' ? (
+                              <IconCheck size={13} stroke={3} />
+                            ) : null}
                           </span>
                         </button>
                         <button
                           type="button"
                           role="radio"
                           aria-checked={commercialPath === 'direct_invoice'}
-                          className={`commercial-path-card${commercialPath === 'direct_invoice' ? 'is-selected' : ''}`}
+                          className={cn(
+                            'commercial-billing-route-choice',
+                            commercialPath === 'direct_invoice' && 'is-selected',
+                          )}
                           onClick={() => setCommercialPath('direct_invoice')}
                         >
-                          <span className="commercial-path-radio" aria-hidden="true">
-                            {commercialPath === 'direct_invoice' ? (
-                              <IconCheck size={12} stroke={3} />
-                            ) : null}
+                          <span className="commercial-billing-route-icon" aria-hidden="true">
+                            <IconFileInvoice size={19} stroke={1.8} />
                           </span>
-                          <span className="commercial-path-text">
-                            <b>Direct invoice</b>
-                            <small>Bill the package price plus extra charges immediately.</small>
+                          <span className="commercial-billing-route-copy">
+                            <span className="commercial-billing-route-choice-title">
+                              Direct invoice
+                            </span>
+                            <span className="commercial-billing-route-choice-description">
+                              Issue an invoice for the package and any extra charges now.
+                            </span>
+                          </span>
+                          <span className="commercial-billing-route-check" aria-hidden="true">
+                            {commercialPath === 'direct_invoice' ? (
+                              <IconCheck size={13} stroke={3} />
+                            ) : null}
                           </span>
                         </button>
                       </div>

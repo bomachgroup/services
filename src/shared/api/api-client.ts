@@ -128,7 +128,7 @@ async function executeRequest(
     }
   }
 
-  headers.set('Accept', 'application/json')
+  if (!headers.has('Accept')) headers.set('Accept', 'application/json')
 
   if (accessToken) {
     headers.set('Authorization', `Bearer ${accessToken}`)
@@ -195,6 +195,62 @@ async function request<TResponse>(
   return payload as TResponse
 }
 
+async function requestBlob(
+  path: string,
+  options: Omit<ApiRequestOptions, 'method' | 'body'> = {},
+): Promise<Blob> {
+  let accessToken = options.skipAuth ? null : tokenStore.getAccessToken()
+
+  if (!options.skipAuth && !options.skipRefresh && !accessToken && tokenStore.hasRefreshToken()) {
+    accessToken = await refreshAccessToken()
+  }
+
+  let response: Response
+  try {
+    response = await executeRequest(
+      path,
+      { ...options, method: 'GET' },
+      accessToken ?? undefined,
+    )
+  } catch (error) {
+    throw new ApiError('The server could not be reached.', {
+      status: 0,
+      code: 'NETWORK_ERROR',
+      cause: error,
+    })
+  }
+
+  if (response.status === 401 && !options.skipAuth && !options.skipRefresh) {
+    const refreshedAccessToken = await refreshAccessToken()
+    if (refreshedAccessToken) {
+      response = await executeRequest(
+        path,
+        { ...options, method: 'GET', skipRefresh: true },
+        refreshedAccessToken,
+      )
+    }
+  }
+
+  if (!response.ok) {
+    const payload = await parseResponse(response)
+    const errorPayload =
+      typeof payload === 'object' && payload !== null ? (payload as ApiErrorPayload) : undefined
+
+    if (response.status === 401 && !options.skipAuth) tokenStore.clear('expired')
+
+    throw new ApiError(
+      resolveApiErrorMessage(errorPayload, 'The request could not be completed.'),
+      {
+        status: response.status,
+        ...(errorPayload?.code !== undefined ? { code: errorPayload.code } : {}),
+        details: errorPayload?.errors ?? payload,
+      },
+    )
+  }
+
+  return response.blob()
+}
+
 function createBodyRequest<TResponse>(
   method: 'POST' | 'PUT' | 'PATCH',
   path: string,
@@ -211,6 +267,9 @@ function createBodyRequest<TResponse>(
 export const apiClient = {
   get: <TResponse>(path: string, options?: Omit<ApiRequestOptions, 'method' | 'body'>) =>
     request<TResponse>(path, { ...options, method: 'GET' }),
+
+  getBlob: (path: string, options?: Omit<ApiRequestOptions, 'method' | 'body'>) =>
+    requestBlob(path, options),
 
   post: <TResponse>(
     path: string,
