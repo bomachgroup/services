@@ -147,15 +147,78 @@
   align-items: start;
 }
 
+.service-admin-calculator-intro {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  background: linear-gradient(110deg, #ffffff 0%, #f7f9fd 100%);
+}
+
+.service-admin-calculator-intro-copy {
+  min-width: 0;
+}
+
+.service-admin-eyebrow {
+  margin-bottom: 4px;
+  color: var(--service-admin-brand);
+  font-size: 8px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.service-admin-calculator-metrics {
+  display: flex;
+  flex: none;
+  gap: 8px;
+}
+
+.service-admin-calculator-metric {
+  min-width: 78px;
+  border-left: 1px solid var(--service-admin-border);
+  padding-left: 10px;
+}
+
+.service-admin-calculator-metric strong {
+  display: block;
+  color: var(--service-admin-brand-strong);
+  font-size: 18px;
+  line-height: 1;
+}
+
+.service-admin-calculator-metric span {
+  display: block;
+  margin-top: 4px;
+  color: var(--service-admin-foreground-subtle);
+  font-size: 8px;
+  line-height: 1.25;
+}
+
+.service-admin-calculator-empty {
+  border-style: dashed;
+  text-align: center;
+}
+
 .service-admin-calculator-card {
   margin-bottom: 0;
   display: flex;
   flex-direction: column;
-  gap: 9px;
+  gap: 11px;
+  padding: 16px;
+  transition:
+    box-shadow 160ms ease,
+    border-color 160ms ease,
+    transform 160ms ease;
 }
 
 .service-admin-calculator-card:hover {
   box-shadow: 0 8px 25px #1420401c;
+  transform: translateY(-1px);
+}
+
+.service-admin-calculator-card--expanded {
+  border-color: #c8d5eb;
 }
 
 .service-admin-calculator-top {
@@ -174,23 +237,94 @@
   flex: 1;
 }
 
+.service-admin-calculator-identity .service-admin-card-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.service-admin-calculator-rule {
+  border-radius: 10px;
+  background: var(--service-admin-surface-muted);
+  padding: 10px 11px;
+}
+
+.service-admin-calculator-section-label {
+  display: block;
+  color: var(--service-admin-foreground-subtle);
+  font-size: 8px;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.service-admin-calculator-rule p {
+  margin: 5px 0 8px;
+  color: var(--service-admin-foreground-muted);
+  font-size: 9.5px;
+  line-height: 1.45;
+}
+
+.service-admin-calculator-inputs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.service-admin-calculator-input {
+  border: 1px solid #d7e0ed;
+  border-radius: 999px;
+  background: #fff;
+  padding: 3px 7px;
+  color: var(--service-admin-foreground-muted);
+  font-size: 8px;
+  font-weight: 700;
+}
+
 .service-admin-calculator-toggle {
   display: flex;
   align-items: center;
-  gap: 7px;
+  justify-content: space-between;
+  gap: 10px;
   border: 0;
-  border-radius: 8px;
+  border-top: 1px solid var(--service-admin-border);
+  border-bottom: 1px solid var(--service-admin-border);
   background: transparent;
-  padding: 7px 8px;
+  padding: 10px 2px;
   color: var(--service-admin-foreground);
-  font-size: 10.5px;
-  font-weight: 800;
   text-align: left;
   cursor: pointer;
 }
 
 .service-admin-calculator-toggle:hover {
-  background: var(--service-admin-surface-muted);
+  color: var(--service-admin-brand);
+}
+
+.service-admin-calculator-toggle-copy {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 7px;
+}
+
+.service-admin-calculator-toggle-copy > span:last-child {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.service-admin-calculator-toggle-copy strong {
+  font-size: 10.5px;
+}
+
+.service-admin-calculator-toggle-copy small {
+  overflow: hidden;
+  color: var(--service-admin-foreground-subtle);
+  font-size: 8.5px;
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .service-admin-calculator-toggle-icon {
@@ -199,25 +333,156 @@
   color: var(--service-admin-foreground-muted);
 }
 
-.service-admin-calculator-services {
-  border-top: 1px solid var(--service-admin-border);
+.service-admin-calculator-count {
+  display: grid;
+  min-width: 22px;
+  height: 22px;
+  place-items: center;
+  border-radius: 7px;
+  background: #e8eefb;
+  color: var(--service-admin-brand);
+  font-size: 9px;
+  font-weight: 800;
 }
 
-.service-admin-calculator-pricebook {
-  border-top: 1px dashed var(--service-admin-border);
-  padding-top: 9px;
+.service-admin-calculator-services {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.service-admin-calculator-service-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  border: 1px solid var(--service-admin-border);
+  border-radius: 9px;
+  background: #fff;
+  padding: 8px 9px;
+}
+
+.service-admin-calculator-service-copy {
+  min-width: 0;
+  flex: 1;
+}
+
+.service-admin-calculator-service-copy strong,
+.service-admin-calculator-service-copy span {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.service-admin-calculator-service-copy strong {
+  font-size: 10px;
+}
+
+.service-admin-calculator-service-copy span {
+  margin-top: 3px;
+  color: var(--service-admin-foreground-subtle);
+  font-size: 8.5px;
+}
+
+.service-admin-calculator-service-actions {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 5px;
+}
+
+.service-admin-calculator-empty-state {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  border: 1px dashed #cbd6e5;
+  border-radius: 9px;
+  background: var(--service-admin-surface-muted);
+  padding: 12px;
+}
+
+.service-admin-calculator-empty-state strong {
+  font-size: 10px;
+}
+
+.service-admin-calculator-empty-state span {
+  color: var(--service-admin-foreground-subtle);
+  font-size: 9px;
+  line-height: 1.4;
+}
+
+.service-admin-calculator-config {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  border: 1px solid #dbe3ef;
+  border-radius: 9px;
+  background: #fbfcfe;
+  padding: 9px 10px;
+}
+
+.service-admin-calculator-config > div {
+  min-width: 0;
+}
+
+.service-admin-calculator-config strong,
+.service-admin-calculator-config > div > span:last-child {
+  display: block;
+  margin-top: 4px;
+  overflow: hidden;
+  color: var(--service-admin-foreground-muted);
+  font-size: 9px;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.service-admin-calculator-config > div > span:last-child {
+  color: var(--service-admin-foreground-subtle);
+  font-size: 8.5px;
+  font-weight: 500;
 }
 
 .service-admin-calculator-actions {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
-  border-top: 1px solid var(--service-admin-border);
-  padding-top: 11px;
+  padding-top: 1px;
 }
 
-.service-admin-pricebook-card {
+.service-admin-shared-pricing-card {
+  display: flex;
+  align-items: center;
+  gap: 15px;
   margin-top: 12px;
+}
+
+.service-admin-shared-pricing-copy {
+  min-width: 0;
+  flex: 1;
+}
+
+.service-admin-shared-pricing-summary {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  align-items: flex-end;
+  border-left: 1px solid var(--service-admin-border);
+  padding-left: 15px;
+}
+
+.service-admin-shared-pricing-summary strong {
+  color: var(--service-admin-brand-strong);
+  font-size: 17px;
+  line-height: 1;
+}
+
+.service-admin-shared-pricing-summary span {
+  margin-top: 3px;
+  color: var(--service-admin-foreground-subtle);
+  font-size: 8px;
 }
 
 .service-admin-table-row--inactive td {
@@ -752,6 +1017,19 @@
   .service-admin-builder {
     grid-template-columns: 1fr;
   }
+
+  .service-admin-calculator-intro {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .service-admin-calculator-metrics {
+    width: 100%;
+  }
+
+  .service-admin-calculator-metric {
+    flex: 1;
+  }
 }
 
 @media (max-width: 600px) {
@@ -761,6 +1039,42 @@
 
   .service-admin-service-grid {
     grid-template-columns: 1fr;
+  }
+
+  .service-admin-calculator-metrics {
+    gap: 5px;
+  }
+
+  .service-admin-calculator-metric {
+    min-width: 0;
+    padding-left: 7px;
+  }
+
+  .service-admin-calculator-metric strong {
+    font-size: 16px;
+  }
+
+  .service-admin-calculator-service-row,
+  .service-admin-calculator-config,
+  .service-admin-shared-pricing-card {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .service-admin-calculator-service-actions {
+    width: 100%;
+  }
+
+  .service-admin-calculator-service-actions .service-admin-button {
+    flex: 1;
+  }
+
+  .service-admin-shared-pricing-summary {
+    align-items: flex-start;
+    border-top: 1px solid var(--service-admin-border);
+    border-left: 0;
+    padding-top: 10px;
+    padding-left: 0;
   }
 }
 
