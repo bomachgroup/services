@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useInfiniteQuery, useQuery } from '@tanstack/react-query'
 
 import { useAuth } from '@/app/auth'
 import { hasPermission, PERMISSIONS } from '@/app/permissions'
@@ -93,36 +93,90 @@ export function RealEstateRequestContextFields({
   const [customPriceOpen, setCustomPriceOpen] = useState(
     () => context.agreedPrice != null && context.agreedPrice > 0,
   )
+  const [estateSearchDraft, setEstateSearchDraft] = useState('')
+  const [estateSearch, setEstateSearch] = useState('')
+  const [propertySearchDraft, setPropertySearchDraft] = useState('')
+  const [propertySearch, setPropertySearch] = useState('')
+  const [brokerageSearchDraft, setBrokerageSearchDraft] = useState('')
+  const [brokerageSearch, setBrokerageSearch] = useState('')
 
-  const estatesQuery = useQuery({
-    ...realEstateQueries.estates({ limit: 100, page: 1 }),
+  useEffect(() => {
+    const timeoutId = window.setTimeout(() => setEstateSearch(estateSearchDraft.trim()), 350)
+    return () => window.clearTimeout(timeoutId)
+  }, [estateSearchDraft])
+  useEffect(() => {
+    const timeoutId = window.setTimeout(() => setPropertySearch(propertySearchDraft.trim()), 350)
+    return () => window.clearTimeout(timeoutId)
+  }, [propertySearchDraft])
+  useEffect(() => {
+    const timeoutId = window.setTimeout(() => setBrokerageSearch(brokerageSearchDraft.trim()), 350)
+    return () => window.clearTimeout(timeoutId)
+  }, [brokerageSearchDraft])
+
+  const estatesQuery = useInfiniteQuery({
+    ...realEstateQueries.estateDirectory(estateSearch),
     enabled: canListEstates,
   })
-  const standaloneQuery = useQuery({
-    ...realEstateQueries.standaloneProperties({ limit: 100, page: 1 }),
+  const standaloneQuery = useInfiniteQuery({
+    ...realEstateQueries.standalonePropertyDirectory(propertySearch),
     enabled: canListProperties && context.sourceMode === 'standalone',
   })
-  const brokerageQuery = useQuery({
-    ...realEstateQueries.brokerage({ limit: 100, page: 1 }),
+  const brokerageQuery = useInfiniteQuery({
+    ...realEstateQueries.brokerageDirectory(brokerageSearch),
     enabled: canListBrokerage && context.sourceMode === 'brokerage',
   })
-  const propertiesQuery = useQuery({
-    ...realEstateQueries.properties(context.estateId, { limit: 100, page: 1 }),
+  const propertiesQuery = useInfiniteQuery({
+    ...realEstateQueries.propertyDirectory(context.estateId, propertySearch),
     enabled: canListProperties && context.sourceMode === 'estate' && context.estateId > 0,
   })
 
-  const estates = (estatesQuery.data?.items ?? []).filter(
+  const selectedEstateQuery = useQuery({
+    ...realEstateQueries.detail(context.estateId),
+    enabled: canListEstates && context.estateId > 0,
+  })
+  const selectedPropertyQuery = useQuery({
+    ...realEstateQueries.propertyDetail(context.estateId, context.selectedId ?? 0),
+    enabled:
+      canListProperties &&
+      context.sourceMode === 'estate' &&
+      context.estateId > 0 &&
+      Boolean(context.selectedId),
+  })
+  const selectedStandaloneQuery = useQuery({
+    ...realEstateQueries.standalonePropertyDetail(context.selectedId ?? 0),
+    enabled:
+      canListProperties && context.sourceMode === 'standalone' && Boolean(context.selectedId),
+  })
+  const selectedBrokerageQuery = useQuery({
+    ...realEstateQueries.brokerageDetail(context.selectedId ?? 0),
+    enabled:
+      canListBrokerage && context.sourceMode === 'brokerage' && Boolean(context.selectedId),
+  })
+
+  const estates = [
+    ...(estatesQuery.data?.pages.flatMap((page) => page.items) ?? []),
+    ...(selectedEstateQuery.data ? [selectedEstateQuery.data] : []),
+  ].filter((estate, index, all) => all.findIndex((item) => item.id === estate.id) === index).filter(
     (estate) =>
       estate.isActive !== false &&
       (estate.estateStatus === 'available' || estate.estateStatus === 'under_development'),
   )
-  const standaloneProperties = (standaloneQuery.data?.items ?? []).filter(
+  const standaloneProperties = [
+    ...(standaloneQuery.data?.pages.flatMap((page) => page.items) ?? []),
+    ...(selectedStandaloneQuery.data ? [selectedStandaloneQuery.data] : []),
+  ].filter((property, index, all) => all.findIndex((item) => item.id === property.id) === index).filter(
     (property) => property.status === 'available' && property.isActive !== false,
   )
-  const unlinkedBrokerage = (brokerageQuery.data?.items ?? []).filter(
+  const unlinkedBrokerage = [
+    ...(brokerageQuery.data?.pages.flatMap((page) => page.items) ?? []),
+    ...(selectedBrokerageQuery.data ? [selectedBrokerageQuery.data] : []),
+  ].filter((listing, index, all) => all.findIndex((item) => item.id === listing.id) === index).filter(
     (listing) => listing.estateId == null && listing.status === 'available',
   )
-  const estateProperties = (propertiesQuery.data?.items ?? []).filter(
+  const estateProperties = [
+    ...(propertiesQuery.data?.pages.flatMap((page) => page.items) ?? []),
+    ...(selectedPropertyQuery.data ? [selectedPropertyQuery.data] : []),
+  ].filter((property, index, all) => all.findIndex((item) => item.id === property.id) === index).filter(
     (property) => property.status === 'available' && property.isActive !== false,
   )
   const selectedEstate = estates.find((estate) => estate.id === context.estateId) ?? null
@@ -306,6 +360,10 @@ export function RealEstateRequestContextFields({
             required
             searchable
             loading={estatesQuery.isPending}
+            loadingMore={estatesQuery.isFetchingNextPage}
+            hasMore={Boolean(estatesQuery.hasNextPage)}
+            onLoadMore={() => void estatesQuery.fetchNextPage()}
+            onSearchChange={setEstateSearchDraft}
             placeholder="Select an estate"
             searchPlaceholder="Search estates..."
             options={mapDropdownOptions(
@@ -334,6 +392,10 @@ export function RealEstateRequestContextFields({
             searchable
             disabled={!context.estateId || !canListProperties}
             loading={propertiesQuery.isPending}
+            loadingMore={propertiesQuery.isFetchingNextPage}
+            hasMore={Boolean(propertiesQuery.hasNextPage)}
+            onLoadMore={() => void propertiesQuery.fetchNextPage()}
+            onSearchChange={setPropertySearchDraft}
             placeholder={
               !context.estateId
                 ? 'Choose an estate first'
@@ -380,6 +442,10 @@ export function RealEstateRequestContextFields({
           required
           searchable
           loading={standaloneQuery.isPending}
+          loadingMore={standaloneQuery.isFetchingNextPage}
+          hasMore={Boolean(standaloneQuery.hasNextPage)}
+          onLoadMore={() => void standaloneQuery.fetchNextPage()}
+          onSearchChange={setPropertySearchDraft}
           placeholder={
             standaloneQuery.isPending ? 'Loading standalone properties...' : 'Select a property'
           }
@@ -413,6 +479,10 @@ export function RealEstateRequestContextFields({
           required
           searchable
           loading={brokerageQuery.isPending}
+          loadingMore={brokerageQuery.isFetchingNextPage}
+          hasMore={Boolean(brokerageQuery.hasNextPage)}
+          onLoadMore={() => void brokerageQuery.fetchNextPage()}
+          onSearchChange={setBrokerageSearchDraft}
           placeholder={
             brokerageQuery.isPending ? 'Loading brokerage listings...' : 'Select a listing'
           }

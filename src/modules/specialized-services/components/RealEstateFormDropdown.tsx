@@ -23,6 +23,10 @@ type RealEstateFormDropdownProps = {
   placeholder?: string
   searchable?: boolean
   loading?: boolean
+  loadingMore?: boolean
+  hasMore?: boolean
+  onLoadMore?: () => void
+  onSearchChange?: (value: string) => void
   fieldClassName?: string
   className?: string
   fullWidth?: boolean
@@ -49,6 +53,10 @@ export function RealEstateFormDropdown({
   placeholder,
   searchable,
   loading = false,
+  loadingMore = false,
+  hasMore = false,
+  onLoadMore,
+  onSearchChange,
   fieldClassName = 'commercial-field',
   className,
   fullWidth = true,
@@ -67,6 +75,10 @@ export function RealEstateFormDropdown({
       onChange={onChange}
       disabled={disabled}
       loading={loading}
+      loadingMore={loadingMore}
+      hasMore={hasMore}
+      onLoadMore={onLoadMore}
+      onSearchChange={onSearchChange}
       placeholder={placeholder}
       searchable={searchable ?? normalizedOptions.length >= 6}
     />

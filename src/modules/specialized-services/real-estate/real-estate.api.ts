@@ -359,14 +359,20 @@ const mapCommercialHistory = (payload: unknown): RealEstateCommercialHistoryItem
       clientName: text(value.client_name),
       serviceName: text(value.service_name),
       requestStatus: text(value.request_status),
+      quoteId: value.quote_id == null ? null : number(value.quote_id),
       quoteNumber: text(value.quote_number),
+      quoteStatus: text(value.quote_status),
+      invoiceId: value.invoice_id == null ? null : number(value.invoice_id),
       invoiceNumber: text(value.invoice_number),
+      invoiceStatus: text(value.invoice_status),
       assetType: text(value.asset_type),
       assetId: number(value.asset_id),
       assetName: text(value.asset_name),
+      assetStatus: text(value.asset_status),
       releasedAt: nullableText(value.released_at),
       releaseReason: text(value.release_reason),
       createdAt: text(value.created_at),
+      isCurrent: Boolean(value.is_current),
     }
   })
 
@@ -437,6 +443,8 @@ export const realEstateApi = {
   },
   listStandaloneProperties: async (f: PropertyFilters = {}) =>
     mapPropertyList(await apiClient.get<unknown>(`/estates/properties/all?${propertyQuery(f)}`)),
+  standalonePropertyDetail: async (id: number) =>
+    mapProperty(await apiClient.get<unknown>(`/estates/properties/all/${id}`)),
   createStandaloneProperty: async (i: CreatePropertyInput) =>
     mapProperty(await apiClient.post<unknown>('/estates/properties/all', propertyPayload(i))),
   updateStandaloneProperty: async (id: number, i: CreatePropertyInput) =>
@@ -471,6 +479,8 @@ export const realEstateApi = {
 
   listBrokerage: async (f: BrokerageFilters = {}) =>
     mapBrokerageList(await apiClient.get<unknown>(`/brokerage/?${brokerageQuery(f)}`)),
+  brokerageDetail: async (id: number) =>
+    mapBrokerageListing(await apiClient.get<unknown>(`/brokerage/${id}`)),
   brokerageStats: async () => mapBrokerageStats(await apiClient.get<unknown>('/brokerage/stats')),
   createBrokerage: async (i: CreateBrokerageInput) =>
     mapBrokerageListing(await apiClient.post<unknown>('/brokerage/', brokeragePayload(i))),

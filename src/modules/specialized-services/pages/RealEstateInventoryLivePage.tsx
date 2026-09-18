@@ -903,6 +903,7 @@ export function RealEstateInventoryLivePage({ recordSearch }: { recordSearch: Ap
       queryClient.invalidateQueries({ queryKey: realEstateKeys.estateDetail(id) }),
       queryClient.invalidateQueries({ queryKey: realEstateKeys.estateStats(id) }),
       queryClient.invalidateQueries({ queryKey: realEstateKeys.properties(id) }),
+      queryClient.invalidateQueries({ queryKey: realEstateKeys.portfolioStats() }),
     ])
   }
 

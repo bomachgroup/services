@@ -164,25 +164,59 @@ export interface EstateStats {
   soldValue: number
 }
 
+export interface PortfolioUnitStatusCounts {
+  total: number
+  available: number
+  underOffer: number
+  reserved: number
+  sold: number
+}
+
+export interface PortfolioEstateSummary {
+  ownedUnits: number
+  available: number
+  underOffer: number
+  reserved: number
+  sold: number
+  linkedBrokerage: number
+}
+
 export interface PortfolioStats {
-  units: {
+  projects: { total: number }
+  ownedUnits: PortfolioUnitStatusCounts
+  standaloneUnits: PortfolioUnitStatusCounts
+  brokerageListings: {
     total: number
     available: number
-    underOffer: number
-    reserved: number
     sold: number
+    linked: number
+    unlinked: number
   }
-  properties: {
-    total: number
-    inEstate: number
-    standalone: number
-  }
-  estatesWithPlots: {
-    available: number[]
-    underOffer: number[]
-    reserved: number[]
-    sold: number[]
-  }
+  managedAssets: { total: number }
+  estateSummaries: Record<string, PortfolioEstateSummary>
+}
+
+export interface RealEstateCommercialHistoryItem {
+  id: number
+  requestId: number
+  requestNumber: string
+  clientName: string
+  serviceName: string
+  requestStatus: string
+  quoteId: number | null
+  quoteNumber: string
+  quoteStatus: string
+  invoiceId: number | null
+  invoiceNumber: string
+  invoiceStatus: string
+  assetType: string
+  assetId: number
+  assetName: string
+  assetStatus: string
+  releasedAt: string | null
+  releaseReason: string
+  createdAt: string
+  isCurrent: boolean
 }
 
 export interface EstatePlotLayoutItem {
@@ -466,6 +500,13 @@ export const propertyStatuses: Array<Choice<PropertyStatus>> = [
   { value: 'not-for-sale', label: 'Not for Sale' },
 ]
 
+export const editablePropertyStatuses: Array<Choice<PropertyStatus>> = propertyStatuses.filter(
+  (option) =>
+    option.value === 'available' ||
+    option.value === 'hold' ||
+    option.value === 'not-for-sale',
+)
+
 export const propertyTypes: Array<Choice<PropertyType>> = [
   { value: 'plot', label: 'Plot of Land' },
   { value: 'residential', label: 'Residential Building' },
@@ -629,21 +670,4 @@ export interface RealEstateCommercialContext {
   allowsServiceOrder: boolean
   requiresFulfillment: boolean
   invoice: RealEstateContextInvoice | null
-}
-
-export interface RealEstateCommercialHistoryItem {
-  id: number
-  requestId: number
-  requestNumber: string
-  clientName: string
-  serviceName: string
-  requestStatus: string
-  quoteNumber: string
-  invoiceNumber: string
-  assetType: string
-  assetId: number
-  assetName: string
-  releasedAt: string | null
-  releaseReason: string
-  createdAt: string
 }

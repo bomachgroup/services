@@ -9,6 +9,7 @@ import {
   brokeragePropertyTypes,
   brokerageStatuses,
   brokerageVerificationStatuses,
+  type BrokerageListing,
   type CreateBrokerageInput,
   type Estate,
 } from '../real-estate/real-estate.types'
@@ -35,36 +36,62 @@ function numberInputValue(value: number | null | undefined) {
 
 export function CreateBrokerageLiveWorkspace({
   estates,
+  listing = null,
+  mode = 'create',
   defaultEstateId = null,
   saving,
   onClose,
   onSubmit,
 }: {
   estates: Estate[]
+  listing?: BrokerageListing | null
+  mode?: 'create' | 'edit'
   defaultEstateId?: number | null
   saving: boolean
   onClose: () => void
   onSubmit: (i: CreateBrokerageInput) => void
 }) {
-  const [value, setValue] = useState<CreateBrokerageInput>({
-    title: '',
-    description: '',
-    location: '',
-    price: 0,
-    propertyType: 'land',
-    ownerName: '',
-    ownerPhone: '',
-    ownerEmail: '',
-    commissionRate: 5,
-    verificationStatus: 'pending',
-    status: 'available',
-    estateId: defaultEstateId,
-    tags: [],
-    boundary: [],
-    additionalFees: [],
-    documents: [],
-  })
-  const [tags, setTags] = useState('')
+  const [value, setValue] = useState<CreateBrokerageInput>(() =>
+    listing
+      ? {
+          title: listing.title,
+          description: listing.description,
+          location: listing.location,
+          price: listing.price,
+          propertyType: listing.propertyType,
+          ownerName: listing.ownerName,
+          ownerPhone: listing.ownerPhone,
+          ownerEmail: listing.ownerEmail,
+          commissionRate: listing.commissionRate,
+          verificationStatus: listing.verificationStatus,
+          status: listing.status,
+          estateId: listing.estateId,
+          tags: listing.tags,
+          boundary: listing.boundary,
+          additionalFees: listing.additionalFees,
+          images: listing.images.map((image) => image.image),
+          documents: listing.documents,
+        }
+      : {
+          title: '',
+          description: '',
+          location: '',
+          price: 0,
+          propertyType: 'land',
+          ownerName: '',
+          ownerPhone: '',
+          ownerEmail: '',
+          commissionRate: 5,
+          verificationStatus: 'pending',
+          status: 'available',
+          estateId: defaultEstateId,
+          tags: [],
+          boundary: [],
+          additionalFees: [],
+          documents: [],
+        },
+  )
+  const [tags, setTags] = useState(() => listing?.tags.join(', ') ?? '')
   const [error, setError] = useState('')
 
   const setField = <K extends keyof CreateBrokerageInput>(
@@ -78,7 +105,7 @@ export function CreateBrokerageLiveWorkspace({
         className="commercial-modal specialized-real-estate-modal"
         role="dialog"
         aria-modal="true"
-        aria-label="Add Brokerage Property"
+        aria-label={mode === 'edit' ? 'Edit Brokerage Listing' : 'Add Brokerage Property'}
         onMouseDown={(event) => event.stopPropagation()}
         onSubmit={(event) => {
           event.preventDefault()
@@ -96,8 +123,12 @@ export function CreateBrokerageLiveWorkspace({
       >
         <header className="commercial-modal-header">
           <div>
-            <h2>Add Brokerage Listing</h2>
-            <p>Third-party property offered on commission, with verification and estate linking.</p>
+            <h2>{mode === 'edit' ? 'Edit Brokerage Listing' : 'Add Brokerage Listing'}</h2>
+            <p>
+              {mode === 'edit'
+                ? 'Update listing, ownership, pricing and estate relationship details.'
+                : 'Third-party property offered on commission, with verification and estate linking.'}
+            </p>
           </div>
           <button
             type="button"
@@ -184,21 +215,25 @@ export function CreateBrokerageLiveWorkspace({
                 />
               </label>
 
-              <RealEstateFormDropdown
-                label="Verification"
-                options={brokerageVerificationStatuses}
-                value={value.verificationStatus}
-                onChange={(nextValue) =>
-                  setField('verificationStatus', nextValue as typeof value.verificationStatus)
-                }
-              />
+              {mode === 'create' ? (
+                <>
+                  <RealEstateFormDropdown
+                    label="Verification"
+                    options={brokerageVerificationStatuses}
+                    value={value.verificationStatus}
+                    onChange={(nextValue) =>
+                      setField('verificationStatus', nextValue as typeof value.verificationStatus)
+                    }
+                  />
 
-              <RealEstateFormDropdown
-                label="Market status"
-                options={brokerageStatuses}
-                value={value.status}
-                onChange={(nextValue) => setField('status', nextValue as typeof value.status)}
-              />
+                  <RealEstateFormDropdown
+                    label="Market status"
+                    options={brokerageStatuses}
+                    value={value.status}
+                    onChange={(nextValue) => setField('status', nextValue as typeof value.status)}
+                  />
+                </>
+              ) : null}
 
               <label className="commercial-field commercial-form-span">
                 <span>Description</span>
@@ -295,7 +330,7 @@ export function CreateBrokerageLiveWorkspace({
             Cancel
           </button>
           <button type="submit" className="commercial-btn commercial-btn-primary" disabled={saving}>
-            {saving ? 'Adding...' : 'Add Listing'}
+            {saving ? (mode === 'edit' ? 'Saving...' : 'Adding...') : mode === 'edit' ? 'Save changes' : 'Add Listing'}
           </button>
         </footer>
       </form>
