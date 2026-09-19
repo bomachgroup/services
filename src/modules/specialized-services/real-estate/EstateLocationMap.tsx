@@ -2,8 +2,10 @@ import { IconArrowUpRight } from '@tabler/icons-react'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import { useMemo, useState } from 'react'
-import { MapContainer, Polygon, TileLayer, Tooltip, useMap } from 'react-leaflet'
+import { MapContainer, Polygon, TileLayer, Tooltip } from 'react-leaflet'
 
+import { BoundaryMapViewport } from './BoundaryMapViewport'
+import { boundaryPositions, centroidOf, isValidBoundary } from './real-estate-map.utils'
 import type { BoundaryPoint, Property, PropertyStatus } from './real-estate.types'
 
 const STATUS_COLORS: Record<PropertyStatus, string> = {
@@ -15,55 +17,11 @@ const STATUS_COLORS: Record<PropertyStatus, string> = {
   'not-for-sale': '#475569',
 }
 
-function isValidBoundary(boundary: BoundaryPoint[]): boolean {
-  return (
-    boundary.length >= 3 &&
-    boundary.every(
-      (point) =>
-        Number.isFinite(point.lat) &&
-        Number.isFinite(point.lng) &&
-        (point.lat !== 0 || point.lng !== 0) &&
-        point.lat >= -90 &&
-        point.lat <= 90 &&
-        point.lng >= -180 &&
-        point.lng <= 180,
-    )
-  )
-}
-
-function boundaryPositions(boundary: BoundaryPoint[]): [number, number][] {
-  return boundary.map((point) => [point.lat, point.lng])
-}
-
-function centroidOf(boundary: BoundaryPoint[]): { lat: number; lng: number } | null {
-  const valid = boundary.filter(
-    (p) => Number.isFinite(p.lat) && Number.isFinite(p.lng) && (p.lat !== 0 || p.lng !== 0),
-  )
-  if (!valid.length) return null
-  return {
-    lat: valid.reduce((sum, p) => sum + p.lat, 0) / valid.length,
-    lng: valid.reduce((sum, p) => sum + p.lng, 0) / valid.length,
-  }
-}
-
 function estateBoardLabel(property: Property) {
   if (property.plotNumber != null) return `Plot ${property.plotNumber}`
   const match = property.propertyName.match(/^plot\s*0*(\d+)$/i)
   if (match) return `Plot ${Number(match[1])}`
   return property.propertyName
-}
-
-function FitToBoundaries({ frames }: { frames: L.LatLngTuple[][] }) {
-  const map = useMap()
-  const framesKey = useMemo(() => JSON.stringify(frames), [frames])
-
-  useMemo(() => {
-    const points = JSON.parse(framesKey) as L.LatLngTuple[]
-    if (points.length < 2) return
-    map.fitBounds(L.latLngBounds(points), { padding: [24, 24] })
-  }, [map, framesKey])
-
-  return null
 }
 
 export interface EstateLocationMapProps {
@@ -121,7 +79,7 @@ export function EstateLocationMap({ estateBoundary, properties }: EstateLocation
             className={googleMode === 'drawing' ? 'is-active' : ''}
             onClick={() => setGoogleMode('drawing')}
           >
-            Drawing
+            Boundary map
           </button>
           <button
             type="button"
@@ -236,7 +194,7 @@ export function EstateLocationMap({ estateBoundary, properties }: EstateLocation
               </Polygon>
             )
           })}
-          <FitToBoundaries frames={frames} />
+          <BoundaryMapViewport frames={frames} />
         </MapContainer>
       )}
       <div className="specialized-estate-map-legend">
@@ -257,7 +215,7 @@ export function EstateLocationMap({ estateBoundary, properties }: EstateLocation
         </span>
         {plotFrames.length ? (
           <span className="specialized-estate-map-plot-count">
-            {plotFrames.length} plot outline{plotFrames.length === 1 ? '' : 's'} shown
+            {plotFrames.length} propert{plotFrames.length === 1 ? 'y outline' : 'y outlines'} shown
           </span>
         ) : null}
       </div>

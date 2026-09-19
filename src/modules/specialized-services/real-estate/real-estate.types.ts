@@ -131,6 +131,7 @@ export interface Estate {
   allowInstallment: boolean
   installmentDownPaymentPercent: number | null
   installmentMonths: number | null
+  installmentGracePeriodDays: number
   isActive: boolean
   createdAt: string
   updatedAt: string
@@ -165,24 +166,44 @@ export interface EstateStats {
 }
 
 export interface PortfolioStats {
-  units: {
+  projects: {
+    total: number
+  }
+  ownedUnits: {
     total: number
     available: number
     underOffer: number
     reserved: number
     sold: number
   }
-  properties: {
+  standaloneUnits: {
     total: number
-    inEstate: number
-    standalone: number
+    available: number
+    underOffer: number
+    reserved: number
+    sold: number
   }
-  estatesWithPlots: {
-    available: number[]
-    underOffer: number[]
-    reserved: number[]
-    sold: number[]
+  brokerageListings: {
+    total: number
+    available: number
+    sold: number
+    linked: number
+    unlinked: number
   }
+  managedAssets: {
+    total: number
+  }
+  estateSummaries: Record<
+    string,
+    {
+      ownedUnits: number
+      available: number
+      underOffer: number
+      reserved: number
+      sold: number
+      linkedBrokerage: number
+    }
+  >
 }
 
 export interface EstatePlotLayoutItem {
@@ -256,6 +277,7 @@ export interface CreateEstateInput {
   allowInstallment?: boolean
   installmentDownPaymentPercent?: number | null
   installmentMonths?: number | null
+  installmentGracePeriodDays?: number | null
 }
 
 export interface PropertyImage {
@@ -300,6 +322,16 @@ export interface Property {
   totalAreaCommercial: number | null
   numberOfFloors: number | null
   unitsOffices: number | null
+  allowReservation: boolean
+  reservationPercent: number | null
+  reservationDurationHours: number | null
+  requestClaimHoldHours: number
+  reservationRefundable: boolean
+  reservationRetentionPercent: number
+  allowInstallment: boolean
+  installmentDownPaymentPercent: number | null
+  installmentMonths: number | null
+  installmentGracePeriodDays: number
   images: PropertyImage[]
   documents: NamedDocument[]
   isActive: boolean
@@ -347,6 +379,16 @@ export interface CreatePropertyInput {
   totalAreaCommercial?: number | null
   numberOfFloors?: number | null
   unitsOffices?: number | null
+  allowReservation?: boolean
+  reservationPercent?: number | null
+  reservationDurationHours?: number | null
+  requestClaimHoldHours?: number
+  reservationRefundable?: boolean
+  reservationRetentionPercent?: number
+  allowInstallment?: boolean
+  installmentDownPaymentPercent?: number | null
+  installmentMonths?: number | null
+  installmentGracePeriodDays?: number
   images?: string[]
   documents?: Array<Partial<NamedDocument> & { fileUrl?: string }>
 }
@@ -400,6 +442,16 @@ export interface BrokerageListing {
   estateId: number | null
   tags: string[]
   additionalFees: AdditionalFee[]
+  allowReservation: boolean
+  reservationPercent: number | null
+  reservationDurationHours: number | null
+  requestClaimHoldHours: number
+  reservationRefundable: boolean
+  reservationRetentionPercent: number
+  allowInstallment: boolean
+  installmentDownPaymentPercent: number | null
+  installmentMonths: number | null
+  installmentGracePeriodDays: number
   pricingHistory: PricingHistoryEvent[]
   isActive: boolean
   images: Array<{ id: number; image: string; caption: string; createdAt: string }>
@@ -454,6 +506,16 @@ export interface CreateBrokerageInput {
   images?: string[]
   documents?: Array<Partial<NamedDocument> & { fileUrl?: string }>
   additionalFees?: AdditionalFee[]
+  allowReservation?: boolean
+  reservationPercent?: number | null
+  reservationDurationHours?: number | null
+  requestClaimHoldHours?: number
+  reservationRefundable?: boolean
+  reservationRetentionPercent?: number
+  allowInstallment?: boolean
+  installmentDownPaymentPercent?: number | null
+  installmentMonths?: number | null
+  installmentGracePeriodDays?: number
   pricingChangeReason?: string
 }
 
@@ -587,14 +649,21 @@ export interface RealEstateRequestAsset {
   assetStatus: string
   price: number
   settlementMode: string
+  commercialState: string
+  stateChangedAt: string | null
+  stateReason: string
+  commercialHoldExpiresAt: string | null
+  defaultedAt: string | null
   reservationExpiresAt: string | null
   claimExpiresAt: string | null
   paymentPlan: Record<string, unknown>
   releasedAt: string | null
   releaseReason: string
+  availableActions: string[]
 }
 
 export interface RealEstatePaymentPolicy {
+  source: string
   allowReservation: boolean
   reservationPercent: number | null
   reservationDurationHours: number | null
@@ -604,6 +673,8 @@ export interface RealEstatePaymentPolicy {
   allowInstallment: boolean
   installmentDownPaymentPercent: number | null
   installmentMonths: number | null
+  installmentGracePeriodDays: number
+  allowedSettlementModes: Array<'full_payment' | 'reservation' | 'installment'>
   termsSummary: string[]
 }
 
@@ -638,12 +709,22 @@ export interface RealEstateCommercialHistoryItem {
   clientName: string
   serviceName: string
   requestStatus: string
+  quoteId: number | null
   quoteNumber: string
+  quoteStatus: string
+  invoiceId: number | null
   invoiceNumber: string
+  invoiceStatus: string
   assetType: string
   assetId: number
   assetName: string
   releasedAt: string | null
   releaseReason: string
+  reservationExpiresAt: string | null
+  commercialState: string
+  stateReason: string
+  stateChangedAt: string | null
+  defaultedAt: string | null
   createdAt: string
+  isCurrent: boolean
 }

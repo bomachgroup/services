@@ -14,6 +14,7 @@ type OptionItem = {
 type OptionSource = readonly OptionItem[] | OptionItem[]
 
 type RealEstateFormDropdownProps = {
+  id?: string | undefined
   label: string
   required?: boolean
   value: string
@@ -23,6 +24,8 @@ type RealEstateFormDropdownProps = {
   placeholder?: string
   searchable?: boolean
   loading?: boolean
+  error?: string | undefined
+  invalid?: boolean
   fieldClassName?: string
   className?: string
   fullWidth?: boolean
@@ -40,6 +43,7 @@ function normalizeOptions(options: OptionSource): DropdownOption[] {
 }
 
 export function RealEstateFormDropdown({
+  id,
   label,
   required = false,
   value,
@@ -49,6 +53,8 @@ export function RealEstateFormDropdown({
   placeholder,
   searchable,
   loading = false,
+  error,
+  invalid = false,
   fieldClassName = 'commercial-field',
   className,
   fullWidth = true,
@@ -57,6 +63,7 @@ export function RealEstateFormDropdown({
 
   return (
     <DropdownSelect
+      id={id}
       label={label}
       required={required}
       fullWidth={fullWidth}
@@ -67,6 +74,8 @@ export function RealEstateFormDropdown({
       onChange={onChange}
       disabled={disabled}
       loading={loading}
+      error={error}
+      invalid={invalid || Boolean(error)}
       placeholder={placeholder}
       searchable={searchable ?? normalizedOptions.length >= 6}
     />

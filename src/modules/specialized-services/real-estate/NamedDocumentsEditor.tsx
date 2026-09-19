@@ -7,6 +7,7 @@ import {
   IconPlus,
   IconRefresh,
   IconTrash,
+  IconX,
 } from '@tabler/icons-react'
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react'
 
@@ -41,7 +42,6 @@ function documentIcon(name: string, fileUrl?: string): ReactNode {
 }
 
 function documentStatus(document: EditableNamedDocument) {
-  if (document.uploadState === 'uploading') return 'Uploading…'
   if (document.uploadState === 'failed') return document.error || 'Upload failed'
   return null
 }
@@ -212,13 +212,33 @@ export function NamedDocumentsEditor({
                 key={document.id != null ? `doc-${document.id}` : `doc-${document.file ?? index}`}
                 className="specialized-document-card"
                 data-state={document.uploadState ?? 'ready'}
+                aria-busy={document.uploadState === 'uploading'}
               >
                 <div className="specialized-document-card-icon" aria-hidden="true">
                   {documentIcon(document.name || 'Document', fileUrl)}
                 </div>
                 <div className="specialized-document-card-body">
                   <strong>{document.name || 'Document'}</strong>
-                  {status ? <span className="specialized-document-card-meta">{status}</span> : null}
+                  {document.uploadState === 'uploading' ? (
+                    <div
+                      className="specialized-document-card-upload"
+                      role="status"
+                      aria-live="polite"
+                    >
+                      <span className="specialized-document-card-meta">Uploading</span>
+                      <div
+                        className="commercial-upload-progress"
+                        role="progressbar"
+                        aria-label={`Uploading ${document.name || 'document'}`}
+                      >
+                        <div className="commercial-upload-progress-bar" />
+                      </div>
+                    </div>
+                  ) : status ? (
+                    <span className="specialized-document-card-meta" role="status">
+                      {status}
+                    </span>
+                  ) : null}
                 </div>
                 <div className="specialized-document-card-actions">
                   {fileUrl &&
@@ -249,7 +269,11 @@ export function NamedDocumentsEditor({
                     aria-label={`Remove ${document.name || 'document'}`}
                     onClick={() => removeDoc(index)}
                   >
-                    <IconTrash size={15} />
+                    {document.uploadState === 'uploading' ? (
+                      <IconX size={15} />
+                    ) : (
+                      <IconTrash size={15} />
+                    )}
                   </button>
                 </div>
               </article>
@@ -259,11 +283,6 @@ export function NamedDocumentsEditor({
           <div className="commercial-empty">No documents added yet.</div>
         )}
       </div>
-      {isUploading ? (
-        <div className="commercial-field-hint">
-          Waiting for document upload to finish before saving…
-        </div>
-      ) : null}
     </section>
   )
 }

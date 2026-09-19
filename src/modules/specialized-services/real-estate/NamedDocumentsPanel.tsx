@@ -14,6 +14,7 @@ import {
 import { fileNameFromUrl } from '@/modules/commercial/request-intake/file-presentation.utils'
 
 import type { NamedDocument } from './real-estate.types'
+import { isFileReference } from './named-documents.utils'
 
 function documentIcon(document: NamedDocument): ReactNode {
   const source = `${document.name} ${document.file}`.toLowerCase()
@@ -32,16 +33,28 @@ function documentIcon(document: NamedDocument): ReactNode {
   return <IconFile size={18} />
 }
 
-function isFileReference(value: string): boolean {
-  return value.startsWith('http') || value.startsWith('/') || value.startsWith('blob:')
+function documentDateLabel(value: string) {
+  if (!value) return 'Date unavailable'
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return 'Date unavailable'
+  return date.toLocaleDateString(undefined, {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+  })
 }
 
 /**
- * Read-only viewer for documents already attached to an estate record.
- * Shows every named document collected for the estate; each one opens the
- * in-app preview modal (inline image/PDF) with a new-tab fallback.
+ * Read-only viewer for named documents attached to an estate or property.
+ * Each document opens the in-app preview modal with a new-tab fallback.
  */
-export function NamedDocumentsPanel({ documents }: { documents: NamedDocument[] }) {
+export function NamedDocumentsPanel({
+  documents,
+  entityLabel = 'estate',
+}: {
+  documents: NamedDocument[]
+  entityLabel?: string
+}) {
   const [previewDocument, setPreviewDocument] = useState<PreviewDocument | null>(null)
   const viewableDocuments = documents.filter((document) => isFileReference(document.file))
 
@@ -69,7 +82,7 @@ export function NamedDocumentsPanel({ documents }: { documents: NamedDocument[] 
               <span className="specialized-estate-document-body">
                 <strong>{document.name || 'Document'}</strong>
                 <time dateTime={document.createdAt || undefined}>
-                  {document.createdAt ? new Date(document.createdAt).toLocaleDateString() : '—'}
+                  {documentDateLabel(document.createdAt)}
                 </time>
               </span>
             </button>
@@ -77,7 +90,7 @@ export function NamedDocumentsPanel({ documents }: { documents: NamedDocument[] 
         </div>
       ) : (
         <p className="specialized-estate-documents-empty">
-          No documents collected for this estate yet.
+          No documents collected for this {entityLabel} yet.
         </p>
       )}
 

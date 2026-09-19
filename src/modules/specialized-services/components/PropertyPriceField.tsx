@@ -11,6 +11,8 @@ export function PropertyPriceField({
   estateRatePerSqm,
   areaSqm,
   disabled = false,
+  error,
+  inputId,
   onPricingModeChange,
   onPriceChange,
 }: {
@@ -21,6 +23,8 @@ export function PropertyPriceField({
   estateRatePerSqm: number | null | undefined
   areaSqm: number | null | undefined
   disabled?: boolean
+  error?: string | undefined
+  inputId?: string | undefined
   onPricingModeChange: (mode: PricingMode) => void
   onPriceChange: (price: number | null) => void
 }) {
@@ -35,7 +39,7 @@ export function PropertyPriceField({
     <div
       className={
         isManual
-          ? 'commercial-field specialized-property-price-field'
+          ? `commercial-field specialized-property-price-field${error ? 'commercial-field--invalid' : ''}`
           : 'commercial-field specialized-property-price-field is-locked'
       }
     >
@@ -72,9 +76,11 @@ export function PropertyPriceField({
           ₦
         </span>
         <GroupedNumberInput
+          id={inputId}
           className="specialized-property-price-input"
           value={displayPrice}
           disabled={disabled || !isManual}
+          invalid={Boolean(error)}
           placeholder="0"
           onChange={(nextValue) => onPriceChange(nextValue > 0 ? nextValue : null)}
         />
@@ -89,6 +95,7 @@ export function PropertyPriceField({
           Manual override of the estate rate.
         </small>
       ) : null}
+      {error ? <small className="commercial-field-error">{error}</small> : null}
     </div>
   )
 }

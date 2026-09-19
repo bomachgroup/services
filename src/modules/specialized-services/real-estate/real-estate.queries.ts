@@ -47,11 +47,23 @@ export const realEstateQueries = {
       placeholderData: (p) => p,
       staleTime: 10_000,
     }),
+  propertyDetail: (estateId: number, id: number) =>
+    queryOptions({
+      queryKey: realEstateKeys.propertyDetail(estateId, id),
+      queryFn: () => realEstateApi.propertyDetail(estateId, id),
+      staleTime: 10_000,
+    }),
   standaloneProperties: (f: PropertyFilters) =>
     queryOptions({
       queryKey: realEstateKeys.standalonePropertyList(f),
       queryFn: () => realEstateApi.listStandaloneProperties(f),
       placeholderData: (p) => p,
+      staleTime: 10_000,
+    }),
+  standalonePropertyDetail: (id: number) =>
+    queryOptions({
+      queryKey: realEstateKeys.standalonePropertyDetail(id),
+      queryFn: () => realEstateApi.standalonePropertyDetail(id),
       staleTime: 10_000,
     }),
   brokerage: (f: BrokerageFilters) =>
