@@ -160,11 +160,11 @@ export function Request360Workspace({
           className="commercial-modal commercial-modal--xl commercial-request360"
           role="dialog"
           aria-modal="true"
-          aria-label={`Request 360 File — ${request.id}`}
+          aria-label={`Request 360 File - ${request.id}`}
           onMouseDown={(event) => event.stopPropagation()}
         >
           <header className="commercial-modal-header">
-            <h2>Request 360 File — {request.id}</h2>
+            <h2>Request 360 File - {request.id}</h2>
             <button
               type="button"
               className="commercial-modal-close"
@@ -230,7 +230,7 @@ export function Request360Workspace({
                     </div>
                     <div>
                       <div className="commercial-kl">Phone</div>
-                      <b>{request.phone || '—'}</b>
+                      <b>{request.phone || '-'}</b>
                     </div>
                     <div>
                       <div className="commercial-kl">Customer type</div>

@@ -8,7 +8,7 @@ import {
   IconX,
 } from '@tabler/icons-react'
 import { useForm } from '@tanstack/react-form'
-import { useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery } from '@tanstack/react-query'
 import { useRef, useState } from 'react'
 
 import { presentError } from '@/shared/errors'
@@ -19,6 +19,7 @@ import { GroupedNumberInput } from '@/shared/ui/grouped-number-input'
 import { useToast } from '@/shared/ui/toast/useToast'
 import { DropdownSelect, mapDropdownOptions } from '@/shared/ui/dropdown-select'
 import { realEstateQueries } from '@/modules/specialized-services/real-estate/real-estate.queries'
+import { realEstateApi } from '@/modules/specialized-services/real-estate/real-estate.api'
 
 import { serviceRequestsApi } from '../api/service-requests.api'
 import { getServiceRequestCapabilities } from '../api/service-request-capabilities'
@@ -76,9 +77,9 @@ interface PendingAttachmentUpload {
 function renderAnswerValue(value: unknown) {
   if (Array.isArray(value)) return value.map((item) => String(item)).join(', ')
   if (typeof value === 'boolean') return value ? 'Yes' : 'No'
-  if (typeof value === 'string') return value || '—'
+  if (typeof value === 'string') return value || '-'
   if (typeof value === 'number') return String(value)
-  return '—'
+  return '-'
 }
 
 function normalizeAttachmentText(value: string | null | undefined) {
@@ -274,6 +275,31 @@ export function ServiceRequestDetailWorkspace({
   const realEstateContextQuery = useQuery(realEstateQueries.commercialContext(request.id))
   const realEstateContext = realEstateContextQuery.data
   const hasRealEstateAssets = Boolean(realEstateContext?.assets.length)
+  const commercialReviewRequired = Boolean(
+    realEstateContext?.assets.some((asset) =>
+      [
+        'reservation_expired',
+        'installment_defaulted',
+        'finance_review_required',
+        'partial_payment_pending',
+      ].includes(asset.commercialState),
+    ),
+  )
+  const releaseExpiredReservationMutation = useMutation({
+    mutationFn: () => realEstateApi.releaseExpiredReservation(request.id),
+    onSuccess: async () => {
+      await realEstateContextQuery.refetch()
+      toast.success('Expired reservation released', {
+        description:
+          'The property is available again. Finance review remains required for recorded payments.',
+      })
+    },
+    onError: (error) => {
+      toast.error('Reservation could not be released', {
+        description: presentError(error, 'background-action').message,
+      })
+    },
+  })
 
   const handleBalancePlan = async (mode: 'full_payment' | 'installment') => {
     setPlanSaving(mode)
@@ -579,7 +605,7 @@ export function ServiceRequestDetailWorkspace({
   const triageActions = isStatusTriage ? (TRIAGE_ACTIONS[request.status] ?? []) : []
   const triageBusy = saving || !capabilities.canEditControlPanel
   // Post-quote records faked into quoted/awaiting_client before the manual
-  // blackout have no quotation behind them — offer a single way back.
+  // blackout have no quotation behind them - offer a single way back.
   const showUnstrandHatch =
     !isStatusTriage &&
     (request.status === 'quoted' || request.status === 'awaiting_client') &&
@@ -690,11 +716,11 @@ export function ServiceRequestDetailWorkspace({
             <div className="commercial-request360-summary-strip" aria-label="Request summary">
               <div>
                 <span>Client</span>
-                <b>{commercialEmptyLabel(request.clientName, '—')}</b>
+                <b>{commercialEmptyLabel(request.clientName, '-')}</b>
               </div>
               <div>
                 <span>Service</span>
-                <b>{commercialEmptyLabel(request.serviceName, '—')}</b>
+                <b>{commercialEmptyLabel(request.serviceName, '-')}</b>
               </div>
               <div>
                 <span>Estimate</span>
@@ -832,8 +858,8 @@ export function ServiceRequestDetailWorkspace({
                                 feeLines.map((fee) => (
                                   <div key={`${fee.sortOrder}-${fee.description}`}>
                                     <span>
-                                      {fee.description.includes('—')
-                                        ? fee.description.split('—').slice(1).join('—').trim()
+                                      {fee.description.includes('-')
+                                        ? fee.description.split('-').slice(1).join('-').trim()
                                         : fee.description}
                                       <small className="commercial-request360-fee-timing">
                                         {feeTimingLabel(fee.paymentTiming)}
@@ -858,25 +884,56 @@ export function ServiceRequestDetailWorkspace({
                                 }`}
                               >
                                 {holdInfo.expired
-                                  ? `Reservation hold expired ${holdInfo.when}${
-                                      realEstateContext.invoice
-                                        ? ` with ${formatCurrency(realEstateContext.invoice.balance)} still outstanding`
-                                        : ''
-                                    } — chase payment or reset the property in inventory.`
+                                  ? asset.commercialState === 'reservation_expired'
+                                    ? `The reservation period ended ${holdInfo.when}. The transaction remains protected until staff completes the release review.`
+                                    : `The commercial hold ended ${holdInfo.when}. This transaction remains protected and requires staff review before it can continue.`
                                   : `Reservation hold expires ${holdInfo.when}${
                                       realEstateContext.invoice &&
                                       realEstateContext.invoice.balance > 0
-                                        ? ` — ${formatCurrency(realEstateContext.invoice.balance)} is due before then or the hold lapses.`
-                                        : ' — chase the balance before then.'
+                                        ? `. ${formatCurrency(realEstateContext.invoice.balance)} remains due before the hold lapses.`
+                                        : '. Complete the balance before the hold lapses.'
                                     }`}
                               </div>
                             ) : null}
 
+                            {asset.commercialState !== 'soft_claim' ? (
+                              <div className="commercial-form-note">
+                                <strong>
+                                  {asset.commercialState === 'reservation_expired'
+                                    ? 'Reservation expired and is awaiting staff release.'
+                                    : asset.commercialState === 'installment_defaulted'
+                                      ? 'Installment default recorded. The property remains protected.'
+                                      : asset.commercialState === 'finance_review_required'
+                                        ? 'Finance review is required before this transaction can settle.'
+                                        : asset.commercialState.replaceAll('_', ' ')}
+                                </strong>
+                                {asset.availableActions.includes('release_expired_reservation') ? (
+                                  <button
+                                    type="button"
+                                    className="commercial-btn commercial-btn-small"
+                                    disabled={releaseExpiredReservationMutation.isPending}
+                                    onClick={() => {
+                                      if (
+                                        window.confirm(
+                                          'Release this expired reservation and make the property available again?',
+                                        )
+                                      ) {
+                                        releaseExpiredReservationMutation.mutate()
+                                      }
+                                    }}
+                                  >
+                                    {releaseExpiredReservationMutation.isPending
+                                      ? 'Releasing...'
+                                      : 'Release expired reservation'}
+                                  </button>
+                                ) : null}
+                              </div>
+                            ) : null}
                             <p className="commercial-form-note">
                               {asset.settlementMode === 'reservation'
-                                ? 'Settlement mode: reservation hold. Estate reservation rules apply when payment starts.'
+                                ? 'Settlement mode: reservation hold. The selected asset policy controls the reservation terms.'
                                 : asset.settlementMode === 'installment'
-                                  ? 'Settlement mode: installment plan. Down payment and schedule follow estate policy at quotation.'
+                                  ? 'Settlement mode: installment plan. The selected asset policy controls the down payment and schedule.'
                                   : 'Settlement mode: full payment. Ownership transfers after confirmed settlement.'}
                               {asset.claimExpiresAt
                                 ? ` Soft claim expires ${new Date(asset.claimExpiresAt).toLocaleString()}.`
@@ -886,7 +943,13 @@ export function ServiceRequestDetailWorkspace({
                         )
                       })}
                     </div>
-                    {realEstateContext.paymentPolicy.allowInstallment ? (
+                    {realEstateContext.paymentPolicy.allowInstallment &&
+                    commercialReviewRequired ? (
+                      <p className="commercial-form-note">
+                        Balance plan changes are unavailable while this transaction is under
+                        commercial or finance review.
+                      </p>
+                    ) : realEstateContext.paymentPolicy.allowInstallment ? (
                       <div className="commercial-form-note">
                         <span>Balance plan: choose how the remaining balance settles.</span>
                         <div>
@@ -910,7 +973,7 @@ export function ServiceRequestDetailWorkspace({
                       </div>
                     ) : (
                       <p className="commercial-form-note">
-                        Balance settles in full — this estate does not allow installment.
+                        Balance settles in full - this estate does not allow installment.
                       </p>
                     )}
                   </section>
@@ -1035,7 +1098,7 @@ export function ServiceRequestDetailWorkspace({
                       <div>
                         <h3>Direct billing</h3>
                         <p>
-                          Package price plus charges below — invoiced with no quotation or
+                          Package price plus charges below - invoiced with no quotation or
                           approvals.
                         </p>
                       </div>
@@ -1122,24 +1185,24 @@ export function ServiceRequestDetailWorkspace({
                   <div className="commercial-info-grid commercial-info-grid--side">
                     <div>
                       <div className="commercial-kl">Contact</div>
-                      <b>{commercialEmptyLabel(request.contactName, '—')}</b>
+                      <b>{commercialEmptyLabel(request.contactName, '-')}</b>
                     </div>
                     <div>
                       <div className="commercial-kl">Phone</div>
-                      <b>{commercialEmptyLabel(request.contactPhone, '—')}</b>
+                      <b>{commercialEmptyLabel(request.contactPhone, '-')}</b>
                     </div>
                     <div className="commercial-info-full">
                       <div className="commercial-kl">Email</div>
-                      <b>{commercialEmptyLabel(request.contactEmail, '—')}</b>
+                      <b>{commercialEmptyLabel(request.contactEmail, '-')}</b>
                     </div>
                     <div>
                       <div className="commercial-kl">Customer type</div>
-                      <b>{commercialEmptyLabel(request.customerType, '—')}</b>
+                      <b>{commercialEmptyLabel(request.customerType, '-')}</b>
                     </div>
                     <div>
                       <div className="commercial-kl">Source</div>
                       <b>
-                        {commercialEmptyLabel(request.source, '—')}
+                        {commercialEmptyLabel(request.source, '-')}
                         {request.sourceReference ? ` · ${request.sourceReference}` : ''}
                       </b>
                     </div>
@@ -1158,7 +1221,7 @@ export function ServiceRequestDetailWorkspace({
                       <>
                         <div>
                           <div className="commercial-kl">Budget</div>
-                          <b>{request.budget == null ? '—' : formatCurrency(request.budget)}</b>
+                          <b>{request.budget == null ? '-' : formatCurrency(request.budget)}</b>
                         </div>
                         <div>
                           <div className="commercial-kl">Estimate</div>
@@ -1270,7 +1333,7 @@ export function ServiceRequestDetailWorkspace({
                                 </span>
                                 <span className="commercial-status-option-text">
                                   <b>Reject request</b>
-                                  <small>Ends triage — terminal, cannot be undone here</small>
+                                  <small>Ends triage - terminal, cannot be undone here</small>
                                 </span>
                                 <IconChevronRight
                                   size={14}
@@ -1289,7 +1352,7 @@ export function ServiceRequestDetailWorkspace({
                                     onClick={() =>
                                       applyStatusAction(
                                         'rejected',
-                                        'Request rejected — see journal',
+                                        'Request rejected - see journal',
                                       )
                                     }
                                   >
@@ -1342,7 +1405,7 @@ export function ServiceRequestDetailWorkspace({
                               onClick={() =>
                                 applyStatusAction(
                                   'under_review',
-                                  'Returned to review — no quotation linked',
+                                  'Returned to review - no quotation linked',
                                 )
                               }
                             >
@@ -1531,7 +1594,7 @@ export function ServiceRequestDetailWorkspace({
                   disabled={!canPrepareQuotation}
                   title={
                     estimateStale
-                      ? 'Inputs changed — re-run the estimate before quoting.'
+                      ? 'Inputs changed - re-run the estimate before quoting.'
                       : undefined
                   }
                   onClick={onPrepareQuotation}
@@ -1546,8 +1609,8 @@ export function ServiceRequestDetailWorkspace({
                   disabled={!canCreateInvoice || saving}
                   title={
                     estimateStale
-                      ? 'Inputs changed — re-run the estimate before invoicing.'
-                      : 'Invoice package price plus charges below — no quotation.'
+                      ? 'Inputs changed - re-run the estimate before invoicing.'
+                      : 'Invoice package price plus charges below - no quotation.'
                   }
                   onClick={submitDirectInvoice}
                 >

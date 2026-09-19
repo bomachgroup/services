@@ -683,9 +683,9 @@ export function ServiceRequestsLivePage({ recordSearch }: { recordSearch: AppSec
                       <td>
                         <span
                           className="commercial-table-truncate commercial-table-truncate--next"
-                          title={request.nextAction || '—'}
+                          title={request.nextAction || '-'}
                         >
-                          {request.nextAction || '—'}
+                          {request.nextAction || '-'}
                         </span>
                       </td>
                       <td>

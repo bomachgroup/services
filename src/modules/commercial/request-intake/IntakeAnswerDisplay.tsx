@@ -3,7 +3,7 @@ export function IntakeMultiselectAnswer({ value }: { value: unknown }) {
     ? value.map((item) => String(item)).filter((item) => item.length > 0)
     : []
 
-  if (items.length === 0) return <b>—</b>
+  if (items.length === 0) return <b>-</b>
 
   return (
     <div className="commercial-answer-chips">
