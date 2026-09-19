@@ -329,7 +329,7 @@ export function CreateDeliverableLiveWorkspace({
                 </div>
                 <div>
                   <div className="commercial-kl">Stage</div>
-                  <b>{activeOrder.stage || '—'}</b>
+                  <b>{activeOrder.stage || '-'}</b>
                 </div>
                 <div>
                   <div className="commercial-kl">Status</div>

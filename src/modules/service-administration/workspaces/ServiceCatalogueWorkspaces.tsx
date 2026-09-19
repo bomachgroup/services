@@ -306,9 +306,9 @@ export function CreateServiceWizard({
       }
     }
     if (stage === 'pricing') {
-      // Specialized services: calculator select is optional — always pass.
+      // Specialized services: calculator select is optional - always pass.
       if (isSpecializedPricing) return null
-      // Quotation mode stores nothing on the service — always pass.
+      // Quotation mode stores nothing on the service - always pass.
       if (pricingMode === 'quotation') return null
       // Calculator mode requires a calculator.
       if (!calculatorCode.trim()) {
@@ -726,7 +726,7 @@ export function CreateServiceWizard({
                 </Field>
                 {pricingMode === 'quotation' ? (
                   <div className="service-admin-notice service-admin-notice-blue">
-                    <b>Quotation-based.</b> Nothing is stored here — staff set the primary price,
+                    <b>Quotation-based.</b> Nothing is stored here - staff set the primary price,
                     deposit, tax and discount on each quotation.
                   </div>
                 ) : (
@@ -736,7 +736,7 @@ export function CreateServiceWizard({
                     error={fieldErrors.calculatorCode}
                     hint={
                       !calculatorsLoading && calculators.length === 0
-                        ? 'No calculators available — use quotation mode or ask an admin to activate one.'
+                        ? 'No calculators available - use quotation mode or ask an admin to activate one.'
                         : undefined
                     }
                   >
@@ -1093,9 +1093,9 @@ export function ConfigureServiceWorkspace({
       return null
     }
     if (index === 1) {
-      // Specialized services: calculator select is optional — always pass.
+      // Specialized services: calculator select is optional - always pass.
       if (isSpecializedPricing) return null
-      // Quotation mode stores nothing on the service — always pass.
+      // Quotation mode stores nothing on the service - always pass.
       if (pricingMode === 'quotation') return null
       // Calculator mode requires a calculator.
       if (!calculatorCode.trim()) {
@@ -1446,7 +1446,7 @@ export function ConfigureServiceWorkspace({
                   </Field>
                   {pricingMode === 'quotation' ? (
                     <div className="service-admin-notice service-admin-notice-blue">
-                      <b>Quotation-based.</b> Nothing is stored here — staff set the primary price,
+                      <b>Quotation-based.</b> Nothing is stored here - staff set the primary price,
                       deposit, tax and discount on each quotation.
                     </div>
                   ) : (
@@ -1456,7 +1456,7 @@ export function ConfigureServiceWorkspace({
                       error={fieldErrors.calculatorCode}
                       hint={
                         !calculatorsLoading && calculators.length === 0
-                          ? 'No calculators available — use quotation mode or ask an admin to activate one.'
+                          ? 'No calculators available - use quotation mode or ask an admin to activate one.'
                           : undefined
                       }
                     >

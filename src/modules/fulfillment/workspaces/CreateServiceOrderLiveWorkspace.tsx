@@ -114,7 +114,7 @@ export function CreateServiceOrderLiveWorkspace({
                   options={mapDropdownOptions(
                     eligibleInvoices.map((item) => ({
                       value: String(item.id),
-                      label: `${item.invoiceNumber} — ${item.serviceName} — ${formatCurrency(item.totalAmount)}`,
+                      label: `${item.invoiceNumber} - ${item.serviceName} - ${formatCurrency(item.totalAmount)}`,
                     })),
                   )}
                   value={String(invoice.id)}
@@ -138,7 +138,7 @@ export function CreateServiceOrderLiveWorkspace({
               </div>
               <div>
                 <div className="commercial-kl">Quote</div>
-                <b>{invoice.quoteNumber || '—'}</b>
+                <b>{invoice.quoteNumber || '-'}</b>
               </div>
               <div>
                 <div className="commercial-kl">Order value</div>

@@ -166,8 +166,8 @@ function ActionItemsCard({ items }: { items: DashboardAttentionItem[] }) {
                     {item.priority ?? item.severity}
                   </span>
                 </td>
-                <td>{item.dueLabel ?? '—'}</td>
-                <td>{item.description || '—'}</td>
+                <td>{item.dueLabel ?? '-'}</td>
+                <td>{item.description || '-'}</td>
               </tr>
             ))}
           </tbody>

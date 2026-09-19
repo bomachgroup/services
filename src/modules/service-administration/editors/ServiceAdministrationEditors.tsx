@@ -311,7 +311,7 @@ export function CalculatorEditor({
             </div>
           </EditorField>
         ) : null}
-        <EditorField label="Fields — variable|Label|default, one per line" full>
+        <EditorField label="Fields - variable|Label|default, one per line" full>
           <textarea value={fieldsText} onChange={(event) => setFieldsText(event.target.value)} />
         </EditorField>
       </div>
@@ -431,7 +431,7 @@ export function RequestFormEditor({
             <option value="inactive">Inactive</option>
           </select>
         </EditorField>
-        <EditorField label="Fields — Label|type|required|options, one per line" full>
+        <EditorField label="Fields - Label|type|required|options, one per line" full>
           <textarea value={fieldsText} onChange={(event) => setFieldsText(event.target.value)} />
         </EditorField>
       </div>
@@ -540,7 +540,7 @@ export function WorkflowEditor({
           </select>
         </EditorField>
         <EditorField
-          label="Stages — Name|Owner|SLA hours|evidence|approval|visible, one per line"
+          label="Stages - Name|Owner|SLA hours|evidence|approval|visible, one per line"
           full
         >
           <textarea value={stagesText} onChange={(event) => setStagesText(event.target.value)} />

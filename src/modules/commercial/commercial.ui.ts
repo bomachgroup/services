@@ -1,6 +1,6 @@
 import { formatCurrency } from '@/shared/lib/formatters'
 
-/** Shared naira formatter — matches Service Operations HTML `money()`. */
+/** Shared naira formatter - matches Service Operations HTML `money()`. */
 export const commercialMoney = {
   format: formatCurrency,
 }

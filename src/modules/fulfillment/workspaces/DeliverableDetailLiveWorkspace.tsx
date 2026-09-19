@@ -131,7 +131,7 @@ export function DeliverableDetailLiveWorkspace({
       >
         <header className="commercial-modal-header">
           <div className="min-w-0">
-            <h2>Deliverable — {deliverable.deliverableNumber}</h2>
+            <h2>Deliverable - {deliverable.deliverableNumber}</h2>
             <p>
               {order.orderNumber} · {order.serviceName}
             </p>

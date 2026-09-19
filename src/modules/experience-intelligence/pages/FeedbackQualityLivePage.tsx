@@ -47,7 +47,7 @@ const stars = (n: number) => {
   return `${'★'.repeat(r)}${'☆'.repeat(5 - r)}`
 }
 const dl = (v: string) => {
-  if (!v) return '—'
+  if (!v) return '-'
   const d = new Date(v)
   return Number.isNaN(d.getTime()) ? v : d.toLocaleDateString()
 }

@@ -569,7 +569,7 @@ export function DeliverablesLivePage({ recordSearch }: { recordSearch: AppSectio
                           : 'Unassigned'}
                       </td>
                       <td>{deliverable.clientVisible ? 'Yes' : 'No'}</td>
-                      <td>{deliverable.createdAt.slice(0, 10) || '—'}</td>
+                      <td>{deliverable.createdAt.slice(0, 10) || '-'}</td>
                       <td>
                         <span className={`fulfillment-pill ${statusClass(deliverable.status)}`}>
                           {label(deliverable.status)}
