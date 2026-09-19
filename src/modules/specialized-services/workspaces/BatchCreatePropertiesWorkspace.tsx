@@ -282,7 +282,7 @@ export function BatchCreatePropertiesWorkspace({
                   <div>
                     <h3>Batch setup</h3>
                     <p>
-                      Configure volume and defaults. Units are named Plot 1, Plot 2, and so on —
+                      Configure volume and defaults. Units are named Plot 1, Plot 2, and so on -
                       type is shown by icon on the estate board.
                     </p>
                   </div>

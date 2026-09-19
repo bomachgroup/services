@@ -92,6 +92,8 @@ const submitFieldKeyMap: Record<string, EstateFieldKey> = {
   installmentDownPaymentPercent: 'installmentDownPaymentPercent',
   installment_months: 'installmentMonths',
   installmentMonths: 'installmentMonths',
+  installment_grace_period_days: 'installmentGracePeriodDays',
+  installmentGracePeriodDays: 'installmentGracePeriodDays',
   boundary: 'boundary',
   additional_fees: 'additionalFees',
   additionalFees: 'additionalFees',
@@ -148,6 +150,9 @@ function inferFieldFromMessage(message: string): EstateFieldKey | null {
   }
   if (normalized.includes('installment') && normalized.includes('month')) {
     return 'installmentMonths'
+  }
+  if (normalized.includes('grace')) {
+    return 'installmentGracePeriodDays'
   }
   if (normalized.includes('installment') || normalized.includes('down payment')) {
     return 'installmentDownPaymentPercent'
@@ -615,10 +620,11 @@ export function CreateEstateLiveWorkspace({
             )}
           </form.Field>
 
-          <section className="commercial-form-section">
+          <section className="commercial-form-section specialized-commercial-policy">
             <div className="commercial-form-section-heading">
               <div>
-                <h3>Payment terms</h3>
+                <h3>Commercial policy</h3>
+                <p>Set the ways properties in this estate may be held and paid for.</p>
               </div>
             </div>
 
@@ -838,6 +844,7 @@ export function CreateEstateLiveWorkspace({
                               field.handleChange(event.target.checked)
                               clearFieldError('installmentDownPaymentPercent')
                               clearFieldError('installmentMonths')
+                              clearFieldError('installmentGracePeriodDays')
                             }}
                           />
                           <div className="commercial-policy-card-copy">
@@ -907,6 +914,36 @@ export function CreateEstateLiveWorkspace({
                                 {fieldErrors.installmentMonths ? (
                                   <small className="commercial-field-error">
                                     {fieldErrors.installmentMonths}
+                                  </small>
+                                ) : null}
+                              </label>
+                            )}
+                          </form.Field>
+                          <form.Field name="installmentGracePeriodDays">
+                            {(field) => (
+                              <label
+                                className={`commercial-field${fieldErrors.installmentGracePeriodDays ? 'commercial-field--invalid' : ''}`}
+                              >
+                                <span>Grace period (days) *</span>
+                                <input
+                                  ref={(node) => {
+                                    fieldRefs.current.installmentGracePeriodDays = node
+                                  }}
+                                  type="number"
+                                  min="0"
+                                  step="1"
+                                  value={field.state.value ?? ''}
+                                  aria-invalid={Boolean(fieldErrors.installmentGracePeriodDays)}
+                                  onChange={(event) => {
+                                    field.handleChange(
+                                      event.target.value === '' ? null : Number(event.target.value),
+                                    )
+                                    clearFieldError('installmentGracePeriodDays')
+                                  }}
+                                />
+                                {fieldErrors.installmentGracePeriodDays ? (
+                                  <small className="commercial-field-error">
+                                    {fieldErrors.installmentGracePeriodDays}
                                   </small>
                                 ) : null}
                               </label>

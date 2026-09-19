@@ -163,10 +163,14 @@ export function RealEstateRequestContextFields({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [context.selectedId, inventoryPrice])
 
-  const allowReservation =
-    context.sourceMode === 'estate' && Boolean(selectedEstate?.allowReservation)
-  const allowInstallment =
-    context.sourceMode === 'estate' && Boolean(selectedEstate?.allowInstallment)
+  const selectedPolicy =
+    context.sourceMode === 'estate'
+      ? selectedEstate
+      : context.sourceMode === 'standalone'
+        ? selectedProperty
+        : selectedBrokerage
+  const allowReservation = Boolean(selectedPolicy?.allowReservation)
+  const allowInstallment = Boolean(selectedPolicy?.allowInstallment)
 
   const paymentPlanOptions: PaymentPlanOption[] = (() => {
     const options: PaymentPlanOption[] = [
@@ -179,26 +183,26 @@ export function RealEstateRequestContextFields({
     ]
 
     if (allowReservation) {
-      const reservationPercent = selectedEstate?.reservationPercent ?? null
-      const holdPeriod = formatDurationHours(selectedEstate?.reservationDurationHours)
+      const reservationPercent = selectedPolicy?.reservationPercent ?? null
+      const holdPeriod = formatDurationHours(selectedPolicy?.reservationDurationHours)
       const terms = [
         reservationPercent != null ? `${formatPercent(reservationPercent)} reservation` : null,
         holdPeriod ? `${holdPeriod} hold` : null,
-        selectedEstate?.reservationRefundable ? 'Refundable' : 'Non-refundable',
+        selectedPolicy?.reservationRefundable ? 'Refundable' : 'Non-refundable',
       ]
         .filter(Boolean)
         .join(' · ')
       options.push({
         mode: 'reservation',
         label: 'Reservation',
-        meta: terms || 'Hold under estate reservation policy',
+        meta: terms || 'Hold under the selected asset policy',
         dueAmount: percentOf(displayPrice, reservationPercent),
       })
     }
 
     if (allowInstallment) {
-      const downPaymentPercent = selectedEstate?.installmentDownPaymentPercent ?? null
-      const months = selectedEstate?.installmentMonths ?? null
+      const downPaymentPercent = selectedPolicy?.installmentDownPaymentPercent ?? null
+      const months = selectedPolicy?.installmentMonths ?? null
       const terms = [
         downPaymentPercent != null ? `${formatPercent(downPaymentPercent)} down payment` : null,
         months != null ? `${months}-month plan` : null,
@@ -208,7 +212,7 @@ export function RealEstateRequestContextFields({
       options.push({
         mode: 'installment',
         label: 'Installment',
-        meta: terms || 'Down payment under estate installment policy',
+        meta: terms || 'Down payment under the selected asset policy',
         dueAmount: percentOf(displayPrice, downPaymentPercent),
       })
     }
@@ -476,7 +480,7 @@ export function RealEstateRequestContextFields({
                   <strong className="commercial-payment-method-due">
                     {option.dueAmount != null && option.dueAmount > 0
                       ? formatCurrency(option.dueAmount)
-                      : '—'}
+                      : '-'}
                   </strong>
                 </button>
               )

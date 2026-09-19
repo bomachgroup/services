@@ -1,9 +1,10 @@
 import { IconX } from '@tabler/icons-react'
-import { useState } from 'react'
+import { useCallback, useState } from 'react'
 
 import { RealEstateFormDropdown } from '../components/RealEstateFormDropdown'
 import { AdditionalFeesEditor } from '../real-estate/AdditionalFeesEditor'
 import { BoundaryEditor } from '../real-estate/BoundaryEditor'
+import { CommercialPolicyFields } from '../real-estate/CommercialPolicyFields'
 import { NamedDocumentsEditor } from '../real-estate/NamedDocumentsEditor'
 import {
   brokeragePropertyTypes,
@@ -12,7 +13,13 @@ import {
   type CreateBrokerageInput,
   type Estate,
 } from '../real-estate/real-estate.types'
-import { validateBrokerage } from '../real-estate/real-estate.validation'
+import {
+  firstBrokerageFieldError,
+  mapBrokerageValidationMessage,
+  type BrokerageFieldErrors,
+  type BrokerageFieldKey,
+  validateBrokerage,
+} from '../real-estate/real-estate.validation'
 
 function parseNonNegativeNumber(value: string, fallback = 0) {
   if (value.trim() === '') return fallback
@@ -63,14 +70,53 @@ export function CreateBrokerageLiveWorkspace({
     boundary: [],
     additionalFees: [],
     documents: [],
+    allowReservation: false,
+    requestClaimHoldHours: 48,
+    reservationRefundable: true,
+    reservationRetentionPercent: 0,
+    allowInstallment: false,
+    installmentGracePeriodDays: 7,
   })
   const [tags, setTags] = useState('')
   const [error, setError] = useState('')
+  const [fieldErrors, setFieldErrors] = useState<BrokerageFieldErrors>({})
 
   const setField = <K extends keyof CreateBrokerageInput>(
     key: K,
     nextValue: CreateBrokerageInput[K],
   ) => setValue((current) => ({ ...current, [key]: nextValue }))
+
+  const clearFieldError = (key: BrokerageFieldKey) => {
+    setFieldErrors((current) => {
+      if (!current[key]) return current
+      const next = { ...current }
+      delete next[key]
+      return next
+    })
+    setError('')
+  }
+
+  const focusField = useCallback((key: BrokerageFieldKey) => {
+    window.requestAnimationFrame(() => {
+      const node =
+        document.querySelector<HTMLElement>(`[data-brokerage-field="${key}"]`) ??
+        document.querySelector<HTMLElement>(`#brokerage-${key}`)
+      const target =
+        node ??
+        (key === 'boundary'
+          ? document.querySelector<HTMLElement>('[data-property-section="brokerage-boundary"]')
+          : null)
+      if (!target) return
+      const focusable =
+        target instanceof HTMLInputElement ||
+        target instanceof HTMLTextAreaElement ||
+        target.getAttribute('role') === 'combobox'
+          ? target
+          : target.querySelector<HTMLElement>('input, textarea, [role="combobox"], button')
+      focusable?.focus({ preventScroll: true })
+      target.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    })
+  }, [])
 
   return (
     <div className="commercial-modal-backdrop" role="presentation" onMouseDown={onClose}>
@@ -90,8 +136,17 @@ export function CreateBrokerageLiveWorkspace({
               .filter(Boolean),
           }
           const validationError = validateBrokerage(input)
-          setError(validationError)
-          if (!validationError) onSubmit(input)
+          if (validationError) {
+            const mapped = mapBrokerageValidationMessage(validationError)
+            setFieldErrors(mapped)
+            setError(Object.keys(mapped).length ? '' : validationError)
+            const firstKey = firstBrokerageFieldError(mapped)
+            if (firstKey) focusField(firstKey)
+            return
+          }
+          setFieldErrors({})
+          setError('')
+          onSubmit(input)
         }}
       >
         <header className="commercial-modal-header">
@@ -121,19 +176,30 @@ export function CreateBrokerageLiveWorkspace({
             </div>
 
             <div className="commercial-form-grid">
-              <label className="commercial-field">
+              <label
+                className={`commercial-field${fieldErrors.title ? 'commercial-field--invalid' : ''}`}
+              >
                 <span>
                   Property title <em>*</em>
                 </span>
                 <input
                   autoFocus
                   value={value.title}
-                  onChange={(event) => setField('title', event.target.value)}
+                  data-brokerage-field="title"
+                  aria-invalid={Boolean(fieldErrors.title)}
+                  onChange={(event) => {
+                    setField('title', event.target.value)
+                    clearFieldError('title')
+                  }}
                 />
+                {fieldErrors.title ? (
+                  <small className="commercial-field-error">{fieldErrors.title}</small>
+                ) : null}
               </label>
 
               <RealEstateFormDropdown
                 label="Property type"
+                id="brokerage-propertyType"
                 options={brokeragePropertyTypes}
                 value={value.propertyType}
                 onChange={(nextValue) =>
@@ -141,17 +207,29 @@ export function CreateBrokerageLiveWorkspace({
                 }
               />
 
-              <label className="commercial-field commercial-form-span">
+              <label
+                className={`commercial-field commercial-form-span${fieldErrors.location ? 'commercial-field--invalid' : ''}`}
+              >
                 <span>
                   Location <em>*</em>
                 </span>
                 <input
                   value={value.location}
-                  onChange={(event) => setField('location', event.target.value)}
+                  data-brokerage-field="location"
+                  aria-invalid={Boolean(fieldErrors.location)}
+                  onChange={(event) => {
+                    setField('location', event.target.value)
+                    clearFieldError('location')
+                  }}
                 />
+                {fieldErrors.location ? (
+                  <small className="commercial-field-error">{fieldErrors.location}</small>
+                ) : null}
               </label>
 
-              <label className="commercial-field">
+              <label
+                className={`commercial-field${fieldErrors.price ? 'commercial-field--invalid' : ''}`}
+              >
                 <span>
                   Asking price <em>*</em>
                 </span>
@@ -162,13 +240,21 @@ export function CreateBrokerageLiveWorkspace({
                   step="any"
                   inputMode="decimal"
                   value={numberInputValue(value.price)}
-                  onChange={(event) =>
+                  data-brokerage-field="price"
+                  aria-invalid={Boolean(fieldErrors.price)}
+                  onChange={(event) => {
                     setField('price', parseNonNegativeNumber(event.target.value))
-                  }
+                    clearFieldError('price')
+                  }}
                 />
+                {fieldErrors.price ? (
+                  <small className="commercial-field-error">{fieldErrors.price}</small>
+                ) : null}
               </label>
 
-              <label className="commercial-field">
+              <label
+                className={`commercial-field${fieldErrors.commissionRate ? 'commercial-field--invalid' : ''}`}
+              >
                 <span>Commission rate (%)</span>
                 <input
                   className="commercial-number-input"
@@ -178,10 +264,16 @@ export function CreateBrokerageLiveWorkspace({
                   step="any"
                   inputMode="decimal"
                   value={numberInputValue(value.commissionRate)}
-                  onChange={(event) =>
+                  data-brokerage-field="commissionRate"
+                  aria-invalid={Boolean(fieldErrors.commissionRate)}
+                  onChange={(event) => {
                     setField('commissionRate', parsePercentageNumber(event.target.value))
-                  }
+                    clearFieldError('commissionRate')
+                  }}
                 />
+                {fieldErrors.commissionRate ? (
+                  <small className="commercial-field-error">{fieldErrors.commissionRate}</small>
+                ) : null}
               </label>
 
               <RealEstateFormDropdown
@@ -219,14 +311,24 @@ export function CreateBrokerageLiveWorkspace({
             </div>
 
             <div className="commercial-form-grid">
-              <label className="commercial-field">
+              <label
+                className={`commercial-field${fieldErrors.ownerName ? 'commercial-field--invalid' : ''}`}
+              >
                 <span>
                   Owner / mandate giver <em>*</em>
                 </span>
                 <input
                   value={value.ownerName}
-                  onChange={(event) => setField('ownerName', event.target.value)}
+                  data-brokerage-field="ownerName"
+                  aria-invalid={Boolean(fieldErrors.ownerName)}
+                  onChange={(event) => {
+                    setField('ownerName', event.target.value)
+                    clearFieldError('ownerName')
+                  }}
                 />
+                {fieldErrors.ownerName ? (
+                  <small className="commercial-field-error">{fieldErrors.ownerName}</small>
+                ) : null}
               </label>
 
               <label className="commercial-field">
@@ -272,16 +374,34 @@ export function CreateBrokerageLiveWorkspace({
             </div>
           </section>
 
+          <CommercialPolicyFields
+            value={value}
+            errors={fieldErrors}
+            onChange={(key, nextValue) => {
+              setValue((current) => ({ ...current, [key]: nextValue }))
+              clearFieldError(key as BrokerageFieldKey)
+            }}
+          />
+
           <BoundaryEditor
             label="Listing boundary"
             value={value.boundary ?? []}
-            onChange={(nextBoundary) => setField('boundary', nextBoundary)}
+            onChange={(nextBoundary) => {
+              setField('boundary', nextBoundary)
+              clearFieldError('boundary')
+            }}
+            error={fieldErrors.boundary}
+            dataField="brokerage-boundary"
           />
 
           <AdditionalFeesEditor
             title="Listing fees"
             value={value.additionalFees ?? []}
-            onChange={(nextFees) => setField('additionalFees', nextFees)}
+            error={fieldErrors.additionalFees}
+            onChange={(nextFees) => {
+              setField('additionalFees', nextFees)
+              clearFieldError('additionalFees')
+            }}
           />
 
           <NamedDocumentsEditor
