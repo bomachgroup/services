@@ -174,7 +174,7 @@ export function QuotationDetailLiveWorkspace({
                   </div>
                   <div>
                     <div className="commercial-kl">Approver</div>
-                    <b>{quotation.requiredApproverRoleName || '—'}</b>
+                    <b>{quotation.requiredApproverRoleName || '-'}</b>
                   </div>
                 </div>
               </section>
@@ -294,20 +294,20 @@ export function QuotationDetailLiveWorkspace({
                 <div className="commercial-info-grid">
                   <div>
                     <div className="commercial-kl">Approved by</div>
-                    <b>{quotation.approvedByName || '—'}</b>
+                    <b>{quotation.approvedByName || '-'}</b>
                   </div>
                   <div>
                     <div className="commercial-kl">Approved at</div>
                     <b>
                       {quotation.approvedAt
                         ? new Date(quotation.approvedAt).toLocaleString('en-GB')
-                        : '—'}
+                        : '-'}
                     </b>
                   </div>
                   <div>
                     <div className="commercial-kl">Sent at</div>
                     <b>
-                      {quotation.sentAt ? new Date(quotation.sentAt).toLocaleString('en-GB') : '—'}
+                      {quotation.sentAt ? new Date(quotation.sentAt).toLocaleString('en-GB') : '-'}
                     </b>
                   </div>
                   <div>
@@ -315,7 +315,7 @@ export function QuotationDetailLiveWorkspace({
                     <b>
                       {quotation.clientRespondedAt
                         ? new Date(quotation.clientRespondedAt).toLocaleString('en-GB')
-                        : '—'}
+                        : '-'}
                     </b>
                   </div>
                   {quotation.clientRejectionReason ? (
@@ -433,12 +433,12 @@ export function QuotationDetailLiveWorkspace({
         detailsTitle="Quotation summary"
         detailRows={[
           { label: 'Reference', value: quotation.quoteNumber, highlight: true },
-          { label: 'Client', value: quotation.clientName || '—' },
-          { label: 'Service', value: quotation.serviceName || '—' },
+          { label: 'Client', value: quotation.clientName || '-' },
+          { label: 'Service', value: quotation.serviceName || '-' },
           { label: 'Total amount', value: formatCurrency(quotation.amount), highlight: true },
           {
             label: 'Required approver',
-            value: quotation.requiredApproverRoleName || '—',
+            value: quotation.requiredApproverRoleName || '-',
             highlight: Boolean(approveBlocker),
           },
           ...(quotation.validUntil ? [{ label: 'Valid until', value: quotation.validUntil }] : []),
@@ -462,8 +462,8 @@ export function QuotationDetailLiveWorkspace({
         detailsTitle="Quotation summary"
         detailRows={[
           { label: 'Reference', value: quotation.quoteNumber, highlight: true },
-          { label: 'Client', value: quotation.clientName || '—' },
-          { label: 'Service', value: quotation.serviceName || '—' },
+          { label: 'Client', value: quotation.clientName || '-' },
+          { label: 'Service', value: quotation.serviceName || '-' },
           { label: 'Total amount', value: formatCurrency(quotation.amount), highlight: true },
           ...(quotation.validUntil ? [{ label: 'Valid until', value: quotation.validUntil }] : []),
         ]}

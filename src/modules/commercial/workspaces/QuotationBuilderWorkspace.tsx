@@ -128,7 +128,7 @@ export function QuotationBuilderWorkspace({
                     options={mapDropdownOptions(
                       eligibleRequests.map((item) => ({
                         value: item.id,
-                        label: `${item.id} — ${item.client} — ${item.service}`,
+                        label: `${item.id} - ${item.client} - ${item.service}`,
                       })),
                     )}
                     value={field.state.value}

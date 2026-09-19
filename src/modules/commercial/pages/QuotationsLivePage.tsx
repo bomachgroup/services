@@ -54,7 +54,7 @@ function statusClass(status: string) {
 
 function approvalErrorMessage(error: unknown): string {
   // Approval denials carry the specific reason (wrong approver role, missing
-  // role, wrong state) — surface it instead of the generic 403 mask.
+  // role, wrong state) - surface it instead of the generic 403 mask.
   if (error instanceof ApiError) {
     const detail = (error.details as { detail?: unknown } | null)?.detail
     if (typeof detail === 'string' && detail.trim()) return detail.trim()
@@ -71,7 +71,7 @@ function approverBlockerForQuote(
   }
   if (user.backendRoleId === quote.requiredApproverRoleId) return null
   const required = quote.requiredApproverRoleName?.trim() || 'a different role'
-  return `Requires ${required} approval — your role (${user.roleLabel}) cannot approve this quote.`
+  return `Requires ${required} approval - your role (${user.roleLabel}) cannot approve this quote.`
 }
 
 export function QuotationsLivePage({ recordSearch }: { recordSearch: AppSectionSearch }) {
@@ -583,7 +583,7 @@ export function QuotationsLivePage({ recordSearch }: { recordSearch: AppSectionS
                           {quote.statusDisplay}
                         </span>
                       </td>
-                      <td>{quote.requiredApproverRoleName || '—'}</td>
+                      <td>{quote.requiredApproverRoleName || '-'}</td>
                       <td>
                         <button
                           type="button"

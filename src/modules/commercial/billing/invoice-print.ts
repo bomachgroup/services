@@ -18,7 +18,7 @@ function escapeHtml(value: string) {
 }
 
 function formatDate(value: string) {
-  if (!value) return '—'
+  if (!value) return '-'
   const date = new Date(value)
   if (Number.isNaN(date.getTime())) return value
   return date.toLocaleDateString('en-GB', {
@@ -29,7 +29,7 @@ function formatDate(value: string) {
 }
 
 function formatDateTime(value: string) {
-  if (!value) return '—'
+  if (!value) return '-'
   const date = new Date(value)
   if (Number.isNaN(date.getTime())) return value
   return date.toLocaleString('en-GB')
@@ -262,7 +262,7 @@ function buildInvoiceDocumentHtml(invoice: Invoice, payments: Payment[] = []) {
       <div class="card">
         <h2>Bill to</h2>
         <div class="value">${escapeHtml(client)}</div>
-        <p class="muted">Service: ${escapeHtml(invoice.serviceName || '—')}</p>
+        <p class="muted">Service: ${escapeHtml(invoice.serviceName || '-')}</p>
         ${
           invoice.serviceRequestNumber
             ? `<p class="muted">Request: ${escapeHtml(invoice.serviceRequestNumber)}</p>`
@@ -278,7 +278,7 @@ function buildInvoiceDocumentHtml(invoice: Invoice, payments: Payment[] = []) {
         <h2>Invoice details</h2>
         <p><span class="label">Issue date</span><br />${escapeHtml(formatDate(invoice.issueDate))}</p>
         <p><span class="label">Due date</span><br />${escapeHtml(formatDate(invoice.dueDate))}</p>
-        <p><span class="label">Payment schedule</span><br />${escapeHtml(invoice.paymentSchedule || '—')}</p>
+        <p><span class="label">Payment schedule</span><br />${escapeHtml(invoice.paymentSchedule || '-')}</p>
       </div>
     </div>
 

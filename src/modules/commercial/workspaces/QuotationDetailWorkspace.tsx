@@ -37,7 +37,7 @@ export function QuotationDetailWorkspace({
       >
         <header className="commercial-modal-header">
           <div>
-            <h2>Quotation File — {quotation.id}</h2>
+            <h2>Quotation File - {quotation.id}</h2>
             <p>
               {quotation.client} · {quotation.service} · v{quotation.version}
             </p>
@@ -86,7 +86,7 @@ export function QuotationDetailWorkspace({
               </div>
               <div>
                 <div className="commercial-kl">Approval route</div>
-                <b>{quotation.approvalRoute || '—'}</b>
+                <b>{quotation.approvalRoute || '-'}</b>
               </div>
             </div>
           </section>

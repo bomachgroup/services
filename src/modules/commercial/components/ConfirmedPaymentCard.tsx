@@ -30,7 +30,7 @@ function formatPreciseCurrency(value: number) {
 }
 
 function formatDateTime(value: string) {
-  if (!value) return '—'
+  if (!value) return '-'
   const parsed = new Date(value)
   if (Number.isNaN(parsed.getTime())) return value
   return parsed.toLocaleString('en-GB')
@@ -43,8 +43,8 @@ function sourceSubmissionReference(notes: string) {
 
 function displayNotes(notes: string) {
   const trimmed = notes.trim()
-  if (!trimmed) return '—'
-  return trimmed.replace(/^Confirmed from submission SUB-[A-Z0-9]+\.\s*/i, '').trim() || '—'
+  if (!trimmed) return '-'
+  return trimmed.replace(/^Confirmed from submission SUB-[A-Z0-9]+\.\s*/i, '').trim() || '-'
 }
 
 export function ConfirmedPaymentCard({ payment }: { payment: Payment }) {
@@ -73,7 +73,7 @@ export function ConfirmedPaymentCard({ payment }: { payment: Payment }) {
             <div>
               <div className="commercial-payment-proof-reference">{payment.paymentReference}</div>
               <div className="commercial-payment-proof-meta">
-                {paymentMethodLabel(payment.paymentMethod)} · {payment.paymentDate || '—'}
+                {paymentMethodLabel(payment.paymentMethod)} · {payment.paymentDate || '-'}
                 {payment.createdByName ? ` · ${payment.createdByName}` : ''}
               </div>
             </div>
@@ -96,7 +96,7 @@ export function ConfirmedPaymentCard({ payment }: { payment: Payment }) {
               </div>
               <div>
                 <div className="commercial-kl">Payment date</div>
-                <b>{payment.paymentDate || '—'}</b>
+                <b>{payment.paymentDate || '-'}</b>
               </div>
               <div>
                 <div className="commercial-kl">Recorded on</div>
@@ -104,11 +104,11 @@ export function ConfirmedPaymentCard({ payment }: { payment: Payment }) {
               </div>
               <div>
                 <div className="commercial-kl">Transaction reference</div>
-                <b>{payment.transactionReference || '—'}</b>
+                <b>{payment.transactionReference || '-'}</b>
               </div>
               <div>
                 <div className="commercial-kl">Receiving account</div>
-                <b>{payment.financeAccountName || '—'}</b>
+                <b>{payment.financeAccountName || '-'}</b>
               </div>
               <div>
                 <div className="commercial-kl">Purpose</div>

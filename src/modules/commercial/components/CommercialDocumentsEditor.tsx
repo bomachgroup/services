@@ -1,5 +1,5 @@
-import { IconRefresh, IconTrash, IconUpload } from '@tabler/icons-react'
-import { useRef, useState } from 'react'
+import { IconRefresh, IconTrash, IconUpload, IconX } from '@tabler/icons-react'
+import { useEffect, useRef, useState } from 'react'
 
 import { uploadFile } from '@/shared/api/file-upload'
 
@@ -39,24 +39,40 @@ export function CommercialDocumentsEditor({
   onClearError: () => void
 }) {
   const inputRef = useRef<HTMLInputElement | null>(null)
+  const attachmentsRef = useRef(attachments)
   const [drafts, setDrafts] = useState<UploadDraft[]>([])
 
-  const setDraftList = (next: UploadDraft[]) => {
+  useEffect(() => {
+    attachmentsRef.current = attachments
+  }, [attachments])
+
+  useEffect(() => {
+    onBusyChange(drafts.some((draft) => draft.status === 'uploading'))
+  }, [drafts, onBusyChange])
+
+  const setDraftList = (next: UploadDraft[] | ((current: UploadDraft[]) => UploadDraft[])) => {
     setDrafts(next)
-    onBusyChange(next.some((draft) => draft.status === 'uploading'))
   }
 
   const startUpload = async (file: File, existingDraftId?: string) => {
     onClearError()
     const id = existingDraftId ?? `${file.name}-${file.size}-${Date.now()}`
-    setDraftList([...drafts.filter((draft) => draft.id !== id), { id, file, status: 'uploading' }])
+    setDraftList((current) => [
+      ...current.filter((draft) => draft.id !== id),
+      { id, file, status: 'uploading' },
+    ])
     try {
       const fileUrl = await uploadFile(file)
-      onChange([...attachments, attachmentFromFile(file, fileUrl, attachments.length * 10)])
-      setDraftList(drafts.filter((draft) => draft.id !== id))
+      const nextAttachments = [
+        ...attachmentsRef.current,
+        attachmentFromFile(file, fileUrl, attachmentsRef.current.length * 10),
+      ]
+      attachmentsRef.current = nextAttachments
+      onChange(nextAttachments)
+      setDraftList((current) => current.filter((draft) => draft.id !== id))
     } catch (error) {
-      setDraftList([
-        ...drafts.filter((draft) => draft.id !== id),
+      setDraftList((current) => [
+        ...current.filter((draft) => draft.id !== id),
         {
           id,
           file,
@@ -129,11 +145,20 @@ export function CommercialDocumentsEditor({
               <FileTypeIcon fileName={draft.file.name} contentType={draft.file.type} />
               <div>
                 <b>{draft.file.name}</b>
-                <span>
-                  {draft.status === 'uploading'
-                    ? 'Uploading...'
-                    : (draft.message ?? 'Upload failed.')}
-                </span>
+                {draft.status === 'uploading' ? (
+                  <>
+                    <span role="status">Uploading</span>
+                    <div
+                      className="commercial-upload-progress"
+                      role="progressbar"
+                      aria-label={`Uploading ${draft.file.name}`}
+                    >
+                      <div className="commercial-upload-progress-bar" />
+                    </div>
+                  </>
+                ) : (
+                  <span role="status">{draft.message ?? 'Upload failed.'}</span>
+                )}
               </div>
               {draft.status === 'failed' ? (
                 <button
@@ -148,10 +173,12 @@ export function CommercialDocumentsEditor({
               <button
                 type="button"
                 className="commercial-icon-button"
-                onClick={() => setDraftList(drafts.filter((item) => item.id !== draft.id))}
+                onClick={() =>
+                  setDraftList((current) => current.filter((item) => item.id !== draft.id))
+                }
                 aria-label="Remove upload"
               >
-                <IconTrash size={16} />
+                {draft.status === 'uploading' ? <IconX size={16} /> : <IconTrash size={16} />}
               </button>
             </div>
           ))}

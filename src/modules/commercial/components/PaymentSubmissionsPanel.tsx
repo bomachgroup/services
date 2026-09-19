@@ -123,7 +123,7 @@ export function PaymentSubmissionsPanel({
                         Open proof
                       </a>
                     ) : (
-                      '—'
+                      '-'
                     )}
                   </td>
                   <td>
@@ -231,15 +231,15 @@ export function PaymentSubmissionsPanel({
             if (!submission) return []
             return [
               { label: 'Submission', value: submission.reference, highlight: true },
-              { label: 'Invoice', value: submission.invoiceNumber || '—' },
-              { label: 'Client', value: submission.clientName || '—' },
+              { label: 'Invoice', value: submission.invoiceNumber || '-' },
+              { label: 'Client', value: submission.clientName || '-' },
               {
                 label: 'Amount',
                 value: formatCurrency(submission.amount),
                 highlight: true,
               },
               { label: 'Method', value: paymentMethodLabel(submission.paymentMethod) },
-              { label: 'Payment date', value: submission.paymentDate || '—' },
+              { label: 'Payment date', value: submission.paymentDate || '-' },
               ...(submission.financeAccountName
                 ? [{ label: 'Receiving account', value: submission.financeAccountName }]
                 : []),
