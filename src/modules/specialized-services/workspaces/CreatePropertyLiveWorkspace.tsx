@@ -14,7 +14,7 @@ import { realEstateApi } from '../real-estate/real-estate.api'
 import {
   commercialBuildingTypes,
   plotUses,
-  propertyStatuses,
+  editablePropertyStatuses,
   residentialBuildingTypes,
   type CreatePropertyInput,
   type Estate,
@@ -246,7 +246,7 @@ export function CreatePropertyLiveWorkspace({
                 <RealEstateFormDropdown
                   label="Status"
                   fullWidth={false}
-                  options={propertyStatuses}
+                  options={editablePropertyStatuses}
                   value={value.status}
                   onChange={(nextValue) =>
                     setField('status', nextValue as CreatePropertyInput['status'])

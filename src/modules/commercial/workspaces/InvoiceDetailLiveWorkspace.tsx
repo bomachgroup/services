@@ -18,7 +18,7 @@ import { useToast } from '@/shared/ui/toast/useToast'
 
 import { serviceRequestsApi } from '../api/service-requests.api'
 import { getInvoiceCapabilities } from '../billing/invoice-capabilities'
-import { printInvoiceAsPdf } from '../billing/invoice-print'
+import { billingApi } from '../billing/billing.api'
 import {
   paymentMethodOptions,
   type CreatePaymentSubmissionInput,
@@ -154,6 +154,7 @@ export function InvoiceDetailLiveWorkspace({
   const [editErrors, setEditErrors] = useState<Record<string, string>>({})
   const [paymentProof, setPaymentProof] = useState<ProofUploadState>(null)
   const [confirmAction, setConfirmAction] = useState<InvoiceConfirmAction>(null)
+  const [downloadingPdf, setDownloadingPdf] = useState(false)
   const uploadControllerRef = useRef<AbortController | null>(null)
   const dueNowAmount = amountDueNow(invoice)
   const paymentDue = invoice.paymentDue
@@ -340,16 +341,25 @@ export function InvoiceDetailLiveWorkspace({
     void uploadPaymentProofFile(paymentProof.file)
   }
 
-  const handleDownloadPdf = () => {
+  const handleDownloadPdf = async () => {
+    setDownloadingPdf(true)
     try {
-      printInvoiceAsPdf(invoice, canViewPayments ? payments : [])
-      toast.info('Save as PDF', {
-        description: 'In the print dialog, choose “Save as PDF” to download the invoice.',
-      })
+      const blob = await billingApi.downloadPdf(invoice.id)
+      const url = URL.createObjectURL(blob)
+      const anchor = document.createElement('a')
+      anchor.href = url
+      anchor.download = `${invoice.invoiceNumber}.pdf`
+      document.body.appendChild(anchor)
+      anchor.click()
+      anchor.remove()
+      URL.revokeObjectURL(url)
+      toast.success('Invoice PDF downloaded.')
     } catch (error) {
       toast.error('Invoice PDF could not be opened', {
         description: presentError(error, 'background-action').message,
       })
+    } finally {
+      setDownloadingPdf(false)
     }
   }
 
@@ -863,9 +873,14 @@ export function InvoiceDetailLiveWorkspace({
             Close
           </button>
           <div className="commercial-modal-footer-actions">
-            <button type="button" className="commercial-btn" onClick={handleDownloadPdf}>
+            <button
+              type="button"
+              className="commercial-btn"
+              disabled={downloadingPdf}
+              onClick={() => void handleDownloadPdf()}
+            >
               <IconDownload size={14} stroke={2} />
-              Download PDF
+              {downloadingPdf ? 'Downloading...' : 'Download PDF'}
             </button>
 
             {invoice.activationThresholdMetAt && !invoice.orderId && canCreateServiceOrder ? (

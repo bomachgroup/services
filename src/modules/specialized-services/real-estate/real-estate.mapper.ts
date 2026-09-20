@@ -220,30 +220,45 @@ export function mapEstateStats(payload: unknown): EstateStats {
 
 export function mapPortfolioStats(payload: unknown): PortfolioStats {
   const v = row(payload)
-  const units = row(v.units)
-  const properties = row(v.properties)
-  const withPlots = row(v.estates_with_plots)
-  const ids = (x: unknown) =>
-    Array.isArray(x) ? x.filter((n): n is number => typeof n === 'number') : []
+  const counts = (value: unknown) => {
+    const item = row(value)
+    return {
+      total: num(item.total),
+      available: num(item.available),
+      underOffer: num(item.under_offer),
+      reserved: num(item.reserved),
+      sold: num(item.sold),
+    }
+  }
+  const estateSummaries = Object.fromEntries(
+    Object.entries(row(v.estate_summaries)).map(([id, value]) => {
+      const item = row(value)
+      return [
+        id,
+        {
+          ownedUnits: num(item.owned_units),
+          available: num(item.available),
+          underOffer: num(item.under_offer),
+          reserved: num(item.reserved),
+          sold: num(item.sold),
+          linkedBrokerage: num(item.linked_brokerage),
+        },
+      ]
+    }),
+  )
   return {
-    units: {
-      total: num(units.total),
-      available: num(units.available),
-      underOffer: num(units.under_offer),
-      reserved: num(units.reserved),
-      sold: num(units.sold),
+    projects: { total: num(row(v.projects).total) },
+    ownedUnits: counts(v.owned_units),
+    standaloneUnits: counts(v.standalone_units),
+    brokerageListings: {
+      total: num(row(v.brokerage_listings).total),
+      available: num(row(v.brokerage_listings).available),
+      sold: num(row(v.brokerage_listings).sold),
+      linked: num(row(v.brokerage_listings).linked),
+      unlinked: num(row(v.brokerage_listings).unlinked),
     },
-    properties: {
-      total: num(properties.total),
-      inEstate: num(properties.in_estate),
-      standalone: num(properties.standalone),
-    },
-    estatesWithPlots: {
-      available: ids(withPlots.available),
-      underOffer: ids(withPlots.under_offer),
-      reserved: ids(withPlots.reserved),
-      sold: ids(withPlots.sold),
-    },
+    managedAssets: { total: num(row(v.managed_assets).total) },
+    estateSummaries,
   }
 }
 

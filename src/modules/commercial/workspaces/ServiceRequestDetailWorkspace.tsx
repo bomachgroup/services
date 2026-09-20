@@ -308,7 +308,7 @@ export function ServiceRequestDetailWorkspace({
     onSubmit: ({ value }) => {
       // Flush any uncommitted direct-billing edits first (separate fields, no overlap).
       commitDirectBilling()
-      onUpdate({
+      const nextValues = {
         status: value.status,
         priority: value.priority,
         ownerId: value.ownerId || null,
@@ -317,7 +317,19 @@ export function ServiceRequestDetailWorkspace({
         nextAction: value.nextAction.trim(),
         estimatedValue: Number(value.estimatedValue || 0),
         scopeSummary: value.scopeSummary.trim(),
-      })
+      }
+      const currentValues = {
+        status: request.status,
+        priority: request.priority,
+        ownerId: request.ownerId ?? null,
+        budget: Number(request.budget || 0),
+        dueDate: request.dueDate || null,
+        nextAction: request.nextAction.trim(),
+        estimatedValue: Number(request.estimatedValue || 0),
+        scopeSummary: request.scopeSummary.trim(),
+      }
+      if (JSON.stringify(nextValues) === JSON.stringify(currentValues)) return
+      onUpdate(nextValues)
     },
   })
 

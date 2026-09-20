@@ -1,4 +1,4 @@
-import { IconBuildingStore, IconHome, IconMap2, IconX } from '@tabler/icons-react'
+import { IconBuildingStore, IconEdit, IconHome, IconMap2, IconX } from '@tabler/icons-react'
 import { useMemo, useState } from 'react'
 
 import { presentError } from '@/shared/errors'
@@ -15,7 +15,7 @@ import {
 } from '../real-estate/property-batch'
 import {
   commercialBuildingTypes,
-  propertyStatuses,
+  editablePropertyStatuses,
   residentialBuildingTypes,
   type CreatePropertyInput,
   type PricingMode,
@@ -81,6 +81,7 @@ export function BatchCreatePropertiesWorkspace({
   const [running, setRunning] = useState(false)
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
+  const [editingIndex, setEditingIndex] = useState<number | null>(null)
 
   const areaSqm =
     propertyType === 'plot'
@@ -141,7 +142,7 @@ export function BatchCreatePropertiesWorkspace({
       : {}),
   })
 
-  const createItemsSequentially = async (rows: PropertyBatchItem[]) => {
+  const createItemsSequentially = async (rows: PropertyBatchItem[], onlyIndex?: number) => {
     setRunning(true)
     setError('')
     setNotice('')
@@ -151,6 +152,7 @@ export function BatchCreatePropertiesWorkspace({
 
     for (let index = 0; index < nextItems.length; index += 1) {
       const item = nextItems[index]
+      if (onlyIndex != null && index !== onlyIndex) continue
       if (!item || item.status === 'created') continue
 
       nextItems[index] = { ...item, status: 'creating', error: '' }
@@ -230,6 +232,23 @@ export function BatchCreatePropertiesWorkspace({
       item.status === 'failed' ? { ...item, status: 'queued' as const, error: '' } : item,
     )
     await createItemsSequentially(nextItems)
+  }
+
+  const retryOne = async (index: number) => {
+    if (running || items[index]?.status !== 'failed') return
+    const nextItems = items.map((item, itemIndex) =>
+      itemIndex === index ? { ...item, status: 'queued' as const, error: '' } : item,
+    )
+    setEditingIndex(null)
+    await createItemsSequentially(nextItems, index)
+  }
+
+  const updateItemInput = (index: number, input: Partial<CreatePropertyInput>) => {
+    setItems((current) =>
+      current.map((item, itemIndex) =>
+        itemIndex === index ? { ...item, input: { ...item.input, ...input } } : item,
+      ),
+    )
   }
 
   return (
@@ -318,7 +337,7 @@ export function BatchCreatePropertiesWorkspace({
                   </label>
                   <RealEstateFormDropdown
                     label="Initial status"
-                    options={propertyStatuses}
+                    options={editablePropertyStatuses}
                     value={status}
                     fullWidth={false}
                     fieldClassName="commercial-field"
@@ -542,7 +561,7 @@ export function BatchCreatePropertiesWorkspace({
               </div>
 
               <div className="specialized-batch-list" role="list">
-                {items.map((item) => {
+                {items.map((item, index) => {
                   const Icon =
                     item.input.propertyType === 'plot'
                       ? IconMap2
@@ -573,6 +592,62 @@ export function BatchCreatePropertiesWorkspace({
                           {item.propertyId ? ` · ID ${item.propertyId}` : ''}
                         </small>
                         {item.error ? <p>{item.error}</p> : null}
+                        {item.status === 'failed' ? (
+                          <div className="specialized-batch-row-actions">
+                            <button
+                              type="button"
+                              className="commercial-btn commercial-btn-small"
+                              onClick={() =>
+                                setEditingIndex((current) => (current === index ? null : index))
+                              }
+                            >
+                              <IconEdit size={13} />
+                              Edit
+                            </button>
+                            <button
+                              type="button"
+                              className="commercial-btn commercial-btn-small"
+                              disabled={running}
+                              onClick={() => void retryOne(index)}
+                            >
+                              Retry
+                            </button>
+                          </div>
+                        ) : null}
+                        {editingIndex === index ? (
+                          <div className="specialized-batch-row-editor">
+                            <label className="commercial-field">
+                              <span>Property name</span>
+                              <input
+                                value={item.input.propertyName}
+                                onChange={(event) =>
+                                  updateItemInput(index, { propertyName: event.target.value })
+                                }
+                              />
+                            </label>
+                            <label className="commercial-field">
+                              <span>Plot number</span>
+                              <input
+                                className="commercial-number-input"
+                                type="number"
+                                min={1}
+                                value={item.input.plotNumber ?? ''}
+                                onChange={(event) =>
+                                  updateItemInput(index, {
+                                    plotNumber: Number(event.target.value) || null,
+                                  })
+                                }
+                              />
+                            </label>
+                            <button
+                              type="button"
+                              className="commercial-btn commercial-btn-small"
+                              onClick={() => setEditingIndex(null)}
+                            >
+                              Done
+                            </button>
+                          </div>
+                        ) : null}
                       </div>
                     </article>
                   )

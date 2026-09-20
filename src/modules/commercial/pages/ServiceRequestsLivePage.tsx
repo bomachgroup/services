@@ -250,9 +250,7 @@ export function ServiceRequestsLivePage({ recordSearch }: { recordSearch: AppSec
     },
     onSuccess: async (invoice) => {
       await invalidate(detailQuery.data?.id ?? 0)
-      toast.success(`Invoice ${invoice.invoiceNumber} created`, {
-        description: 'Quotation and approvals skipped. Review it, then send it to the client.',
-      })
+      toast.success(`Invoice ${invoice.invoiceNumber} created`)
       await navigate({
         to: '/app/$section',
         params: { section: 'invoices-payments' },

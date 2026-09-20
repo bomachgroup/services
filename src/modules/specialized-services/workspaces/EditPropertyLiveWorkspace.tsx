@@ -13,7 +13,7 @@ import { realEstateApi } from '../real-estate/real-estate.api'
 import {
   commercialBuildingTypes,
   plotUses,
-  propertyStatuses,
+  editablePropertyStatuses,
   propertyTypes,
   residentialBuildingTypes,
   type CreatePropertyInput,
@@ -262,6 +262,7 @@ export function EditPropertyLiveWorkspace({
             requirePlotNumber: hasEstate,
             takenPlotNumbers: occupiedPlotNumbers,
             excludePlotNumber: property.plotNumber,
+            currentStatus: property.status,
           })
           if (validationError) {
             const mapped = mapValidationMessageToFields(validationError)
@@ -350,7 +351,7 @@ export function EditPropertyLiveWorkspace({
                 <RealEstateFormDropdown
                   label="Status"
                   fullWidth={false}
-                  options={propertyStatuses}
+                  options={editablePropertyStatuses}
                   value={value.status}
                   onChange={(nextValue) =>
                     setField('status', nextValue as CreatePropertyInput['status'])

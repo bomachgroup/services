@@ -3,6 +3,8 @@ export const realEstateKeys = {
   all: ['specialized-services', 'real-estate'] as const,
   estates: () => [...realEstateKeys.all, 'estates'] as const,
   estateList: (f: EstateFilters) => [...realEstateKeys.estates(), 'list', f] as const,
+  estateDirectory: (search: string, limit: number) =>
+    [...realEstateKeys.estates(), 'directory', search, limit] as const,
   estateDetail: (id: number) => [...realEstateKeys.estates(), 'detail', id] as const,
   estateStats: (id: number) => [...realEstateKeys.estates(), 'stats', id] as const,
   estateLayout: (id: number) => [...realEstateKeys.estates(), 'layout', id] as const,
@@ -11,13 +13,22 @@ export const realEstateKeys = {
   properties: (estateId: number) => [...realEstateKeys.all, 'properties', estateId] as const,
   propertyList: (estateId: number, f: PropertyFilters) =>
     [...realEstateKeys.properties(estateId), 'list', f] as const,
+  propertyDirectory: (estateId: number, search: string, limit: number) =>
+    [...realEstateKeys.properties(estateId), 'directory', search, limit] as const,
   propertyDetail: (estateId: number, id: number) =>
     [...realEstateKeys.properties(estateId), 'detail', id] as const,
   standaloneProperties: () => [...realEstateKeys.all, 'standalone-properties'] as const,
+  standalonePropertyDetail: (id: number) =>
+    [...realEstateKeys.standaloneProperties(), 'detail', id] as const,
   standalonePropertyList: (f: PropertyFilters) =>
     [...realEstateKeys.standaloneProperties(), 'list', f] as const,
+  standalonePropertyDirectory: (search: string, limit: number) =>
+    [...realEstateKeys.standaloneProperties(), 'directory', search, limit] as const,
   brokerage: () => [...realEstateKeys.all, 'brokerage'] as const,
   brokerageList: (f: BrokerageFilters) => [...realEstateKeys.brokerage(), 'list', f] as const,
+  brokerageDirectory: (search: string, limit: number) =>
+    [...realEstateKeys.brokerage(), 'directory', search, limit] as const,
+  brokerageDetail: (id: number) => [...realEstateKeys.brokerage(), 'detail', id] as const,
   brokerageStats: () => [...realEstateKeys.brokerage(), 'stats'] as const,
   commercialContext: (requestId: number) =>
     [...realEstateKeys.all, 'commercial-context', requestId] as const,

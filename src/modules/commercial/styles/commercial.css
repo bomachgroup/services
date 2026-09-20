@@ -2205,77 +2205,154 @@ button.commercial-attachment-row {
   border-top: 1px solid #e6edf7;
 }
 
-.commercial-path-pick {
+.commercial-billing-route {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 9px;
+  gap: 10px;
+  margin-top: 2px;
+  border: 1px solid #dce5f1;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #fbfdff 0%, #f4f7fb 100%);
+  padding: 14px;
 }
 
-.commercial-path-card {
+.commercial-billing-route-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.commercial-billing-route-label {
+  display: block;
+  color: #17233f;
+  font-size: 13px;
+  font-weight: 800;
+  line-height: 1.3;
+}
+
+.commercial-billing-route-title {
+  margin: 3px 0 0;
+  color: #52617a;
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.commercial-billing-route-helper {
+  max-width: 640px;
+  margin: -1px 0 1px;
+  color: #68758b;
+  font-size: 10.5px;
+  font-weight: 500;
+  line-height: 1.5;
+}
+
+.commercial-billing-route-options {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.commercial-billing-route-choice {
+  position: relative;
+  display: grid;
+  grid-template-columns: 32px minmax(0, 1fr) 20px;
   gap: 10px;
   align-items: start;
-  text-align: left;
-  cursor: pointer;
-  border: 1px solid var(--color-border);
+  min-height: 96px;
+  width: 100%;
+  border: 1px solid #d7e0ec;
   border-radius: 10px;
   background: #fff;
-  padding: 11px 12px;
+  padding: 12px;
+  color: #17233f;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
   transition:
     border-color 120ms ease,
     background 120ms ease,
     box-shadow 120ms ease;
 }
 
-.commercial-path-card:hover {
+.commercial-billing-route-choice:hover {
   border-color: #9db1d6;
+  background: #fcfdff;
 }
 
-.commercial-path-radio {
+.commercial-billing-route-choice:focus-visible {
+  outline: 3px solid rgb(49 89 170 / 20%);
+  outline-offset: 2px;
+}
+
+.commercial-billing-route-icon {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 18px;
-  height: 18px;
-  margin-top: 1px;
-  border-radius: 999px;
-  border: 1.5px solid #c4cfdf;
-  background: #fff;
-  color: #fff;
+  width: 32px;
+  height: 32px;
+  border: 1px solid #d6e1f1;
+  border-radius: 8px;
+  background: #f1f5fb;
+  color: #3159aa;
 }
 
-.commercial-path-text {
+.commercial-billing-route-copy {
   display: grid;
-  gap: 3px;
+  align-content: start;
+  gap: 4px;
   min-width: 0;
 }
 
-.commercial-path-card b {
-  font-size: 12px;
-  color: #15172d;
+.commercial-billing-route-choice-title {
+  color: #17233f;
+  font-size: 11.5px;
+  font-weight: 800;
+  line-height: 1.35;
 }
 
-.commercial-path-card small {
-  font-size: 10.5px;
-  line-height: 1.45;
-  color: var(--color-foreground-subtle);
+.commercial-billing-route-choice-description {
+  color: #68758b;
+  font-size: 9.5px;
+  font-weight: 500;
+  line-height: 1.5;
 }
 
-.commercial-path-card.is-selected {
+.commercial-billing-route-check {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 19px;
+  height: 19px;
+  border: 1.5px solid #c6d2e2;
+  border-radius: 999px;
+  color: #fff;
+}
+
+.commercial-billing-route-choice.is-selected {
   border-color: #1f3d7a;
   background: #f2f6ff;
   box-shadow: 0 0 0 1px #1f3d7a;
 }
 
-.commercial-path-card.is-selected .commercial-path-radio {
+.commercial-billing-route-choice.is-selected .commercial-billing-route-icon {
+  border-color: #c8d8f1;
+  background: #e5edfc;
+  color: #1f3d7a;
+}
+
+.commercial-billing-route-choice.is-selected .commercial-billing-route-check {
   border-color: #1f3d7a;
   background: #1f3d7a;
 }
 
 @media (max-width: 700px) {
-  .commercial-path-pick {
+  .commercial-billing-route-options {
     grid-template-columns: 1fr;
+  }
+
+  .commercial-billing-route {
+    padding: 12px;
   }
 
   .commercial-payment-proof-header {
