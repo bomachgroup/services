@@ -1,5 +1,6 @@
 export const dashboardKeys = {
   all: ['command-center'] as const,
+  overview: () => [...dashboardKeys.all, 'overview'] as const,
   financials: () => [...dashboardKeys.all, 'financials'] as const,
   pendingApprovals: () => [...dashboardKeys.all, 'pending-approvals'] as const,
   pipeline: () => [...dashboardKeys.all, 'pipeline'] as const,

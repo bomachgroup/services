@@ -4,6 +4,13 @@ import { dashboardApi } from './dashboard.api'
 import { dashboardKeys } from './dashboard.keys'
 
 export const dashboardQueries = {
+  overview: () =>
+    queryOptions({
+      queryKey: dashboardKeys.overview(),
+      queryFn: () => dashboardApi.overview(),
+      staleTime: 30_000,
+    }),
+
   financials: () =>
     queryOptions({
       queryKey: dashboardKeys.financials(),

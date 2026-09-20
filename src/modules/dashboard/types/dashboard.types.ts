@@ -5,8 +5,11 @@ export type DashboardMetricKey =
   | 'pending_quotations'
   | 'awaiting_approval'
   | 'active_orders'
+  | 'collected_revenue'
   | 'outstanding_invoices'
   | 'payment_submissions'
+  | 'sla_risk'
+  | 'pending_approvals'
   | 'open_tasks'
   | 'service_configuration'
 
@@ -25,6 +28,7 @@ export interface DashboardMetric {
   valueFormat?: 'number' | 'currency' | 'percent'
   description: string
   trend?: { direction: 'up' | 'down'; label: string }
+  destination?: DashboardDestination
 }
 
 export interface DashboardAttentionItem {
@@ -51,9 +55,27 @@ export interface DashboardPipelineStage {
   key: string
   label: string
   count: number
+  value?: number
   description?: string
   state?: 'done' | 'active' | 'pending'
   destination?: DashboardDestination
+}
+
+export interface DashboardFinanceSummary {
+  collectedRevenue: number
+  outstanding: number
+  overdue: number
+  approvedExpenses: number
+  marginPct: number | null
+}
+
+export interface CommandCenterOverview {
+  generatedAt: string
+  metrics: DashboardMetric[]
+  attentionItems: DashboardAttentionItem[]
+  pipeline: DashboardPipelineStage[]
+  finance: DashboardFinanceSummary
+  activity: DashboardActivityItem[]
 }
 
 export interface DashboardExecutiveAlert {
