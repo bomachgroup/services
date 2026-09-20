@@ -16,6 +16,7 @@ export const serviceRequestKeys = {
   marketingLeadDirectory: (search: string, limit: number) =>
     [...serviceRequestKeys.all, 'marketing-leads', 'directory', { search, limit }] as const,
   services: () => [...serviceRequestKeys.all, 'services'] as const,
+  service: (id: number) => [...serviceRequestKeys.all, 'service', id] as const,
   employees: () => [...serviceRequestKeys.all, 'employees'] as const,
   intake: (id: number) => [...serviceRequestKeys.all, 'intake', id] as const,
   summary: () => [...serviceRequestKeys.all, 'summary'] as const,

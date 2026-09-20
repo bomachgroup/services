@@ -12,6 +12,7 @@ import {
   mapServiceRequestChoices,
   mapServiceRequestDetail,
   mapServiceRequestList,
+  mapServiceOption,
   mapServices,
 } from './service-requests.mapper'
 import type {
@@ -153,6 +154,10 @@ export const serviceRequestsApi = {
         '/services/catalogue?status=active&client_visibility=visible&limit=100&offset=0',
       ),
     )
+  },
+
+  async service(serviceId: number): Promise<ServiceOption> {
+    return mapServiceOption(await apiClient.get<unknown>(`/services/catalogue/${serviceId}`))
   },
 
   async employees(): Promise<EmployeeOption[]> {

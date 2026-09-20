@@ -73,6 +73,12 @@ export const serviceRequestQueries = {
       queryFn: () => serviceRequestsApi.services(),
       staleTime: 60_000,
     }),
+  service: (id: number) =>
+    queryOptions({
+      queryKey: serviceRequestKeys.service(id),
+      queryFn: () => serviceRequestsApi.service(id),
+      staleTime: 60_000,
+    }),
   employees: () =>
     queryOptions({
       queryKey: serviceRequestKeys.employees(),

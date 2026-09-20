@@ -253,6 +253,12 @@ export function mapServices(payload: unknown): ServiceOption[] {
   })
 }
 
+export function mapServiceOption(payload: unknown): ServiceOption {
+  const service = mapServices([payload])[0]
+  if (!service) throw new Error('Service catalogue response was empty.')
+  return service
+}
+
 export function mapEmployees(payload: unknown): EmployeeOption[] {
   const { rows } = paginatedRows(payload)
   return rows.map((item) => {
