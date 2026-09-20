@@ -1,260 +1,432 @@
-import { IconFilePlus } from '@tabler/icons-react'
+import {
+  IconAlertTriangle,
+  IconArrowRight,
+  IconBell,
+  IconCircleCheck,
+  IconFilePlus,
+  IconRefresh,
+} from '@tabler/icons-react'
 import { useQuery } from '@tanstack/react-query'
 import { Link, useNavigate } from '@tanstack/react-router'
 
 import { presentError } from '@/shared/errors'
 import { formatCurrency } from '@/shared/lib/formatters'
 import { cn } from '@/shared/lib/cn'
-import { DashboardSkeleton, ErrorState, EmptyState } from '@/shared/ui'
+import { DashboardSkeleton, EmptyState, ErrorState } from '@/shared/ui'
+import { CommercialSummaryGrid } from '@/modules/commercial/components/CommercialRegisterChrome'
+import '@/modules/commercial/styles/commercial.css'
 import '@/modules/service-administration/styles/service-administration.css'
 
 import { dashboardQueries } from '../api/dashboard.queries'
 import type {
+  CommandCenterOverview,
+  DashboardActivityItem,
   DashboardAttentionItem,
-  DashboardExecutiveAlert,
+  DashboardDestination,
   DashboardMetric,
   DashboardPipelineStage,
-  DashboardActivityItem,
 } from '../types/dashboard.types'
 import '../styles/command-center.css'
 
-function formatMetricValue(metric: DashboardMetric) {
-  if (metric.valueFormat === 'currency') return formatCurrency(metric.value)
-  if (metric.valueFormat === 'percent') return `${metric.value}%`
-  return metric.value.toLocaleString('en-NG')
+function formatDateTime(value: string) {
+  return new Date(value).toLocaleString('en-NG', {
+    dateStyle: 'medium',
+    timeStyle: 'short',
+  })
 }
 
-function statusPillClass(status?: string) {
-  const value = (status ?? '').toLowerCase()
-  if (
-    /paid|accepted|completed|approved|active|done|available|closed|converted|verified|quoted/.test(
-      value,
-    )
-  ) {
-    return 'command-center-pill-blue'
-  }
-  if (
-    /overdue|rejected|sold|action required|site assessment|under review|awaiting|pending|reserved|inspection/.test(
-      value,
-    )
-  ) {
-    return 'command-center-pill-yellow'
-  }
-  if (/draft|new|to do|hold|unpaid/.test(value)) {
-    return 'command-center-pill-gray'
-  }
-  return 'command-center-pill-blue'
+function severityClass(severity: DashboardAttentionItem['severity']) {
+  if (severity === 'danger') return 'command-center-attention-item--danger'
+  if (severity === 'warning') return 'command-center-attention-item--warning'
+  return 'command-center-attention-item--info'
 }
 
-function alertTitle(alert: DashboardExecutiveAlert) {
-  if (alert.value === undefined) return alert.title
-  if (alert.valueFormat === 'currency') return `${formatCurrency(alert.value)} ${alert.title}`
-  if (alert.valueFormat === 'percent') return `${alert.title}`
-  return `${alert.value} ${alert.title}`
+function attentionLabel(item: DashboardAttentionItem) {
+  if (item.priority === 'critical') return 'Staff action'
+  if (item.severity === 'danger') return 'Urgent'
+  if (item.severity === 'warning') return 'Review'
+  return 'Monitor'
 }
 
-function alertNoticeClass(severity: DashboardExecutiveAlert['severity']) {
-  if (severity === 'danger') return 'command-center-notice-red'
-  if (severity === 'warning') return 'command-center-notice-yellow'
-  if (severity === 'success') return 'command-center-notice-green'
-  return 'command-center-notice-blue'
+function recordTypeLabel(recordType: string) {
+  const labels: Record<string, string> = {
+    approval: 'Approval',
+    invoice: 'Invoice',
+    order: 'Service order',
+    quote: 'Quotation',
+    request: 'Service request',
+    property_sale: 'Property sale',
+  }
+  return labels[recordType] ?? recordType.replaceAll('_', ' ')
+}
+
+function destinationLabel(destination?: DashboardDestination) {
+  if (!destination) return 'Open'
+  const labels: Record<string, string> = {
+    'service-requests': 'Open request',
+    quotations: 'Open quote',
+    'invoices-payments': 'Open invoice',
+    approvals: 'Open approval',
+    'service-orders': 'Open order',
+  }
+  return labels[destination.section] ?? 'Open'
+}
+
+function navigateToDestination(
+  navigate: ReturnType<typeof useNavigate>,
+  destination?: DashboardDestination,
+) {
+  if (!destination) return
+  void navigate({
+    to: '/app/$section',
+    params: { section: destination.section },
+    search: destination.search ?? {},
+  })
 }
 
 function KpiGrid({ metrics }: { metrics: DashboardMetric[] }) {
-  return (
-    <div className="command-center-kpis">
-      {metrics.slice(0, 5).map((metric) => (
-        <div key={metric.key} className="command-center-kpi">
-          <div className="command-center-kpi-label">{metric.label}</div>
-          <div className="command-center-kpi-value">{formatMetricValue(metric)}</div>
-          <div className="command-center-kpi-sub">
-            {metric.trend?.direction === 'up' ? (
-              <span className="command-center-up">{metric.trend.label}</span>
-            ) : metric.trend?.direction === 'down' ? (
-              <span className="command-center-down">{metric.trend.label}</span>
-            ) : (
-              metric.description
-            )}
-          </div>
-        </div>
-      ))}
-    </div>
-  )
-}
-
-function LifecycleCard({ stages }: { stages: DashboardPipelineStage[] }) {
-  const items = stages
-
-  return (
-    <section className="command-center-card">
-      <div className="command-center-card-header">
-        <div>
-          <div className="command-center-card-title">End-to-end service lifecycle</div>
-          <div className="command-center-card-subtitle">Commercial and operational handoff</div>
-        </div>
-        <span className="command-center-pill command-center-pill-blue">Standard journey</span>
-      </div>
-      <div className="command-center-life">
-        {items.map((stage, index) => {
-          const state = stage.state ?? 'pending'
-          const stateLabel =
-            state === 'done' ? 'Completed' : state === 'active' ? 'In progress' : 'Pending'
-          return (
-            <div
-              key={stage.key}
-              className={cn(
-                'command-center-step',
-                state === 'done' && 'command-center-step--done',
-                state === 'active' && 'command-center-step--active',
-              )}
-            >
-              <small>{String(index + 1).padStart(2, '0')}</small>
-              <b>{stage.label}</b>
-              <span>{stateLabel}</span>
-            </div>
-          )
-        })}
-      </div>
-    </section>
-  )
-}
-
-function ActionItemsCard({ items }: { items: DashboardAttentionItem[] }) {
   const navigate = useNavigate()
 
   return (
-    <section className="command-center-card">
+    <CommercialSummaryGrid
+      ariaLabel="Operational summary"
+      columns={5}
+      items={metrics.map((metric) => ({
+        label: metric.label,
+        value:
+          metric.valueFormat === 'currency'
+            ? formatCurrency(metric.value, { compact: true })
+            : metric.valueFormat === 'percent'
+              ? `${metric.value}%`
+              : metric.value.toLocaleString('en-NG'),
+        note: metric.description,
+        tone:
+          metric.key === 'collected_revenue'
+            ? 'positive'
+            : metric.key === 'outstanding_invoices'
+              ? 'warning'
+              : metric.key === 'sla_risk'
+                ? 'danger'
+                : 'default',
+        ...(metric.valueFormat === 'currency' ? { valueTitle: formatCurrency(metric.value) } : {}),
+        ...(metric.destination
+          ? { onClick: () => navigateToDestination(navigate, metric.destination) }
+          : {}),
+      }))}
+    />
+  )
+}
+
+function AttentionQueue({ items }: { items: DashboardAttentionItem[] }) {
+  const navigate = useNavigate()
+
+  return (
+    <section className="command-center-card command-center-attention-card">
       <div className="command-center-card-header">
         <div>
-          <div className="command-center-card-title">My action items</div>
+          <div className="command-center-card-title">Needs attention</div>
           <div className="command-center-card-subtitle">
-            Work the backend says currently requires your attention
+            Staff actions across commercial, property sales, billing, and delivery.
           </div>
         </div>
-      </div>
-
-      <div className="command-center-table-wrap">
-        <table className="command-center-table">
-          <thead>
-            <tr>
-              <th>Item</th>
-              <th>Type</th>
-              <th>Priority</th>
-              <th>Due</th>
-              <th>Details</th>
-            </tr>
-          </thead>
-          <tbody>
-            {items.slice(0, 8).map((item) => (
-              <tr
-                key={item.id}
-                onClick={() => {
-                  if (!item.destination) return
-                  void navigate({
-                    to: '/app/$section',
-                    params: { section: item.destination.section },
-                    search: item.destination.search ?? {},
-                  })
-                }}
-              >
-                <td>
-                  <b>{item.title}</b>
-                </td>
-                <td>{item.recordType}</td>
-                <td>
-                  <span className={`command-center-pill ${statusPillClass(item.priority)}`}>
-                    {item.priority ?? item.severity}
-                  </span>
-                </td>
-                <td>{item.dueLabel ?? '-'}</td>
-                <td>{item.description || '-'}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </section>
-  )
-}
-
-function ExecutiveAlertsCard({ alerts }: { alerts: DashboardExecutiveAlert[] }) {
-  return (
-    <section className="command-center-card">
-      <div className="command-center-card-header">
-        <div className="command-center-card-title">Executive alerts</div>
-      </div>
-      {alerts.map((alert) => (
-        <div key={alert.id} className={`command-center-notice ${alertNoticeClass(alert.severity)}`}>
-          <b>{alertTitle(alert)}</b>
-          <br />
-          {alert.description}
+        <div className="command-center-card-header-actions">
+          <span className="command-center-card-count">
+            {items.length} {items.length === 1 ? 'item' : 'items'}
+          </span>
+          <span className="command-center-card-header-icon" aria-hidden="true">
+            <IconBell size={15} />
+          </span>
         </div>
-      ))}
+      </div>
+
+      {items.length ? (
+        <div className="command-center-attention-list">
+          {items.map((item) => (
+            <button
+              key={item.id}
+              type="button"
+              className={cn('command-center-attention-item', severityClass(item.severity))}
+              onClick={() => navigateToDestination(navigate, item.destination)}
+              disabled={!item.destination}
+            >
+              <span className="command-center-attention-icon" aria-hidden="true">
+                {item.severity === 'danger' ? (
+                  <IconAlertTriangle size={15} />
+                ) : (
+                  <IconBell size={15} />
+                )}
+              </span>
+              <span className="command-center-attention-main">
+                <span className="command-center-attention-heading">
+                  <strong>{item.title}</strong>
+                  <span className="command-center-pill">{attentionLabel(item)}</span>
+                </span>
+                <span className="command-center-attention-description">{item.description}</span>
+                <span className="command-center-attention-meta">
+                  <span>{recordTypeLabel(item.recordType)}</span>
+                  <span>{item.owner || 'Unassigned'}</span>
+                  <span>{item.dueLabel || 'No deadline'}</span>
+                </span>
+              </span>
+              <span className="command-center-attention-action">
+                {destinationLabel(item.destination)}
+                <IconArrowRight size={13} />
+              </span>
+            </button>
+          ))}
+        </div>
+      ) : (
+        <div className="command-center-clear-state">
+          <IconCircleCheck size={20} aria-hidden="true" />
+          <div>
+            <strong>Operations are clear</strong>
+            <span>
+              No urgent requests, approvals, billing issues, or delivery risks were returned.
+            </span>
+          </div>
+        </div>
+      )}
     </section>
   )
 }
 
-function RecentActivityCard({ items }: { items: DashboardActivityItem[] }) {
+function PipelineCard({ stages }: { stages: DashboardPipelineStage[] }) {
   const navigate = useNavigate()
 
   return (
     <section className="command-center-card">
       <div className="command-center-card-header">
         <div>
-          <div className="command-center-card-title">Recent system activity</div>
-          <div className="command-center-card-subtitle">Recent operational changes</div>
+          <div className="command-center-card-title">Service delivery pipeline</div>
+          <div className="command-center-card-subtitle">
+            Current order work across mobilisation, delivery, review, and completion.
+          </div>
+        </div>
+        <Link
+          to="/app/$section"
+          params={{ section: 'service-orders' }}
+          className="command-center-text-link"
+        >
+          View orders
+          <IconArrowRight size={13} />
+        </Link>
+      </div>
+
+      {stages.length ? (
+        <div className="command-center-pipeline-list">
+          {stages.map((stage) => (
+            <button
+              key={stage.key}
+              type="button"
+              className={cn(
+                'command-center-pipeline-row',
+                stage.state === 'active' && 'is-active',
+                stage.state === 'done' && 'is-done',
+              )}
+              onClick={() => navigateToDestination(navigate, stage.destination)}
+              disabled={!stage.destination}
+            >
+              <span className="command-center-pipeline-state" aria-hidden="true" />
+              <span className="command-center-pipeline-name">
+                <strong>{stage.label}</strong>
+                <small>
+                  {stage.state === 'done'
+                    ? 'Completed stage'
+                    : stage.state === 'active'
+                      ? 'Live work'
+                      : 'No live orders'}
+                </small>
+              </span>
+              <span className="command-center-pipeline-count">{stage.count}</span>
+              <span className="command-center-pipeline-value">
+                {stage.value ? formatCurrency(stage.value) : 'No value'}
+              </span>
+              <IconArrowRight size={13} aria-hidden="true" />
+            </button>
+          ))}
+        </div>
+      ) : (
+        <EmptyState title="No pipeline data" description="No service order stages were returned." />
+      )}
+    </section>
+  )
+}
+
+function FinancePulse({ overview }: { overview: CommandCenterOverview }) {
+  const finance = overview.finance
+
+  return (
+    <section className="command-center-card command-center-finance-card">
+      <div className="command-center-card-header">
+        <div>
+          <div className="command-center-card-title">Finance pulse</div>
+          <div className="command-center-card-subtitle">
+            Current collected and receivable position.
+          </div>
+        </div>
+        <Link
+          to="/app/$section"
+          params={{ section: 'invoices-payments' }}
+          className="command-center-text-link"
+        >
+          View finance
+          <IconArrowRight size={13} />
+        </Link>
+      </div>
+      <div className="command-center-finance-list">
+        <div>
+          <span>Collected revenue</span>
+          <strong>{formatCurrency(finance.collectedRevenue)}</strong>
+        </div>
+        <div>
+          <span>Outstanding invoices</span>
+          <strong>{formatCurrency(finance.outstanding)}</strong>
+        </div>
+        <div className={finance.overdue ? 'is-risk' : undefined}>
+          <span>Overdue balance</span>
+          <strong>{formatCurrency(finance.overdue)}</strong>
+        </div>
+        <div>
+          <span>Approved expenses</span>
+          <strong>{formatCurrency(finance.approvedExpenses)}</strong>
+        </div>
+        <div>
+          <span>Operating margin</span>
+          <strong>{finance.marginPct === null ? 'Not available' : `${finance.marginPct}%`}</strong>
         </div>
       </div>
-      <div className="command-center-timeline">
-        {items.slice(0, 5).map((item) => (
-          <div
-            key={item.id}
-            className="command-center-tl"
-            role={item.destination ? 'button' : undefined}
-            tabIndex={item.destination ? 0 : undefined}
-            onClick={() => {
-              if (!item.destination) return
-              void navigate({
-                to: '/app/$section',
-                params: { section: item.destination.section },
-                search: item.destination.search ?? {},
-              })
-            }}
-            onKeyDown={(event) => {
-              if (!item.destination || (event.key !== 'Enter' && event.key !== ' ')) return
-              event.preventDefault()
-              void navigate({
-                to: '/app/$section',
-                params: { section: item.destination.section },
-                search: item.destination.search ?? {},
-              })
-            }}
-          >
-            <b>{item.title}</b>
-            <p>{item.actor ?? 'System'}</p>
-            <time>{new Date(item.occurredAt).toLocaleString('en-NG')}</time>
+    </section>
+  )
+}
+
+function ActivityCard({ items }: { items: DashboardActivityItem[] }) {
+  const navigate = useNavigate()
+
+  return (
+    <section className="command-center-card">
+      <div className="command-center-card-header">
+        <div>
+          <div className="command-center-card-title">Recent activity</div>
+          <div className="command-center-card-subtitle">
+            Latest changes across service operations.
           </div>
+        </div>
+      </div>
+      {items.length ? (
+        <div className="command-center-activity-list">
+          {items.slice(0, 8).map((item) => (
+            <button
+              key={item.id}
+              type="button"
+              className={cn('command-center-activity-row', item.destination && 'is-linked')}
+              disabled={!item.destination}
+              onClick={() => navigateToDestination(navigate, item.destination)}
+            >
+              <span className="command-center-activity-dot" aria-hidden="true" />
+              <span className="command-center-activity-main">
+                <strong>{item.title}</strong>
+                <span>{item.description || item.recordType || 'Operational update'}</span>
+              </span>
+              <span className="command-center-activity-time">
+                {formatDateTime(item.occurredAt)}
+              </span>
+            </button>
+          ))}
+        </div>
+      ) : (
+        <EmptyState
+          title="No recent activity"
+          description="No recent operational changes were returned."
+        />
+      )}
+    </section>
+  )
+}
+
+function WorkspaceLinks() {
+  const links = [
+    ['Service Requests', 'Review intake, ownership, and next actions.', 'service-requests'],
+    ['Quotations', 'Prepare and approve commercial proposals.', 'quotations'],
+    ['Invoices & Payments', 'Track billing, balances, and payment review.', 'invoices-payments'],
+    ['Service Orders', 'Monitor delivery and fulfilment progress.', 'service-orders'],
+    ['Calculator Library', 'Manage calculator-backed service pricing.', 'calculator-library'],
+    ['Reports & Analytics', 'Open detailed operational reporting.', 'reports-analytics'],
+  ] as const
+
+  return (
+    <section className="command-center-card">
+      <div className="command-center-card-header">
+        <div>
+          <div className="command-center-card-title">Service workspaces</div>
+          <div className="command-center-card-subtitle">
+            Jump directly to the next operating area.
+          </div>
+        </div>
+      </div>
+      <div className="command-center-workspace-grid">
+        {links.map(([label, description, section]) => (
+          <Link
+            key={section}
+            to="/app/$section"
+            params={{ section }}
+            className="command-center-workspace-link"
+          >
+            <span>
+              <strong>{label}</strong>
+              <small>{description}</small>
+            </span>
+            <IconArrowRight size={14} aria-hidden="true" />
+          </Link>
         ))}
       </div>
     </section>
   )
 }
 
+function DashboardHeader({
+  generatedAt,
+  onRefresh,
+  refreshing,
+}: {
+  generatedAt: string
+  onRefresh: () => void
+  refreshing: boolean
+}) {
+  return (
+    <section className="command-center-toolbar">
+      <div className="command-center-toolbar-title">
+        Service Command Center
+        <small>Services / Live operational overview</small>
+      </div>
+      <div className="command-center-toolbar-meta">
+        <span>Updated {formatDateTime(generatedAt)}</span>
+        <button
+          type="button"
+          className="command-center-btn"
+          onClick={onRefresh}
+          disabled={refreshing}
+        >
+          <IconRefresh size={14} className={refreshing ? 'command-center-spin' : undefined} />
+          Refresh
+        </button>
+      </div>
+      <Link
+        to="/app/$section"
+        params={{ section: 'service-requests' }}
+        search={{ create: 'request' }}
+        className="command-center-btn command-center-btn-primary"
+      >
+        <IconFilePlus size={14} />
+        New Request
+      </Link>
+    </section>
+  )
+}
+
 export function OperationsDashboardPage() {
-  const financialsQuery = useQuery(dashboardQueries.financials())
-  const approvalsQuery = useQuery(dashboardQueries.pendingApprovals())
-  const pipelineQuery = useQuery(dashboardQueries.pipeline())
-  const actionItemsQuery = useQuery(dashboardQueries.actionItems())
-  const activityQuery = useQuery(dashboardQueries.activity())
+  const overviewQuery = useQuery(dashboardQueries.overview())
 
-  const allPending =
-    financialsQuery.isPending &&
-    approvalsQuery.isPending &&
-    pipelineQuery.isPending &&
-    actionItemsQuery.isPending &&
-    activityQuery.isPending
-
-  if (allPending) {
+  if (overviewQuery.isPending) {
     return (
       <div className="min-h-0 flex-1 overflow-y-auto">
         <DashboardSkeleton />
@@ -262,231 +434,58 @@ export function OperationsDashboardPage() {
     )
   }
 
-  const metrics = [
-    ...(financialsQuery.data ?? []),
-    {
-      key: 'awaiting_approval' as const,
-      label: 'Pending approvals',
-      value: approvalsQuery.data?.total ?? 0,
-      description: 'Items waiting for approval',
-    },
-    {
-      key: 'pending_quotations' as const,
-      label: 'Quote conversion',
-      value: pipelineQuery.data?.conversionRate ?? 0,
-      valueFormat: 'percent' as const,
-      description: 'Backend-reported quote-to-order conversion',
-    },
-  ]
+  if (overviewQuery.isError) {
+    const error = presentError(overviewQuery.error, 'page-load')
+    return (
+      <div className="command-center">
+        <section className="command-center-toolbar">
+          <div className="command-center-toolbar-title">
+            Service Command Center
+            <small>Services / Live operational overview</small>
+          </div>
+        </section>
+        <main className="command-center-content command-center-content--error">
+          <ErrorState
+            title="Command Center unavailable"
+            description={error.message}
+            onRetry={() => void overviewQuery.refetch()}
+          />
+        </main>
+      </div>
+    )
+  }
+
+  const overview = overviewQuery.data
 
   return (
     <div className="command-center">
-      <section className="command-center-toolbar">
-        <div className="command-center-toolbar-title">
-          Service Command Center
-          <small>Services / Executive overview</small>
-        </div>
-        <Link
-          to="/app/$section"
-          params={{ section: 'service-requests' }}
-          className="command-center-btn"
-        >
-          <IconFilePlus size={14} />
-          New Request
-        </Link>
-      </section>
-
+      <DashboardHeader
+        generatedAt={overview.generatedAt}
+        onRefresh={() => void overviewQuery.refetch()}
+        refreshing={overviewQuery.isFetching}
+      />
       <main className="command-center-content">
-        {financialsQuery.isError && approvalsQuery.isError && pipelineQuery.isError ? (
-          <ErrorState
-            title="Command Center unavailable"
-            description={presentError(financialsQuery.error, 'page-load').message}
-            onRetry={() => {
-              void financialsQuery.refetch()
-              void approvalsQuery.refetch()
-              void pipelineQuery.refetch()
-            }}
-          />
-        ) : (
-          <KpiGrid metrics={metrics} />
-        )}
-
-        <div className="command-center-g21">
-          <div className="command-center-g21-main">
-            {pipelineQuery.isPending ? (
-              <section className="command-center-card">
-                <div className="command-center-card-title">Service pipeline</div>
-                <div className="command-center-card-subtitle">Loading...</div>
-              </section>
-            ) : pipelineQuery.isError ? (
-              <section className="command-center-card">
-                <EmptyState
-                  title="Pipeline unavailable"
-                  description={presentError(pipelineQuery.error, 'section-load').message}
-                  action={
-                    <button
-                      type="button"
-                      className="command-center-btn command-center-btn-small"
-                      onClick={() => void pipelineQuery.refetch()}
-                    >
-                      Retry
-                    </button>
-                  }
-                />
-              </section>
-            ) : pipelineQuery.data.stages.length === 0 ? (
-              <section className="command-center-card">
-                <EmptyState
-                  title="No pipeline data"
-                  description="The backend returned no pipeline stages."
-                />
-              </section>
-            ) : (
-              <LifecycleCard stages={pipelineQuery.data.stages} />
-            )}
-
-            {actionItemsQuery.isPending ? (
-              <section className="command-center-card">
-                <div className="command-center-card-title">My action items</div>
-                <div className="command-center-card-subtitle">Loading...</div>
-              </section>
-            ) : actionItemsQuery.isError ? (
-              <section className="command-center-card">
-                <EmptyState
-                  title="Action items unavailable"
-                  description={presentError(actionItemsQuery.error, 'section-load').message}
-                  action={
-                    <button
-                      type="button"
-                      className="command-center-btn command-center-btn-small"
-                      onClick={() => void actionItemsQuery.refetch()}
-                    >
-                      Retry
-                    </button>
-                  }
-                />
-              </section>
-            ) : actionItemsQuery.data.length === 0 ? (
-              <section className="command-center-card">
-                <EmptyState
-                  title="No action items"
-                  description="There is currently nothing requiring your attention."
-                />
-              </section>
-            ) : (
-              <ActionItemsCard items={actionItemsQuery.data} />
-            )}
+        <div className="command-center-intro">
+          <div>
+            <span className="command-center-eyebrow">Operational position</span>
+            <h1>Make the next decision quickly.</h1>
+            <p>Review exceptions first, then move into the service workspace that owns the work.</p>
           </div>
-
-          <div className="command-center-g21-side">
-            {approvalsQuery.isPending ? (
-              <section className="command-center-card">
-                <div className="command-center-card-title">Pending approvals</div>
-                <div className="command-center-card-subtitle">Loading...</div>
-              </section>
-            ) : approvalsQuery.isError ? (
-              <section className="command-center-card">
-                <EmptyState
-                  title="Approvals unavailable"
-                  description={presentError(approvalsQuery.error, 'section-load').message}
-                  action={
-                    <button
-                      type="button"
-                      className="command-center-btn command-center-btn-small"
-                      onClick={() => void approvalsQuery.refetch()}
-                    >
-                      Retry
-                    </button>
-                  }
-                />
-              </section>
-            ) : approvalsQuery.data.alerts.length === 0 ? (
-              <section className="command-center-card">
-                <EmptyState
-                  title="No pending approvals"
-                  description="The backend returned no approval domains."
-                />
-              </section>
-            ) : (
-              <ExecutiveAlertsCard alerts={approvalsQuery.data.alerts} />
-            )}
-
-            <section className="command-center-card">
-              <div className="command-center-card-header">
-                <div>
-                  <div className="command-center-card-title">Financial summary</div>
-                  <div className="command-center-card-subtitle">
-                    Values shown exactly as reported by Command Center.
-                  </div>
-                </div>
-              </div>
-
-              {financialsQuery.isPending ? (
-                <div className="command-center-card-subtitle">Loading...</div>
-              ) : financialsQuery.isError ? (
-                <EmptyState
-                  title="Financials unavailable"
-                  description={presentError(financialsQuery.error, 'section-load').message}
-                  action={
-                    <button
-                      type="button"
-                      className="command-center-btn command-center-btn-small"
-                      onClick={() => void financialsQuery.refetch()}
-                    >
-                      Retry
-                    </button>
-                  }
-                />
-              ) : financialsQuery.data.length === 0 ? (
-                <EmptyState
-                  title="No financial data"
-                  description="No financial metrics were returned."
-                />
-              ) : (
-                <div className="space-y-2">
-                  {financialsQuery.data.map((metric) => (
-                    <div key={metric.label} className="command-center-metric">
-                      <label>{metric.label}</label>
-                      <strong>{formatMetricValue(metric)}</strong>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </section>
-          </div>
+          <span className="command-center-snapshot-pill">Live snapshot</span>
         </div>
 
-        {activityQuery.isPending ? (
-          <section className="command-center-card">
-            <div className="command-center-card-title">Recent system activity</div>
-            <div className="command-center-card-subtitle">Loading...</div>
-          </section>
-        ) : activityQuery.isError ? (
-          <section className="command-center-card">
-            <EmptyState
-              title="Activity unavailable"
-              description={presentError(activityQuery.error, 'section-load').message}
-              action={
-                <button
-                  type="button"
-                  className="command-center-btn command-center-btn-small"
-                  onClick={() => void activityQuery.refetch()}
-                >
-                  Retry
-                </button>
-              }
-            />
-          </section>
-        ) : activityQuery.data.length === 0 ? (
-          <section className="command-center-card">
-            <EmptyState
-              title="No recent activity"
-              description="No recent Command Center activity was returned."
-            />
-          </section>
-        ) : (
-          <RecentActivityCard items={activityQuery.data} />
-        )}
+        <KpiGrid metrics={overview.metrics} />
+        <AttentionQueue items={overview.attentionItems} />
+
+        <div className="command-center-primary-grid">
+          <PipelineCard stages={overview.pipeline} />
+          <FinancePulse overview={overview} />
+        </div>
+
+        <div className="command-center-secondary-grid">
+          <ActivityCard items={overview.activity} />
+          <WorkspaceLinks />
+        </div>
       </main>
     </div>
   )

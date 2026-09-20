@@ -14,8 +14,11 @@ const metricIcons: Record<DashboardMetricKey, typeof IconClipboardList> = {
   pending_quotations: IconFileInvoice,
   awaiting_approval: IconShieldCheck,
   active_orders: IconPackage,
+  collected_revenue: IconFileInvoice,
   outstanding_invoices: IconFileInvoice,
   payment_submissions: IconShieldCheck,
+  sla_risk: IconShieldCheck,
+  pending_approvals: IconShieldCheck,
   open_tasks: IconClipboardList,
   service_configuration: IconPackage,
 }
