@@ -36,6 +36,7 @@ import type {
   UpdateInvoiceInput,
 } from '../billing/billing.types'
 import { PaymentSubmissionsPanel } from '../components/PaymentSubmissionsPanel'
+import { commercialDeadlineState, invoiceStatusClass } from '../commercial.ui'
 import { quotationKeys } from '../quotation/quotation.keys'
 import { quotationQueries } from '../quotation/quotation.queries'
 import type { Quotation } from '../quotation/quotation.types'
@@ -49,15 +50,6 @@ import {
   CommercialSummaryGrid,
 } from '../components/CommercialRegisterChrome'
 import '../styles/commercial.css'
-
-function invoiceStatusClass(status: Invoice['status']) {
-  if (status === 'paid') return 'commercial-pill-green'
-  if (status === 'partially_paid') return 'commercial-pill-yellow'
-  if (status === 'overdue' || status === 'cancelled') {
-    return 'commercial-pill-gray'
-  }
-  return 'commercial-pill-blue'
-}
 
 export function InvoicesPaymentsLivePage({ recordSearch }: { recordSearch: AppSectionSearch }) {
   const { user } = useAuth()
@@ -655,11 +647,30 @@ export function InvoicesPaymentsLivePage({ recordSearch }: { recordSearch: AppSe
               ? [
                   {
                     label: 'Total invoiced',
-                    value: formatCurrency(summaryQuery.data.totalInvoiced),
+                    value: formatCurrency(summaryQuery.data.totalInvoiced, { compact: true }),
+                    valueTitle: formatCurrency(summaryQuery.data.totalInvoiced),
+                    note: 'All issued invoices',
                   },
-                  { label: 'Paid', value: formatCurrency(summaryQuery.data.paid) },
-                  { label: 'Outstanding', value: formatCurrency(summaryQuery.data.outstanding) },
-                  { label: 'Overdue', value: summaryQuery.data.overdue },
+                  {
+                    label: 'Paid',
+                    value: formatCurrency(summaryQuery.data.paid, { compact: true }),
+                    valueTitle: formatCurrency(summaryQuery.data.paid),
+                    note: 'Confirmed payments received',
+                    tone: 'positive',
+                  },
+                  {
+                    label: 'Outstanding',
+                    value: formatCurrency(summaryQuery.data.outstanding, { compact: true }),
+                    valueTitle: formatCurrency(summaryQuery.data.outstanding),
+                    note: 'Balance awaiting collection',
+                    tone: summaryQuery.data.outstanding > 0 ? 'warning' : 'default',
+                  },
+                  {
+                    label: 'Overdue',
+                    value: summaryQuery.data.overdue,
+                    note: 'Invoices past their due date',
+                    tone: summaryQuery.data.overdue > 0 ? 'danger' : 'default',
+                  },
                 ]
               : []
           }
@@ -764,50 +775,63 @@ export function InvoicesPaymentsLivePage({ recordSearch }: { recordSearch: AppSe
                       </tr>
                     </thead>
                     <tbody>
-                      {enrichedInvoices.map((invoice) => (
-                        <tr key={invoice.id}>
-                          <td>
-                            <b>{invoice.invoiceNumber}</b>
-                            <small>{invoice.paymentSchedule || '-'}</small>
-                          </td>
-                          <td>{invoice.clientName || `Client #${invoice.clientId}`}</td>
-                          <td>{invoice.serviceName}</td>
-                          <td>{formatCurrency(invoice.totalAmount)}</td>
-                          <td>{formatCurrency(invoice.amountPaid)}</td>
-                          <td>
-                            <b>{formatCurrency(invoice.balance)}</b>
-                          </td>
-                          <td>{invoice.dueDate}</td>
-                          <td>
-                            <span
-                              className={`commercial-pill ${invoiceStatusClass(invoice.status)}`}
-                            >
-                              {invoice.status.replaceAll('_', ' ')}
-                            </span>
-                          </td>
-                          <td>
-                            <button
-                              type="button"
-                              className="commercial-btn commercial-btn-small"
-                              disabled={!hasPermission(user, PERMISSIONS.serviceInvoicesView)}
-                              onClick={() =>
-                                void navigate({
-                                  to: '/app/$section',
-                                  params: {
-                                    section: 'invoices-payments',
-                                  },
-                                  search: (previous) => ({
-                                    ...previous,
-                                    invoice: String(invoice.id),
-                                  }),
-                                })
-                              }
-                            >
-                              Open
-                            </button>
-                          </td>
-                        </tr>
-                      ))}
+                      {enrichedInvoices.map((invoice) => {
+                        const deadline = commercialDeadlineState(invoice.dueDate, invoice.status)
+                        const rowClass =
+                          deadline.tone === 'danger'
+                            ? 'commercial-table-row--danger'
+                            : deadline.tone === 'warning'
+                              ? 'commercial-table-row--warning'
+                              : ''
+
+                        return (
+                          <tr key={invoice.id} className={rowClass}>
+                            <td>
+                              <b>{invoice.invoiceNumber}</b>
+                              <small>{invoice.paymentSchedule || '-'}</small>
+                            </td>
+                            <td>{invoice.clientName || `Client #${invoice.clientId}`}</td>
+                            <td>{invoice.serviceName}</td>
+                            <td>{formatCurrency(invoice.totalAmount)}</td>
+                            <td>{formatCurrency(invoice.amountPaid)}</td>
+                            <td>
+                              <b>{formatCurrency(invoice.balance)}</b>
+                            </td>
+                            <td>
+                              <span>{invoice.dueDate || 'No due date'}</span>
+                              {deadline.label ? <small>{deadline.label}</small> : null}
+                            </td>
+                            <td>
+                              <span
+                                className={`commercial-pill ${invoiceStatusClass(invoice.status)}`}
+                              >
+                                {invoice.status.replaceAll('_', ' ')}
+                              </span>
+                            </td>
+                            <td>
+                              <button
+                                type="button"
+                                className="commercial-btn commercial-btn-small"
+                                disabled={!hasPermission(user, PERMISSIONS.serviceInvoicesView)}
+                                onClick={() =>
+                                  void navigate({
+                                    to: '/app/$section',
+                                    params: {
+                                      section: 'invoices-payments',
+                                    },
+                                    search: (previous) => ({
+                                      ...previous,
+                                      invoice: String(invoice.id),
+                                    }),
+                                  })
+                                }
+                              >
+                                Open
+                              </button>
+                            </td>
+                          </tr>
+                        )
+                      })}
                     </tbody>
                   </table>
                 </div>

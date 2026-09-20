@@ -37,20 +37,12 @@ import type {
 import { QuotationBuilderLiveWorkspace } from '../workspaces/QuotationBuilderLiveWorkspace'
 import { QuotationDetailLiveWorkspace } from '../workspaces/QuotationDetailLiveWorkspace'
 import { CommercialRegisterPagination } from '../components/CommercialRegisterPagination'
+import { commercialDeadlineState, quotationStatusClass } from '../commercial.ui'
 import {
   CommercialRegisterHeader,
   CommercialSummaryGrid,
 } from '../components/CommercialRegisterChrome'
 import '../styles/commercial.css'
-
-function statusClass(status: string) {
-  if (status === 'accepted') return 'commercial-pill-green'
-  if (status === 'rejected' || status === 'expired') {
-    return 'commercial-pill-gray'
-  }
-  if (status === 'awaiting_approval') return 'commercial-pill-yellow'
-  return 'commercial-pill-blue'
-}
 
 function approvalErrorMessage(error: unknown): string {
   // Approval denials carry the specific reason (wrong approver role, missing
@@ -565,46 +557,59 @@ export function QuotationsLivePage({ recordSearch }: { recordSearch: AppSectionS
                   </tr>
                 </thead>
                 <tbody>
-                  {displayedQuotes.map((quote) => (
-                    <tr key={quote.id}>
-                      <td>
-                        <b>{quote.quoteNumber}</b>
-                        <small>{new Date(quote.createdAt).toLocaleDateString('en-GB')}</small>
-                      </td>
-                      <td>{quote.clientName}</td>
-                      <td>{quote.serviceName}</td>
-                      <td>v{quote.version}</td>
-                      <td>
-                        <b>{formatCurrency(quote.amount)}</b>
-                      </td>
-                      <td>{quote.validUntil}</td>
-                      <td>
-                        <span className={`commercial-pill ${statusClass(quote.status)}`}>
-                          {quote.statusDisplay}
-                        </span>
-                      </td>
-                      <td>{quote.requiredApproverRoleName || '-'}</td>
-                      <td>
-                        <button
-                          type="button"
-                          className="commercial-btn commercial-btn-small"
-                          disabled={!hasPermission(user, PERMISSIONS.quotesView)}
-                          onClick={() =>
-                            void navigate({
-                              to: '/app/$section',
-                              params: { section: 'quotations' },
-                              search: (previous) => ({
-                                ...previous,
-                                quotation: String(quote.id),
-                              }),
-                            })
-                          }
-                        >
-                          Open
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
+                  {displayedQuotes.map((quote) => {
+                    const deadline = commercialDeadlineState(quote.validUntil, quote.status)
+                    const rowClass =
+                      deadline.tone === 'danger'
+                        ? 'commercial-table-row--danger'
+                        : deadline.tone === 'warning'
+                          ? 'commercial-table-row--warning'
+                          : ''
+
+                    return (
+                      <tr key={quote.id} className={rowClass}>
+                        <td>
+                          <b>{quote.quoteNumber}</b>
+                          <small>{new Date(quote.createdAt).toLocaleDateString('en-GB')}</small>
+                        </td>
+                        <td>{quote.clientName}</td>
+                        <td>{quote.serviceName}</td>
+                        <td>v{quote.version}</td>
+                        <td>
+                          <b>{formatCurrency(quote.amount)}</b>
+                        </td>
+                        <td>
+                          <span>{quote.validUntil || 'No expiry date'}</span>
+                          {deadline.label ? <small>{deadline.label}</small> : null}
+                        </td>
+                        <td>
+                          <span className={`commercial-pill ${quotationStatusClass(quote.status)}`}>
+                            {quote.statusDisplay}
+                          </span>
+                        </td>
+                        <td>{quote.requiredApproverRoleName || '-'}</td>
+                        <td>
+                          <button
+                            type="button"
+                            className="commercial-btn commercial-btn-small"
+                            disabled={!hasPermission(user, PERMISSIONS.quotesView)}
+                            onClick={() =>
+                              void navigate({
+                                to: '/app/$section',
+                                params: { section: 'quotations' },
+                                search: (previous) => ({
+                                  ...previous,
+                                  quotation: String(quote.id),
+                                }),
+                              })
+                            }
+                          >
+                            Open
+                          </button>
+                        </td>
+                      </tr>
+                    )
+                  })}
                 </tbody>
               </table>
             </div>

@@ -5,48 +5,142 @@ export const commercialMoney = {
   format: formatCurrency,
 }
 
+function normalizeStatus(status: string) {
+  return status
+    .trim()
+    .toLowerCase()
+    .replace(/[\s-]+/g, '_')
+}
+
 export function requestStatusClass(status: string) {
-  if (status === 'New' || status === 'Rejected') return 'commercial-pill-gray'
-  if (status === 'Quoted' || status === 'Converted') return 'commercial-pill-green'
-  if (
-    status === 'Awaiting Quotation' ||
-    status === 'Client Approval' ||
-    status === 'Awaiting Client' ||
-    status === 'Site Assessment'
-  ) {
-    return 'commercial-pill-yellow'
+  switch (normalizeStatus(status)) {
+    case 'rejected':
+      return 'commercial-pill-red'
+    case 'cancelled':
+      return 'commercial-pill-gray'
+    case 'quoted':
+    case 'converted':
+    case 'completed':
+      return 'commercial-pill-green'
+    case 'awaiting_quotation':
+    case 'client_approval':
+    case 'awaiting_client':
+    case 'site_assessment':
+    case 'under_review':
+      return 'commercial-pill-yellow'
+    case 'new':
+      return 'commercial-pill-blue'
+    case 'finance_review_required':
+    case 'installment_defaulted':
+    case 'reservation_expired':
+      return 'commercial-pill-red'
+    default:
+      return 'commercial-pill-blue'
   }
-  return 'commercial-pill-blue'
 }
 
 export function quotationStatusClass(status: string) {
-  if (status === 'Accepted' || status === 'Approved') return 'commercial-pill-green'
-  if (status === 'Rejected' || status === 'Expired') return 'commercial-pill-red'
-  if (
-    status === 'Awaiting Approval' ||
-    status === 'Pending Approval' ||
-    status === 'Sent' ||
-    status === 'Issued'
-  ) {
-    return 'commercial-pill-yellow'
+  switch (normalizeStatus(status)) {
+    case 'accepted':
+    case 'approved':
+      return 'commercial-pill-green'
+    case 'rejected':
+    case 'expired':
+      return 'commercial-pill-red'
+    case 'awaiting_approval':
+    case 'pending_approval':
+    case 'sent':
+    case 'issued':
+      return 'commercial-pill-yellow'
+    case 'draft':
+    case 'superseded':
+      return 'commercial-pill-gray'
+    default:
+      return 'commercial-pill-blue'
   }
-  if (status === 'Draft') return 'commercial-pill-gray'
-  return 'commercial-pill-blue'
 }
 
 export function invoiceStatusClass(status: string) {
-  if (status === 'Paid') return 'commercial-pill-green'
-  if (status === 'Overdue' || status === 'Cancelled') return 'commercial-pill-red'
-  if (status === 'Part Paid') return 'commercial-pill-yellow'
-  if (status === 'Draft') return 'commercial-pill-gray'
-  return 'commercial-pill-blue'
+  switch (normalizeStatus(status)) {
+    case 'paid':
+      return 'commercial-pill-green'
+    case 'overdue':
+    case 'expired':
+    case 'defaulted':
+    case 'finance_review_required':
+      return 'commercial-pill-red'
+    case 'part_paid':
+    case 'partially_paid':
+    case 'pending':
+    case 'pending_review':
+      return 'commercial-pill-yellow'
+    case 'draft':
+    case 'cancelled':
+      return 'commercial-pill-gray'
+    default:
+      return 'commercial-pill-blue'
+  }
 }
 
 export function approvalStatusClass(status: string) {
-  if (status === 'Approved') return 'commercial-pill-green'
-  if (status === 'Rejected') return 'commercial-pill-red'
-  if (status === 'Pending') return 'commercial-pill-yellow'
+  const normalized = normalizeStatus(status)
+  if (normalized === 'approved') return 'commercial-pill-green'
+  if (normalized === 'rejected') return 'commercial-pill-red'
+  if (normalized === 'pending') return 'commercial-pill-yellow'
   return 'commercial-pill-gray'
+}
+
+export type CommercialDeadlineTone = 'default' | 'warning' | 'danger'
+
+export interface CommercialDeadlineState {
+  tone: CommercialDeadlineTone
+  label: string
+}
+
+const CLOSED_DEADLINE_STATUSES = new Set([
+  'accepted',
+  'cancelled',
+  'completed',
+  'converted',
+  'paid',
+  'rejected',
+  'superseded',
+])
+
+/** Returns a small, shared deadline cue for register rows without changing record status. */
+export function commercialDeadlineState(
+  dateValue: string | null | undefined,
+  status?: string,
+  now = new Date(),
+): CommercialDeadlineState {
+  if (!dateValue || (status && CLOSED_DEADLINE_STATUSES.has(normalizeStatus(status)))) {
+    return { tone: 'default', label: '' }
+  }
+
+  const dueDate = new Date(`${dateValue.slice(0, 10)}T00:00:00`)
+  if (Number.isNaN(dueDate.getTime())) return { tone: 'default', label: '' }
+
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+  const daysUntilDue = Math.ceil((dueDate.getTime() - today.getTime()) / 86_400_000)
+
+  if (daysUntilDue < 0) {
+    const daysOverdue = Math.abs(daysUntilDue)
+    return {
+      tone: 'danger',
+      label: `Overdue by ${daysOverdue} day${daysOverdue === 1 ? '' : 's'}`,
+    }
+  }
+  if (daysUntilDue <= 3) {
+    return {
+      tone: 'warning',
+      label:
+        daysUntilDue === 0
+          ? 'Due today'
+          : `Due in ${daysUntilDue} day${daysUntilDue === 1 ? '' : 's'}`,
+    }
+  }
+
+  return { tone: 'default', label: '' }
 }
 
 export const quotationApprovers = [

@@ -34,20 +34,12 @@ import type { SpecializedRequestHandoff } from '@/modules/specialized-services/r
 import { CreateServiceRequestLiveWorkspace } from '../workspaces/CreateServiceRequestLiveWorkspace'
 import { ServiceRequestDetailWorkspace } from '../workspaces/ServiceRequestDetailWorkspace'
 import { CommercialRegisterPagination } from '../components/CommercialRegisterPagination'
+import { commercialDeadlineState, requestStatusClass } from '../commercial.ui'
 import {
   CommercialRegisterHeader,
   CommercialSummaryGrid,
 } from '../components/CommercialRegisterChrome'
 import '../styles/commercial.css'
-
-function statusClass(status: string) {
-  if (status === 'rejected') return 'commercial-pill-gray'
-  if (status === 'quoted' || status === 'converted') return 'commercial-pill-green'
-  if (status === 'awaiting_client' || status === 'site_assessment') {
-    return 'commercial-pill-yellow'
-  }
-  return 'commercial-pill-blue'
-}
 
 const REQUEST_SUMMARY_CARDS = [
   ['New / unreviewed', 'newCount'],
@@ -109,6 +101,21 @@ export function ServiceRequestsLivePage({ recordSearch }: { recordSearch: AppSec
   const choicesQuery = useQuery(serviceRequestQueries.choices())
   const clientsQuery = useQuery(serviceRequestQueries.clients())
   const servicesQuery = useQuery(serviceRequestQueries.services())
+  const directServiceId = recordSearch.service ? Number(recordSearch.service) : 0
+  const directServiceAlreadyLoaded = Boolean(
+    directServiceId && servicesQuery.data?.some((service) => service.id === directServiceId),
+  )
+  const directServiceQuery = useQuery({
+    ...serviceRequestQueries.service(directServiceId),
+    enabled: Boolean(directServiceId) && servicesQuery.isSuccess && !directServiceAlreadyLoaded,
+  })
+  const services = useMemo(() => {
+    const items = servicesQuery.data ?? []
+    if (!directServiceQuery.data || items.some((service) => service.id === directServiceId)) {
+      return items
+    }
+    return [...items, directServiceQuery.data]
+  }, [directServiceId, directServiceQuery.data, servicesQuery.data])
 
   const employeesQuery = useQuery({
     ...serviceRequestQueries.employees(),
@@ -436,13 +443,25 @@ export function ServiceRequestsLivePage({ recordSearch }: { recordSearch: AppSec
     listQuery.isPending ||
     choicesQuery.isPending ||
     clientsQuery.isPending ||
-    servicesQuery.isPending
+    servicesQuery.isPending ||
+    (Boolean(directServiceId) && !directServiceAlreadyLoaded && directServiceQuery.isPending)
   ) {
     return <SectionLoadingState section="service-requests" />
   }
 
-  if (listQuery.isError || choicesQuery.isError || clientsQuery.isError || servicesQuery.isError) {
-    const error = listQuery.error ?? choicesQuery.error ?? clientsQuery.error ?? servicesQuery.error
+  if (
+    listQuery.isError ||
+    choicesQuery.isError ||
+    clientsQuery.isError ||
+    servicesQuery.isError ||
+    directServiceQuery.isError
+  ) {
+    const error =
+      listQuery.error ??
+      choicesQuery.error ??
+      clientsQuery.error ??
+      servicesQuery.error ??
+      directServiceQuery.error
     const presented = presentError(error, 'page-load')
 
     return (
@@ -455,6 +474,9 @@ export function ServiceRequestsLivePage({ recordSearch }: { recordSearch: AppSec
             void choicesQuery.refetch()
             void clientsQuery.refetch()
             void servicesQuery.refetch()
+            if (directServiceId && !directServiceAlreadyLoaded) {
+              void directServiceQuery.refetch()
+            }
           }}
         />
       </ModulePageStatus>
@@ -463,7 +485,6 @@ export function ServiceRequestsLivePage({ recordSearch }: { recordSearch: AppSec
 
   const requests = listQuery.data.items
   const choices = choicesQuery.data
-  const services = servicesQuery.data
   const hasActiveFilters =
     Boolean(recordSearch.search) ||
     Boolean(recordSearch.status) ||
@@ -651,62 +672,73 @@ export function ServiceRequestsLivePage({ recordSearch }: { recordSearch: AppSec
                   </tr>
                 </thead>
                 <tbody>
-                  {requests.map((request) => (
-                    <tr key={request.id}>
-                      <td>
-                        <b>{request.requestNumber}</b>
-                        <small>
-                          {new Date(request.createdAt).toLocaleDateString('en-GB')} ·{' '}
-                          {request.branchName || 'No branch'}
-                        </small>
-                      </td>
-                      <td>
-                        <b>{request.clientName}</b>
-                        <small>{request.customerType}</small>
-                      </td>
-                      <td>
-                        <b>{request.serviceName}</b>
-                        <small>{request.branchName || 'No branch'}</small>
-                      </td>
-                      <td>{request.source}</td>
-                      <td>
-                        <b>{formatCurrency(request.estimatedValue || request.budget || 0)}</b>
-                      </td>
-                      <td>
-                        <span className={`commercial-pill ${statusClass(request.status)}`}>
-                          {request.statusDisplay}
-                        </span>
-                      </td>
-                      <td>{request.ownerName || 'Unassigned'}</td>
-                      <td>
-                        <span
-                          className="commercial-table-truncate commercial-table-truncate--next"
-                          title={request.nextAction || '-'}
-                        >
-                          {request.nextAction || '-'}
-                        </span>
-                      </td>
-                      <td>
-                        <button
-                          type="button"
-                          className="commercial-btn commercial-btn-small"
-                          disabled={!hasPermission(user, PERMISSIONS.serviceRequestsView)}
-                          onClick={() =>
-                            void navigate({
-                              to: '/app/$section',
-                              params: { section: 'service-requests' },
-                              search: (previous) => ({
-                                ...previous,
-                                request: String(request.id),
-                              }),
-                            })
-                          }
-                        >
-                          Open
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
+                  {requests.map((request) => {
+                    const deadline = commercialDeadlineState(request.dueDate, request.status)
+                    const rowClass =
+                      deadline.tone === 'danger'
+                        ? 'commercial-table-row--danger'
+                        : deadline.tone === 'warning'
+                          ? 'commercial-table-row--warning'
+                          : ''
+
+                    return (
+                      <tr key={request.id} className={rowClass}>
+                        <td>
+                          <b>{request.requestNumber}</b>
+                          <small>
+                            {new Date(request.createdAt).toLocaleDateString('en-GB')} ·{' '}
+                            {request.branchName || 'No branch'}
+                          </small>
+                        </td>
+                        <td>
+                          <b>{request.clientName}</b>
+                          <small>{request.customerType}</small>
+                        </td>
+                        <td>
+                          <b>{request.serviceName}</b>
+                          <small>{request.branchName || 'No branch'}</small>
+                        </td>
+                        <td>{request.source}</td>
+                        <td>
+                          <b>{formatCurrency(request.estimatedValue || request.budget || 0)}</b>
+                        </td>
+                        <td>
+                          <span className={`commercial-pill ${requestStatusClass(request.status)}`}>
+                            {request.statusDisplay}
+                          </span>
+                        </td>
+                        <td>{request.ownerName || 'Unassigned'}</td>
+                        <td>
+                          <span
+                            className="commercial-table-truncate commercial-table-truncate--next"
+                            title={request.nextAction || '-'}
+                          >
+                            {request.nextAction || '-'}
+                          </span>
+                          {deadline.label ? <small>{deadline.label}</small> : null}
+                        </td>
+                        <td>
+                          <button
+                            type="button"
+                            className="commercial-btn commercial-btn-small"
+                            disabled={!hasPermission(user, PERMISSIONS.serviceRequestsView)}
+                            onClick={() =>
+                              void navigate({
+                                to: '/app/$section',
+                                params: { section: 'service-requests' },
+                                search: (previous) => ({
+                                  ...previous,
+                                  request: String(request.id),
+                                }),
+                              })
+                            }
+                          >
+                            Open
+                          </button>
+                        </td>
+                      </tr>
+                    )
+                  })}
                 </tbody>
               </table>
             </div>
