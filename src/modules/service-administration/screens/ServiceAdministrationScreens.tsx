@@ -671,7 +671,7 @@ function breakdownFromRaw(code: string, raw: Record<string, unknown>): EstimateB
     }
   }
   const lines = [
-    { label: 'Category', value: typeof raw.category_name === 'string' ? raw.category_name : '—' },
+    { label: 'Category', value: typeof raw.category_name === 'string' ? raw.category_name : '-' },
     { label: 'Unit price', value: money(raw.unit_price) },
     { label: 'Bedrooms', value: String(Number(raw.number_of_bedrooms ?? 0)) },
     { label: 'Floors', value: String(Number(raw.number_of_floors ?? 0)) },
@@ -1341,8 +1341,8 @@ export function CalculatorLibraryScreen({
                     <DropdownSelect
                       placeholder="Select…"
                       options={[
-                        { value: 'yes', label: 'Yes — one plan' },
-                        { value: 'no', label: 'No — separate plans' },
+                        { value: 'yes', label: 'Yes - one plan' },
+                        { value: 'no', label: 'No - separate plans' },
                       ]}
                       value={boundary.singlePlan}
                       onChange={(value) => setBoundary({ ...boundary, singlePlan: value })}
@@ -1794,7 +1794,7 @@ export function CalculatorLibraryScreen({
                 disabled={editingCategoryId != null}
                 title={
                   editingCategoryId != null
-                    ? 'Name is locked — estimates reference this category by name'
+                    ? 'Name is locked - estimates reference this category by name'
                     : undefined
                 }
                 onChange={(event) => setCategoryForm({ ...categoryForm, name: event.target.value })}
@@ -1900,7 +1900,7 @@ export function CalculatorLibraryScreen({
                 <span>
                   <b>Construction extras</b>
                   <small>
-                    Area and timeline fees — only used by Building Construction estimates.
+                    Area and timeline fees - only used by Building Construction estimates.
                   </small>
                 </span>
               </label>

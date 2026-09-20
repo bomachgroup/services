@@ -492,7 +492,7 @@ export function ExecutionTasksLivePage({ recordSearch }: { recordSearch: AppSect
                           {task.milestoneId
                             ? (milestoneNames.get(task.milestoneId) ??
                               `Milestone #${task.milestoneId}`)
-                            : '—'}
+                            : '-'}
                         </td>
                         <td>
                           {task.ownerId
@@ -504,7 +504,7 @@ export function ExecutionTasksLivePage({ recordSearch }: { recordSearch: AppSect
                             {label(task.priority)}
                           </span>
                         </td>
-                        <td>{task.dueDate ?? '—'}</td>
+                        <td>{task.dueDate ?? '-'}</td>
                         <td>
                           <button
                             type="button"

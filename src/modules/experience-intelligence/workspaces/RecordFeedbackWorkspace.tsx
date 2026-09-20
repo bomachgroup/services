@@ -70,7 +70,7 @@ export function RecordFeedbackWorkspace({
                   fieldClassName="experience-field"
                   options={orders.map((order) => ({
                     value: order.id,
-                    label: `${order.id} — ${order.client}`,
+                    label: `${order.id} - ${order.client}`,
                   }))}
                   value={field.state.value}
                   onChange={(value) => field.handleChange(value)}
@@ -105,11 +105,11 @@ export function RecordFeedbackWorkspace({
                   fullWidth
                   fieldClassName="experience-field"
                   options={[
-                    { value: '5', label: '5 — Excellent' },
-                    { value: '4', label: '4 — Good' },
-                    { value: '3', label: '3 — Satisfactory' },
-                    { value: '2', label: '2 — Poor' },
-                    { value: '1', label: '1 — Very poor' },
+                    { value: '5', label: '5 - Excellent' },
+                    { value: '4', label: '4 - Good' },
+                    { value: '3', label: '3 - Satisfactory' },
+                    { value: '2', label: '2 - Poor' },
+                    { value: '1', label: '1 - Very poor' },
                   ]}
                   value={String(field.state.value)}
                   onChange={(value) =>

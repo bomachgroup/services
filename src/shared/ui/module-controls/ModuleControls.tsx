@@ -3,7 +3,7 @@ import type { ReactNode } from 'react'
 
 import { cn } from '@/shared/lib/cn'
 
-/** Pins a page toolbar above a scrolling body — same structure as the Service Module HTML topbar. */
+/** Pins a page toolbar above a scrolling body - same structure as the Service Module HTML topbar. */
 export function ModulePageFrame({ header, children }: { header: ReactNode; children: ReactNode }) {
   return (
     <div className="flex h-full min-h-0 flex-1 flex-col overflow-hidden">
@@ -38,7 +38,7 @@ export function ModuleScrollArea({ children }: { children: ReactNode }) {
   return <div className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto">{children}</div>
 }
 
-/** Key icon for permission-locked actions — only render when `show` is true. */
+/** Key icon for permission-locked actions - only render when `show` is true. */
 export function AccessLockIcon({ show, size = 12 }: { show: boolean; size?: number }) {
   if (!show) return null
   return <IconKey size={size} stroke={1.75} aria-hidden="true" className="shrink-0 opacity-90" />

@@ -47,7 +47,13 @@ type ProofUploadState = {
 } | null
 
 type InvoiceConfirmAction =
-  'send' | 'cancel' | 'create-order' | 'no-charge' | 'cancel-reservation' | null
+  | 'send'
+  | 'cancel'
+  | 'create-order'
+  | 'no-charge'
+  | 'cancel-reservation'
+  | 'release-expired-reservation'
+  | null
 
 function formatPreciseCurrency(value: number) {
   const amount = Number(value) || 0
@@ -111,6 +117,8 @@ export function InvoiceDetailLiveWorkspace({
   reservationSaving = false,
   onSetBalancePlan,
   onCancelReservation,
+  expiredReservationState,
+  onReleaseExpiredReservation,
 }: {
   invoice: Invoice
   payments: Payment[]
@@ -144,6 +152,12 @@ export function InvoiceDetailLiveWorkspace({
   reservationSaving?: boolean
   onSetBalancePlan?: (mode: 'full_payment' | 'installment') => void
   onCancelReservation?: () => void
+  expiredReservationState?: {
+    commercialState: string
+    stateReason: string
+    reservationExpiresAt: string | null
+  } | null
+  onReleaseExpiredReservation?: () => void
 }) {
   const toast = useToast()
   const capabilities = getInvoiceCapabilities(invoice)
@@ -395,6 +409,29 @@ export function InvoiceDetailLiveWorkspace({
         </header>
 
         <div className="commercial-modal-body">
+          {expiredReservationState?.commercialState === 'reservation_expired' &&
+          onReleaseExpiredReservation ? (
+            <div className="commercial-notice commercial-notice-yellow">
+              <div>
+                <b>Reservation expired and awaiting staff release</b>
+                <p>
+                  The payment remains recorded, but the property stays protected until an authorised
+                  staff member confirms release.
+                </p>
+              </div>
+              {canManageReservation ? (
+                <button
+                  type="button"
+                  className="commercial-btn commercial-btn-primary commercial-btn-small"
+                  disabled={saving || reservationSaving}
+                  onClick={() => setConfirmAction('release-expired-reservation')}
+                >
+                  Release property
+                </button>
+              ) : null}
+            </div>
+          ) : null}
+
           <section className="commercial-form-section">
             <h3>Billing summary</h3>
             <div className="commercial-quote-pricing-layout">
@@ -477,12 +514,12 @@ export function InvoiceDetailLiveWorkspace({
                   <>
                     Reservation fee complete
                     {paymentDue.reservationExpiresAt
-                      ? ` — hold expires ${new Date(paymentDue.reservationExpiresAt).toLocaleString()}`
+                      ? ` - hold expires ${new Date(paymentDue.reservationExpiresAt).toLocaleString()}`
                       : ''}
                     . Nothing due until you continue to full payment.
                     {paymentDue.reservationRefundable === false
                       ? ` If you cancel, the fee is non-refundable${paymentDue.reservationRetentionPercent != null ? ` (${paymentDue.reservationRetentionPercent}% retained)` : ''}.`
-                      : ' If you cancel, the fee is refundable — finance refunds manually.'}
+                      : ' If you cancel, the fee is refundable - finance refunds manually.'}
                   </>
                 )}
               </div>
@@ -999,15 +1036,15 @@ export function InvoiceDetailLiveWorkspace({
         detailsTitle="Invoice summary"
         detailRows={[
           { label: 'Invoice', value: invoice.invoiceNumber, highlight: true },
-          { label: 'Client', value: invoice.clientName || '—' },
-          { label: 'Service', value: invoice.serviceName || '—' },
+          { label: 'Client', value: invoice.clientName || '-' },
+          { label: 'Service', value: invoice.serviceName || '-' },
           {
             label: 'Total amount',
             value: formatPreciseCurrency(invoice.totalAmount),
             highlight: true,
           },
           { label: 'Outstanding', value: formatPreciseCurrency(invoice.balance) },
-          { label: 'Due date', value: invoice.dueDate || '—' },
+          { label: 'Due date', value: invoice.dueDate || '-' },
         ]}
         confirmLabel={invoice.status === 'sent' ? 'Resend email' : 'Issue invoice'}
         cancelLabel="Not yet"
@@ -1028,7 +1065,7 @@ export function InvoiceDetailLiveWorkspace({
         detailsTitle="Invoice summary"
         detailRows={[
           { label: 'Invoice', value: invoice.invoiceNumber, highlight: true },
-          { label: 'Client', value: invoice.clientName || '—' },
+          { label: 'Client', value: invoice.clientName || '-' },
           { label: 'Total amount', value: formatPreciseCurrency(invoice.totalAmount) },
           { label: 'Amount paid', value: formatPreciseCurrency(invoice.amountPaid) },
           { label: 'Current status', value: invoice.statusDisplay || invoice.status },
@@ -1052,7 +1089,7 @@ export function InvoiceDetailLiveWorkspace({
         detailsTitle="Invoice summary"
         detailRows={[
           { label: 'Invoice', value: invoice.invoiceNumber, highlight: true },
-          { label: 'Client', value: invoice.clientName || '—' },
+          { label: 'Client', value: invoice.clientName || '-' },
           { label: 'Total amount', value: formatPreciseCurrency(invoice.totalAmount) },
           { label: 'Amount paid', value: formatPreciseCurrency(invoice.amountPaid) },
           { label: 'Current status', value: invoice.statusDisplay || invoice.status },
@@ -1076,14 +1113,14 @@ export function InvoiceDetailLiveWorkspace({
         detailsTitle="Handoff summary"
         detailRows={[
           { label: 'Invoice', value: invoice.invoiceNumber, highlight: true },
-          { label: 'Client', value: invoice.clientName || '—' },
-          { label: 'Service', value: invoice.serviceName || '—' },
+          { label: 'Client', value: invoice.clientName || '-' },
+          { label: 'Service', value: invoice.serviceName || '-' },
           {
             label: 'Amount received',
             value: formatPreciseCurrency(invoice.amountPaid),
             highlight: true,
           },
-          { label: 'Request', value: invoice.serviceRequestNumber || '—' },
+          { label: 'Request', value: invoice.serviceRequestNumber || '-' },
         ]}
         confirmLabel="Create service order"
         cancelLabel="Not yet"
@@ -1102,7 +1139,7 @@ export function InvoiceDetailLiveWorkspace({
         description={
           paymentDue?.reservationRefundable === false
             ? 'The property hold will be released. The reservation fee is non-refundable.'
-            : 'The property hold will be released. The reservation fee is refundable — finance refunds manually.'
+            : 'The property hold will be released. The reservation fee is refundable - finance refunds manually.'
         }
         impact="Confirmed fee payments stay recorded and labeled. Finance handles any refund outside this screen."
         detailsTitle="Reservation summary"
@@ -1121,6 +1158,33 @@ export function InvoiceDetailLiveWorkspace({
         onCancel={() => setConfirmAction(null)}
         onConfirm={() => {
           onCancelReservation?.()
+          setConfirmAction(null)
+        }}
+      />
+
+      <ConfirmDialog
+        open={confirmAction === 'release-expired-reservation'}
+        tone="danger"
+        title="Release this expired reservation?"
+        description="This confirms that the expired paid reservation no longer protects the property. The property will become available for a new request."
+        impact="The payment and commercial history remain recorded. This action only releases the property hold and cannot be used to settle the expired transaction."
+        detailsTitle="Release summary"
+        detailRows={[
+          { label: 'Invoice', value: invoice.invoiceNumber, highlight: true },
+          { label: 'Request', value: invoice.serviceRequestNumber || '-' },
+          {
+            label: 'Reservation expired',
+            value: expiredReservationState?.reservationExpiresAt
+              ? new Date(expiredReservationState.reservationExpiresAt).toLocaleString()
+              : 'Expired',
+          },
+        ]}
+        confirmLabel="Release property"
+        cancelLabel="Keep protected"
+        isConfirming={reservationSaving}
+        onCancel={() => setConfirmAction(null)}
+        onConfirm={() => {
+          onReleaseExpiredReservation?.()
           setConfirmAction(null)
         }}
       />

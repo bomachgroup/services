@@ -342,7 +342,7 @@ export function SpecializedOperationsLivePage({
                     <div>
                       <div className="specialized-card-title">{detail.name} Lifecycle</div>
                       <div className="specialized-card-subtitle">
-                        Configured workflow template — not an individual Order
+                        Configured workflow template - not an individual Order
                       </div>
                     </div>
                   </header>
@@ -539,7 +539,7 @@ export function SpecializedOperationsLivePage({
                                 <td>
                                   <b>{o.orderNumber}</b>
                                 </td>
-                                <td>{o.stage || '—'}</td>
+                                <td>{o.stage || '-'}</td>
                                 <td>{o.progress}%</td>
                                 <td>{formatCurrency(o.amount)}</td>
                                 <td>

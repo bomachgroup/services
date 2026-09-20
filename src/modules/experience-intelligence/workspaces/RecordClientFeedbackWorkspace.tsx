@@ -184,7 +184,7 @@ export function RecordClientFeedbackWorkspace({
                       ...mapDropdownOptions(
                         orders.map((order) => ({
                           value: String(order.id),
-                          label: `${order.orderNumber} — ${order.serviceName}`,
+                          label: `${order.orderNumber} - ${order.serviceName}`,
                         })),
                       ),
                     ]}
@@ -216,11 +216,11 @@ export function RecordClientFeedbackWorkspace({
                     fullWidth
                     fieldClassName="experience-field"
                     options={[
-                      { value: '5', label: '5 — Excellent' },
-                      { value: '4', label: '4 — Good' },
-                      { value: '3', label: '3 — Satisfactory' },
-                      { value: '2', label: '2 — Poor' },
-                      { value: '1', label: '1 — Very poor' },
+                      { value: '5', label: '5 - Excellent' },
+                      { value: '4', label: '4 - Good' },
+                      { value: '3', label: '3 - Satisfactory' },
+                      { value: '2', label: '2 - Poor' },
+                      { value: '1', label: '1 - Very poor' },
                     ]}
                     value={String(field.state.value)}
                     onChange={(value) => field.handleChange(Number(value) as 1 | 2 | 3 | 4 | 5)}

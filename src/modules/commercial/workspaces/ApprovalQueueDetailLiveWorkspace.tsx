@@ -68,7 +68,7 @@ export function ApprovalQueueDetailLiveWorkspace({
             <div className="commercial-approval-summary">
               <div className="commercial-approval-amount-card">
                 <span className="commercial-approval-amount-label">Approval amount</span>
-                <strong>{item.amount == null ? '—' : formatCurrency(item.amount)}</strong>
+                <strong>{item.amount == null ? '-' : formatCurrency(item.amount)}</strong>
                 <small>
                   {item.sourceDisplay} · {item.refNumber}
                 </small>
@@ -87,11 +87,11 @@ export function ApprovalQueueDetailLiveWorkspace({
               </div>
               <div>
                 <div className="commercial-kl">Requester</div>
-                <b>{item.requesterName || '—'}</b>
+                <b>{item.requesterName || '-'}</b>
               </div>
               <div>
                 <div className="commercial-kl">Approver</div>
-                <b>{item.approverName || '—'}</b>
+                <b>{item.approverName || '-'}</b>
               </div>
               <div>
                 <div className="commercial-kl">Created</div>

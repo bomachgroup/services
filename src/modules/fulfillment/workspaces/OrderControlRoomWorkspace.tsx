@@ -83,7 +83,7 @@ export function OrderControlRoomWorkspace({
           onMouseDown={(event) => event.stopPropagation()}
         >
           <header className="fulfillment-modal-header">
-            <h2>Order Control Room — {order.id}</h2>
+            <h2>Order Control Room - {order.id}</h2>
             <button
               type="button"
               className="fulfillment-modal-close"

@@ -1,5 +1,5 @@
 import { IconX } from '@tabler/icons-react'
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 
 import { GroupedNumberInput } from '@/shared/ui/grouped-number-input'
 
@@ -8,7 +8,9 @@ import { PropertyWorkspaceBanner } from '../components/PropertyWorkspaceBanner'
 import { RealEstateFormDropdown } from '../components/RealEstateFormDropdown'
 import { AdditionalFeesEditor } from '../real-estate/AdditionalFeesEditor'
 import { BoundaryEditor } from '../real-estate/BoundaryEditor'
+import { CommercialPolicyFields } from '../real-estate/CommercialPolicyFields'
 import { NamedDocumentsEditor } from '../real-estate/NamedDocumentsEditor'
+import { PropertyImagesEditor } from '../real-estate/PropertyImagesEditor'
 import { realEstateApi } from '../real-estate/real-estate.api'
 import {
   commercialBuildingTypes,
@@ -20,14 +22,17 @@ import {
   type PricingMode,
   type Property,
 } from '../real-estate/real-estate.types'
-import { validateProperty } from '../real-estate/real-estate.validation'
+import {
+  firstPropertyFieldError,
+  mapPropertySubmitFieldErrors,
+  mapPropertyValidationMessage,
+  type PropertyFieldErrors,
+  type PropertyFieldKey,
+  validatePropertyFields,
+} from '../real-estate/real-estate.validation'
 
 const residentialTypeOptions = [...residentialBuildingTypes]
 const commercialTypeOptions = [...commercialBuildingTypes]
-
-type PropertyFieldErrors = Partial<
-  Record<'plotNumber' | 'propertyName' | 'plotSize' | 'price', string>
->
 
 function parsePositiveInteger(value: string, fallback: number | null = null) {
   if (value.trim() === '') return fallback
@@ -51,41 +56,16 @@ function isBoundaryError(message: string) {
   )
 }
 
-function mapValidationMessageToFields(message: string): PropertyFieldErrors {
-  const normalized = message.toLowerCase()
-  if (
-    normalized.includes('plot number') ||
-    (normalized.includes('plot') && normalized.includes('already exists')) ||
-    (normalized.includes('plot') && normalized.includes('unique'))
-  ) {
-    return { plotNumber: message }
-  }
-  if (normalized.includes('property name')) return { propertyName: message }
-  if (normalized.includes('plot size')) return { plotSize: message }
-  if (normalized.includes('price')) return { price: message }
-  return {}
-}
-
-function mapSubmitFieldErrors(submitFieldErrors?: Record<string, string>): PropertyFieldErrors {
-  const mapped: PropertyFieldErrors = {}
-  for (const [key, message] of Object.entries(submitFieldErrors ?? {})) {
-    if (!message) continue
-    if (key === 'plot_number' || key === 'plotNumber') mapped.plotNumber = message
-    if (key === 'property_name' || key === 'propertyName') mapped.propertyName = message
-    if (key === 'plot_size' || key === 'plotSize') mapped.plotSize = message
-    if (key === 'price') mapped.price = message
-  }
-  return mapped
-}
-
 function mapPropertyToInput(property: Property): CreatePropertyInput {
   return {
     isOurProperty: property.isOurProperty,
     propertyType: property.propertyType,
     propertyName: property.propertyName,
     price: property.price,
-    plotUse: property.plotUse,
+    // Keep the form state aligned with the dropdown's plot default.
+    plotUse: property.propertyType === 'plot' ? property.plotUse || 'residential' : '',
     boundary: property.boundary,
+    images: property.images.map((image) => image.image),
     pricingMode: property.pricingMode,
     feeConfig: property.feeConfig,
     documents: property.documents,
@@ -104,6 +84,16 @@ function mapPropertyToInput(property: Property): CreatePropertyInput {
     totalAreaCommercial: property.totalAreaCommercial,
     numberOfFloors: property.numberOfFloors,
     unitsOffices: property.unitsOffices,
+    allowReservation: property.allowReservation,
+    reservationPercent: property.reservationPercent,
+    reservationDurationHours: property.reservationDurationHours,
+    requestClaimHoldHours: property.requestClaimHoldHours,
+    reservationRefundable: property.reservationRefundable,
+    reservationRetentionPercent: property.reservationRetentionPercent,
+    allowInstallment: property.allowInstallment,
+    installmentDownPaymentPercent: property.installmentDownPaymentPercent,
+    installmentMonths: property.installmentMonths,
+    installmentGracePeriodDays: property.installmentGracePeriodDays,
   }
 }
 
@@ -147,25 +137,46 @@ export function EditPropertyLiveWorkspace({
   const [value, setValue] = useState<CreatePropertyInput>(() => mapPropertyToInput(property))
   const [error, setError] = useState('')
   const [fieldErrors, setFieldErrors] = useState<PropertyFieldErrors>({})
-  const boundarySubmitError = isBoundaryError(submitError) ? submitError : ''
+  const mappedSubmitFieldErrors = mapPropertySubmitFieldErrors(submitFieldErrors)
+  const boundarySubmitError = isBoundaryError(submitError)
+    ? submitError
+    : (mappedSubmitFieldErrors.boundary ?? '')
   const boundaryFieldErrors = Object.fromEntries(
     Object.entries(submitFieldErrors ?? {}).filter(([key]) => /^\d+\.(lat|lng)$/.test(key)),
   )
+  const submitFieldsSignature = JSON.stringify(submitFieldErrors ?? {})
+
+  const focusField = useCallback((key: PropertyFieldKey) => {
+    window.requestAnimationFrame(() => {
+      const node =
+        document.querySelector<HTMLElement>(`[data-property-field="${key}"]`) ??
+        document.querySelector<HTMLElement>(`#property-${key}`)
+      const boundary = document.querySelector<HTMLElement>('[data-property-section="boundary"]')
+      const target = node ?? (key === 'boundary' ? boundary : null)
+      if (!target) return
+      const focusable =
+        target instanceof HTMLInputElement ||
+        target instanceof HTMLTextAreaElement ||
+        target instanceof HTMLSelectElement ||
+        target.getAttribute('role') === 'combobox'
+          ? target
+          : target.querySelector<HTMLElement>('input, textarea, select, [role="combobox"], button')
+      focusable?.focus({ preventScroll: true })
+      target.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    })
+  }, [])
 
   useEffect(() => {
-    const fromApi = mapSubmitFieldErrors(submitFieldErrors)
-    if (submitError.trim() && !isBoundaryError(submitError)) {
-      Object.assign(fromApi, mapValidationMessageToFields(submitError))
+    const fromApi = { ...mappedSubmitFieldErrors }
+    if (submitError.trim()) {
+      Object.assign(fromApi, mapPropertyValidationMessage(submitError, value.propertyType))
     }
     if (Object.keys(fromApi).length) {
       queueMicrotask(() => {
         setFieldErrors(fromApi)
         setError('')
-        if (fromApi.plotNumber) {
-          requestAnimationFrame(() => {
-            document.querySelector<HTMLInputElement>('[data-property-field="plotNumber"]')?.focus()
-          })
-        }
+        const firstKey = firstPropertyFieldError(fromApi)
+        if (firstKey) focusField(firstKey)
       })
       return
     }
@@ -174,7 +185,9 @@ export function EditPropertyLiveWorkspace({
         setError(submitError)
       })
     }
-  }, [submitError, submitFieldErrors])
+    // The signature prevents server-error handling from rerunning while the user edits fields.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [submitError, submitFieldsSignature, focusField, value.propertyType])
 
   const setField = <K extends keyof CreatePropertyInput>(
     key: K,
@@ -188,6 +201,7 @@ export function EditPropertyLiveWorkspace({
       delete next[key]
       return next
     })
+    setError('')
   }
 
   const propertyType = value.propertyType
@@ -258,23 +272,16 @@ export function EditPropertyLiveWorkspace({
         onMouseDown={(event) => event.stopPropagation()}
         onSubmit={(event) => {
           event.preventDefault()
-          const validationError = validateProperty(value, {
+          const validationErrors = validatePropertyFields(value, {
             requirePlotNumber: hasEstate,
             takenPlotNumbers: occupiedPlotNumbers,
             excludePlotNumber: property.plotNumber,
-            currentStatus: property.status,
           })
-          if (validationError) {
-            const mapped = mapValidationMessageToFields(validationError)
-            setFieldErrors(mapped)
-            setError(Object.keys(mapped).length ? '' : validationError)
-            if (mapped.plotNumber) {
-              requestAnimationFrame(() => {
-                document
-                  .querySelector<HTMLInputElement>('[data-property-field="plotNumber"]')
-                  ?.focus()
-              })
-            }
+          if (Object.keys(validationErrors).length) {
+            setFieldErrors(validationErrors)
+            setError('')
+            const firstKey = firstPropertyFieldError(validationErrors)
+            if (firstKey) focusField(firstKey)
             return
           }
           setFieldErrors({})
@@ -319,17 +326,26 @@ export function EditPropertyLiveWorkspace({
 
             <div className="commercial-form-grid commercial-form-grid--property">
               <div className="commercial-form-grid-location">
-                <label className="commercial-field">
+                <label
+                  className={`commercial-field${fieldErrors.propertyName ? 'commercial-field--invalid' : ''}`}
+                >
                   <span>
                     Property name <em>*</em>
                   </span>
                   <input
                     autoFocus={!hasEstate}
                     value={value.propertyName}
+                    data-property-field="propertyName"
+                    aria-invalid={Boolean(fieldErrors.propertyName)}
                     disabled={hasEstate}
-                    onChange={(event) => setField('propertyName', event.target.value)}
+                    onChange={(event) => {
+                      setField('propertyName', event.target.value)
+                      clearFieldError('propertyName')
+                    }}
                   />
-                  {hasEstate ? (
+                  {fieldErrors.propertyName ? (
+                    <small className="commercial-field-error">{fieldErrors.propertyName}</small>
+                  ) : hasEstate ? (
                     <small>Estate units are named automatically from the plot number.</small>
                   ) : null}
                 </label>
@@ -368,9 +384,12 @@ export function EditPropertyLiveWorkspace({
                     fieldClassName="commercial-field"
                     options={plotUses}
                     value={value.plotUse || 'residential'}
-                    onChange={(nextValue) =>
+                    id="property-plotUse"
+                    error={fieldErrors.plotUse}
+                    onChange={(nextValue) => {
                       setField('plotUse', nextValue as CreatePropertyInput['plotUse'])
-                    }
+                      clearFieldError('plotUse')
+                    }}
                   />
                   {plotNumberField}
                 </div>
@@ -399,17 +418,25 @@ export function EditPropertyLiveWorkspace({
               </div>
 
               <div className="commercial-form-grid commercial-form-grid--property">
-                <label className="commercial-field">
+                <label
+                  className={`commercial-field${fieldErrors.plotSize ? 'commercial-field--invalid' : ''}`}
+                >
                   <span>
                     Plot size (sqm) <em>*</em>
                   </span>
                   <GroupedNumberInput
+                    id="property-plotSize"
+                    invalid={Boolean(fieldErrors.plotSize)}
                     value={value.plotSize}
                     onChange={(nextValue) => {
                       setField('plotSize', nextValue > 0 ? nextValue : null)
                       setField('plotSizeUnit', 'sqm')
+                      clearFieldError('plotSize')
                     }}
                   />
+                  {fieldErrors.plotSize ? (
+                    <small className="commercial-field-error">{fieldErrors.plotSize}</small>
+                  ) : null}
                 </label>
 
                 <PropertyPriceField
@@ -421,6 +448,8 @@ export function EditPropertyLiveWorkspace({
                   areaSqm={areaSqm}
                   onPricingModeChange={setPricingMode}
                   onPriceChange={(nextPrice) => setField('price', nextPrice)}
+                  error={fieldErrors.price}
+                  inputId="property-price"
                 />
               </div>
             </section>
@@ -445,10 +474,17 @@ export function EditPropertyLiveWorkspace({
                     ...residentialTypeOptions,
                   ]}
                   value={value.buildingTypeResidential ?? ''}
-                  onChange={(nextValue) => setField('buildingTypeResidential', nextValue)}
+                  id="property-buildingTypeResidential"
+                  error={fieldErrors.buildingTypeResidential}
+                  onChange={(nextValue) => {
+                    setField('buildingTypeResidential', nextValue)
+                    clearFieldError('buildingTypeResidential')
+                  }}
                 />
 
-                <label className="commercial-field">
+                <label
+                  className={`commercial-field${fieldErrors.bedrooms ? 'commercial-field--invalid' : ''}`}
+                >
                   <span>
                     Bedrooms <em>*</em>
                   </span>
@@ -458,13 +494,21 @@ export function EditPropertyLiveWorkspace({
                     min={1}
                     inputMode="numeric"
                     value={numberInputValue(value.bedrooms)}
-                    onChange={(event) =>
+                    data-property-field="bedrooms"
+                    aria-invalid={Boolean(fieldErrors.bedrooms)}
+                    onChange={(event) => {
                       setField('bedrooms', parsePositiveInteger(event.target.value))
-                    }
+                      clearFieldError('bedrooms')
+                    }}
                   />
+                  {fieldErrors.bedrooms ? (
+                    <small className="commercial-field-error">{fieldErrors.bedrooms}</small>
+                  ) : null}
                 </label>
 
-                <label className="commercial-field">
+                <label
+                  className={`commercial-field${fieldErrors.bathrooms ? 'commercial-field--invalid' : ''}`}
+                >
                   <span>
                     Bathrooms <em>*</em>
                   </span>
@@ -474,13 +518,21 @@ export function EditPropertyLiveWorkspace({
                     min={1}
                     inputMode="numeric"
                     value={numberInputValue(value.bathrooms)}
-                    onChange={(event) =>
+                    data-property-field="bathrooms"
+                    aria-invalid={Boolean(fieldErrors.bathrooms)}
+                    onChange={(event) => {
                       setField('bathrooms', parsePositiveInteger(event.target.value))
-                    }
+                      clearFieldError('bathrooms')
+                    }}
                   />
+                  {fieldErrors.bathrooms ? (
+                    <small className="commercial-field-error">{fieldErrors.bathrooms}</small>
+                  ) : null}
                 </label>
 
-                <label className="commercial-field">
+                <label
+                  className={`commercial-field${fieldErrors.totalAreaResidential ? 'commercial-field--invalid' : ''}`}
+                >
                   <span>Floors</span>
                   <input
                     className="commercial-number-input"
@@ -499,11 +551,19 @@ export function EditPropertyLiveWorkspace({
                     Total area (sqm) <em>*</em>
                   </span>
                   <GroupedNumberInput
+                    id="property-totalAreaResidential"
+                    invalid={Boolean(fieldErrors.totalAreaResidential)}
                     value={value.totalAreaResidential}
-                    onChange={(nextValue) =>
+                    onChange={(nextValue) => {
                       setField('totalAreaResidential', nextValue > 0 ? nextValue : null)
-                    }
+                      clearFieldError('totalAreaResidential')
+                    }}
                   />
+                  {fieldErrors.totalAreaResidential ? (
+                    <small className="commercial-field-error">
+                      {fieldErrors.totalAreaResidential}
+                    </small>
+                  ) : null}
                 </label>
 
                 <PropertyPriceField
@@ -515,6 +575,8 @@ export function EditPropertyLiveWorkspace({
                   areaSqm={areaSqm}
                   onPricingModeChange={setPricingMode}
                   onPriceChange={(nextPrice) => setField('price', nextPrice)}
+                  error={fieldErrors.price}
+                  inputId="property-price"
                 />
               </div>
             </section>
@@ -539,19 +601,34 @@ export function EditPropertyLiveWorkspace({
                     ...commercialTypeOptions,
                   ]}
                   value={value.buildingTypeCommercial ?? ''}
-                  onChange={(nextValue) => setField('buildingTypeCommercial', nextValue)}
+                  id="property-buildingTypeCommercial"
+                  error={fieldErrors.buildingTypeCommercial}
+                  onChange={(nextValue) => {
+                    setField('buildingTypeCommercial', nextValue)
+                    clearFieldError('buildingTypeCommercial')
+                  }}
                 />
 
-                <label className="commercial-field">
+                <label
+                  className={`commercial-field${fieldErrors.totalAreaCommercial ? 'commercial-field--invalid' : ''}`}
+                >
                   <span>
                     Total area (sqm) <em>*</em>
                   </span>
                   <GroupedNumberInput
+                    id="property-totalAreaCommercial"
+                    invalid={Boolean(fieldErrors.totalAreaCommercial)}
                     value={value.totalAreaCommercial}
-                    onChange={(nextValue) =>
+                    onChange={(nextValue) => {
                       setField('totalAreaCommercial', nextValue > 0 ? nextValue : null)
-                    }
+                      clearFieldError('totalAreaCommercial')
+                    }}
                   />
+                  {fieldErrors.totalAreaCommercial ? (
+                    <small className="commercial-field-error">
+                      {fieldErrors.totalAreaCommercial}
+                    </small>
+                  ) : null}
                 </label>
 
                 <PropertyPriceField
@@ -563,6 +640,8 @@ export function EditPropertyLiveWorkspace({
                   areaSqm={areaSqm}
                   onPricingModeChange={setPricingMode}
                   onPriceChange={(nextPrice) => setField('price', nextPrice)}
+                  error={fieldErrors.price}
+                  inputId="property-price"
                 />
 
                 <label className="commercial-field">
@@ -598,41 +677,55 @@ export function EditPropertyLiveWorkspace({
             </section>
           ) : null}
 
+          <CommercialPolicyFields
+            value={value}
+            errors={fieldErrors}
+            onChange={(key, nextValue) => {
+              setValue((current) => ({ ...current, [key]: nextValue }))
+              clearFieldError(key as keyof PropertyFieldErrors)
+            }}
+          />
+
           <BoundaryEditor
             label="Property boundary"
             value={value.boundary ?? []}
-            onChange={(nextBoundary) => setField('boundary', nextBoundary)}
-            onValidate={
-              estateId
-                ? async (nextBoundary) => {
-                    const result = await realEstateApi.validatePropertyBoundary(
-                      estateId,
-                      nextBoundary,
-                      property.id,
-                    )
-                    return result.detail
-                  }
-                : undefined
-            }
-            error={boundarySubmitError}
+            onChange={(nextBoundary) => {
+              setField('boundary', nextBoundary)
+              clearFieldError('boundary')
+            }}
+            onValidate={async (nextBoundary) => {
+              const result = estateId
+                ? await realEstateApi.validatePropertyBoundary(estateId, nextBoundary, property.id)
+                : await realEstateApi.validateStandalonePropertyBoundary(nextBoundary, property.id)
+              return result.detail
+            }}
+            error={boundarySubmitError || fieldErrors.boundary || ''}
             fieldErrors={boundaryFieldErrors}
+            dataField="boundary"
           />
 
           <AdditionalFeesEditor
             title="Property-specific fees"
             value={value.feeConfig?.additionalFees ?? []}
-            onChange={(nextFees) =>
+            error={fieldErrors.additionalFees}
+            onChange={(nextFees) => {
               setField('feeConfig', {
                 inheritEstateFees: value.feeConfig?.inheritEstateFees ?? true,
                 overrides: value.feeConfig?.overrides ?? [],
                 additionalFees: nextFees,
               })
-            }
+              clearFieldError('additionalFees')
+            }}
           />
 
           <NamedDocumentsEditor
             value={value.documents ?? []}
             onChange={(nextDocuments) => setField('documents', nextDocuments)}
+          />
+
+          <PropertyImagesEditor
+            value={value.images ?? []}
+            onChange={(nextImages) => setField('images', nextImages)}
           />
         </div>
 

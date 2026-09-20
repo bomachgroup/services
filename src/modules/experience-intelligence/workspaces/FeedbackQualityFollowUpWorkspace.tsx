@@ -11,7 +11,7 @@ import type {
 } from '../feedback/feedback.types'
 import { feedbackStatusOptions } from '../feedback/feedback.types'
 const dt = (v: string) => {
-  if (!v) return '—'
+  if (!v) return '-'
   const d = new Date(v)
   return Number.isNaN(d.getTime()) ? v : d.toLocaleString()
 }

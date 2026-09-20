@@ -4,7 +4,7 @@ import type { SpecializedRequestFormValues } from '../types'
 
 import type { RealEstateRequestContext } from './RealEstateRequestContextFields'
 
-/** Matches backend SALE_CAPABLE_REQUEST_CONTEXTS — asset claim / commercial create. */
+/** Matches backend SALE_CAPABLE_REQUEST_CONTEXTS - asset claim / commercial create. */
 export const SALE_CAPABLE_REQUEST_CONTEXTS = new Set([
   'land_sale',
   'property_brokerage',

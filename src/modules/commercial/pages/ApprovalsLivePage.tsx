@@ -415,10 +415,10 @@ export function ApprovalsLivePage({ recordSearch }: { recordSearch: AppSectionSe
                       </td>
                       <td>{item.sourceDisplay}</td>
                       <td>{item.subject}</td>
-                      <td>{item.requesterName || '—'}</td>
-                      <td>{item.approverName || '—'}</td>
+                      <td>{item.requesterName || '-'}</td>
+                      <td>{item.approverName || '-'}</td>
                       <td>
-                        <b>{item.amount == null ? '—' : formatCurrency(item.amount)}</b>
+                        <b>{item.amount == null ? '-' : formatCurrency(item.amount)}</b>
                       </td>
                       <td>{new Date(item.createdAt).toLocaleDateString('en-GB')}</td>
                       <td>

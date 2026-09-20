@@ -42,6 +42,8 @@ import type { Quotation } from '../quotation/quotation.types'
 import { InvoiceBuilderLiveWorkspace } from '../workspaces/InvoiceBuilderLiveWorkspace'
 import { InvoiceDetailLiveWorkspace } from '../workspaces/InvoiceDetailLiveWorkspace'
 import { CommercialRegisterPagination } from '../components/CommercialRegisterPagination'
+import { realEstateApi } from '../../specialized-services/real-estate/real-estate.api'
+import { realEstateQueries } from '../../specialized-services/real-estate/real-estate.queries'
 import {
   CommercialRegisterHeader,
   CommercialSummaryGrid,
@@ -91,6 +93,11 @@ export function InvoicesPaymentsLivePage({ recordSearch }: { recordSearch: AppSe
   const detailQuery = useQuery({
     ...billingQueries.detail(selectedInvoiceId ?? 0),
     enabled: Boolean(selectedInvoiceId) && hasPermission(user, PERMISSIONS.serviceInvoicesView),
+  })
+
+  const realEstateContextQuery = useQuery({
+    ...realEstateQueries.commercialContext(detailQuery.data?.serviceRequestId ?? 0),
+    enabled: Boolean(detailQuery.data?.serviceRequestId),
   })
 
   const paymentsQuery = useQuery({
@@ -339,6 +346,27 @@ export function InvoicesPaymentsLivePage({ recordSearch }: { recordSearch: AppSe
     },
   })
 
+  const releaseExpiredReservationMutation = useMutation({
+    mutationFn: (requestId: number) => realEstateApi.releaseExpiredReservation(requestId),
+    onSuccess: async (request) => {
+      await Promise.all([
+        refreshPaymentFlow(selectedInvoiceId ?? 0),
+        realEstateContextQuery.refetch(),
+        queryClient.invalidateQueries({
+          queryKey: realEstateQueries.commercialContext(request.id).queryKey,
+        }),
+      ])
+      toast.success('Expired reservation released', {
+        description: 'The property is available for a new commercial request.',
+      })
+    },
+    onError: (error) => {
+      toast.error('Reservation could not be released', {
+        description: presentError(error, 'background-action').message,
+      })
+    },
+  })
+
   const createPaymentSubmissionMutation = useMutation({
     mutationFn: (input: CreatePaymentSubmissionInput) => billingApi.createPaymentSubmission(input),
     onSuccess: async (submission, input) => {
@@ -558,6 +586,10 @@ export function InvoicesPaymentsLivePage({ recordSearch }: { recordSearch: AppSe
 
   const enrichedInvoices = listQuery.data.items.map(enrichInvoice)
   const detailInvoice = detailQuery.data ? enrichInvoice(detailQuery.data) : null
+  const expiredReservationAsset =
+    realEstateContextQuery.data?.assets.find((asset) =>
+      asset.availableActions.includes('release_expired_reservation'),
+    ) ?? null
   const sourceQuotation = handoffQuotationQuery.data ?? null
   const activeBuilderQuotation = builderQuotation ?? sourceQuotation
   const eligibleQuotes = eligibleQuotesQuery.data ?? []
@@ -736,7 +768,7 @@ export function InvoicesPaymentsLivePage({ recordSearch }: { recordSearch: AppSe
                         <tr key={invoice.id}>
                           <td>
                             <b>{invoice.invoiceNumber}</b>
-                            <small>{invoice.paymentSchedule || '—'}</small>
+                            <small>{invoice.paymentSchedule || '-'}</small>
                           </td>
                           <td>{invoice.clientName || `Client #${invoice.clientId}`}</td>
                           <td>{invoice.serviceName}</td>
@@ -987,7 +1019,9 @@ export function InvoicesPaymentsLivePage({ recordSearch }: { recordSearch: AppSe
           onSettleNoCharge={() => settleNoChargeMutation.mutate(detailInvoice.id)}
           canManageReservation={hasPermission(user, PERMISSIONS.serviceRequestsUpdate)}
           reservationSaving={
-            reservationPlanMutation.isPending || cancelReservationMutation.isPending
+            reservationPlanMutation.isPending ||
+            cancelReservationMutation.isPending ||
+            releaseExpiredReservationMutation.isPending
           }
           onSetBalancePlan={(mode) => {
             if (!detailInvoice.serviceRequestId) return
@@ -999,6 +1033,11 @@ export function InvoicesPaymentsLivePage({ recordSearch }: { recordSearch: AppSe
           onCancelReservation={() => {
             if (!detailInvoice.serviceRequestId) return
             cancelReservationMutation.mutate(detailInvoice.serviceRequestId)
+          }}
+          expiredReservationState={expiredReservationAsset}
+          onReleaseExpiredReservation={() => {
+            if (!detailInvoice.serviceRequestId) return
+            releaseExpiredReservationMutation.mutate(detailInvoice.serviceRequestId)
           }}
           onSubmitPaymentProof={(input) => createPaymentSubmissionMutation.mutateAsync(input)}
           onReviewPaymentSubmission={(submission, input) =>

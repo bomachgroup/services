@@ -114,7 +114,7 @@ export function InvoiceBuilderWorkspace({
                         options={mapDropdownOptions(
                           eligible.map((quotation) => ({
                             value: quotation.id,
-                            label: `${quotation.id} — ${quotation.client} — ${commercialMoney.format(quotation.total)}`,
+                            label: `${quotation.id} - ${quotation.client} - ${commercialMoney.format(quotation.total)}`,
                           })),
                         )}
                         value={field.state.value}

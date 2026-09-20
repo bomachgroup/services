@@ -101,7 +101,7 @@ export function QuotationBuilderLiveWorkspace({
     request.pricingMode === 'calculator' && request.calculatorCode.trim() !== ''
   const lockedPrimaryTotal = isCalculatorMode ? request.estimatedValue : null
   // The request popup gates quotation behind Estimate, but this builder can be
-  // opened directly via URL — block submission here too when no estimate exists.
+  // opened directly via URL - block submission here too when no estimate exists.
   const missingEstimate = isCalculatorMode && request.estimatedValue <= 0
   const isRealEstateRequest = request.specializedDomain === 'real_estate'
   const [quoteItems, setQuoteItems] = useState(() => (quote?.items.length ? quote.items : []))
@@ -145,7 +145,7 @@ export function QuotationBuilderLiveWorkspace({
                 : request.estimatedValue || request.budget || 0),
             otherCharges: quote?.otherCharges,
           })
-  // Property sales quote the asset package itself — free-text scope makes no sense.
+  // Property sales quote the asset package itself - free-text scope makes no sense.
   const isRealEstateSale = suggestedRealEstateItems.length > 0
   const realEstateContextLoading = isRealEstateRequest && realEstateContextQuery.isPending
   const realEstateAssetNames = suggestedRealEstateItems
@@ -154,7 +154,7 @@ export function QuotationBuilderLiveWorkspace({
     .join(', ')
   const realEstateScopeFallback =
     quote?.scopeSummary || realEstateAssetNames || request.scopeSummary
-  // Phase 4: in calculator mode the primary always equals the live estimate —
+  // Phase 4: in calculator mode the primary always equals the live estimate -
   // create, edit and revision alike. Additional rows pass through untouched.
   const effectiveQuoteItems =
     lockedPrimaryTotal == null
@@ -367,7 +367,7 @@ export function QuotationBuilderLiveWorkspace({
                   options={mapDropdownOptions(
                     (eligibleRequests ?? []).map((item) => ({
                       value: item.id,
-                      label: `${item.requestNumber} — ${item.clientName} — ${item.serviceName}`,
+                      label: `${item.requestNumber} - ${item.clientName} - ${item.serviceName}`,
                     })),
                   )}
                   value={String(request.id)}
@@ -399,7 +399,7 @@ export function QuotationBuilderLiveWorkspace({
               </div>
               <div>
                 <div className="commercial-kl">Branch</div>
-                <b>{request.branchName || '—'}</b>
+                <b>{request.branchName || '-'}</b>
               </div>
             </div>
           </section>
@@ -473,7 +473,7 @@ export function QuotationBuilderLiveWorkspace({
                     required
                     helpText={
                       isRealEstateSale
-                        ? 'Offer expiry for the client — the reservation hold starts separately when the fee is paid.'
+                        ? 'Offer expiry for the client - the reservation hold starts separately when the fee is paid.'
                         : undefined
                     }
                     value={field.state.value}
@@ -563,12 +563,12 @@ export function QuotationBuilderLiveWorkspace({
                 <h3>Pricing and approval</h3>
                 {missingEstimate ? (
                   <p>
-                    This request needs an estimate first — open the request and press Estimate value
+                    This request needs an estimate first - open the request and press Estimate value
                     before quoting.
                   </p>
                 ) : isCalculatorMode && lockedPrimaryTotal != null ? (
                   <p>
-                    Primary locked to estimate {formatCurrency(lockedPrimaryTotal)} — add extra work
+                    Primary locked to estimate {formatCurrency(lockedPrimaryTotal)} - add extra work
                     as additional charges. Tax, discount and deposit stay editable.
                   </p>
                 ) : null}
@@ -604,7 +604,7 @@ export function QuotationBuilderLiveWorkspace({
                 </div>
               ) : (
                 <div className="commercial-notice commercial-notice-yellow">
-                  Primary totals {formatCurrency(primaryTotal)} — submitting will ask you to confirm
+                  Primary totals {formatCurrency(primaryTotal)} - submitting will ask you to confirm
                   a zero-value quote.
                 </div>
               )

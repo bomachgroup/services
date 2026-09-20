@@ -9,17 +9,25 @@ export function AdditionalFeesEditor({
   title = 'Additional fees',
   value,
   onChange,
+  error,
 }: {
   title?: string
   value: AdditionalFee[]
   onChange: (value: AdditionalFee[]) => void
+  error?: string | undefined
 }) {
+  const feeErrorMatch = error?.match(/^Fee (\d+) (name|amount)/i)
+  const feeErrorIndex = feeErrorMatch ? Number(feeErrorMatch[1]) - 1 : -1
+  const feeErrorField = feeErrorMatch?.[2]?.toLowerCase()
+
   const update = (index: number, patch: Partial<AdditionalFee>) => {
     onChange(value.map((fee, feeIndex) => (feeIndex === index ? { ...fee, ...patch } : fee)))
   }
 
   return (
-    <section className="commercial-form-section specialized-inline-editor">
+    <section
+      className={`commercial-form-section specialized-inline-editor${error ? 'specialized-inline-editor--invalid' : ''}`}
+    >
       <div className="commercial-form-section-heading">
         <div>
           <h3>{title}</h3>
@@ -35,24 +43,38 @@ export function AdditionalFeesEditor({
           <IconPlus size={15} /> Add fee
         </button>
       </div>
+      {error && feeErrorIndex < 0 ? (
+        <small className="commercial-field-error">{error}</small>
+      ) : null}
       <div className="specialized-fee-editor">
         {value.length ? (
           value.map((fee, index) => (
             <div className="specialized-fee-row" key={fee.id ?? index}>
-              <label className="commercial-field">
+              <label
+                className={`commercial-field${feeErrorIndex === index && feeErrorField === 'name' ? 'commercial-field--invalid' : ''}`}
+              >
                 <span>Fee name</span>
                 <input
                   value={fee.name}
                   placeholder="Legal fee"
                   onChange={(event) => update(index, { name: event.target.value })}
                 />
+                {feeErrorIndex === index && feeErrorField === 'name' ? (
+                  <small className="commercial-field-error">{error}</small>
+                ) : null}
               </label>
-              <label className="commercial-field">
+              <label
+                className={`commercial-field${feeErrorIndex === index && feeErrorField === 'amount' ? 'commercial-field--invalid' : ''}`}
+              >
                 <span>Amount</span>
                 <GroupedNumberInput
+                  invalid={feeErrorIndex === index && feeErrorField === 'amount'}
                   value={fee.amount}
                   onChange={(amount) => update(index, { amount })}
                 />
+                {feeErrorIndex === index && feeErrorField === 'amount' ? (
+                  <small className="commercial-field-error">{error}</small>
+                ) : null}
               </label>
               <DropdownSelect
                 label="Timing"

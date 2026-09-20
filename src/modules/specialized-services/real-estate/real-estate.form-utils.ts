@@ -71,6 +71,7 @@ export function mapEstateToFormValues(estate: Estate): EstateFormValues {
     allowInstallment: estate.allowInstallment,
     installmentDownPaymentPercent: estate.installmentDownPaymentPercent,
     installmentMonths: estate.installmentMonths,
+    installmentGracePeriodDays: estate.installmentGracePeriodDays,
   }
 }
 
@@ -122,5 +123,6 @@ export function createDefaultEstateFormValues(): EstateFormValues {
     allowInstallment: false,
     installmentDownPaymentPercent: null,
     installmentMonths: null,
+    installmentGracePeriodDays: 7,
   }
 }

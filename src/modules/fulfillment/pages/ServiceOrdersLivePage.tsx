@@ -623,7 +623,7 @@ export function ServiceOrdersLivePage({ recordSearch }: { recordSearch: AppSecti
                       </td>
                       <td>{clientNames.get(order.clientId) ?? `Client #${order.clientId}`}</td>
                       <td>{order.serviceName}</td>
-                      <td>{order.stage || '—'}</td>
+                      <td>{order.stage || '-'}</td>
                       <td>
                         <b>{order.progress}%</b>
                       </td>
@@ -633,7 +633,7 @@ export function ServiceOrdersLivePage({ recordSearch }: { recordSearch: AppSecti
                             `Employee #${order.assignedToId}`)
                           : 'Unassigned'}
                       </td>
-                      <td>{order.dueDate ?? '—'}</td>
+                      <td>{order.dueDate ?? '-'}</td>
                       <td>{statusLabel(order.paymentStatus)}</td>
                       <td>
                         <span className={`commercial-pill ${statusClass(order.orderStatus)}`}>
@@ -815,7 +815,7 @@ export function ServiceOrdersLivePage({ recordSearch }: { recordSearch: AppSecti
           }
           invoiceNumber={
             linkedInvoiceQuery.data?.invoiceNumber ??
-            (detailQuery.data.invoiceId ? `Invoice #${detailQuery.data.invoiceId}` : '—')
+            (detailQuery.data.invoiceId ? `Invoice #${detailQuery.data.invoiceId}` : '-')
           }
           employees={employeesQuery.data ?? []}
           saving={busy}

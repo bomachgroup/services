@@ -191,7 +191,7 @@ export function OrderControlRoomLiveWorkspace({
     (sum, count) => sum + count,
     0,
   )
-  const dueSummary = order.dueDate ?? order.validUntil ?? '—'
+  const dueSummary = order.dueDate ?? order.validUntil ?? '-'
 
   useEffect(() => {
     if (!activeMilestoneRef.current) return
@@ -248,7 +248,7 @@ export function OrderControlRoomLiveWorkspace({
                 <div className="commercial-info-grid">
                   <div>
                     <div className="commercial-kl">Client</div>
-                    <b>{clientName || '—'}</b>
+                    <b>{clientName || '-'}</b>
                   </div>
                   <div>
                     <div className="commercial-kl">Service</div>
@@ -264,11 +264,11 @@ export function OrderControlRoomLiveWorkspace({
                   </div>
                   <div>
                     <div className="commercial-kl">Current stage</div>
-                    <b>{order.stage || '—'}</b>
+                    <b>{order.stage || '-'}</b>
                   </div>
                   <div>
                     <div className="commercial-kl">Next action</div>
-                    <b>{order.nextAction || '—'}</b>
+                    <b>{order.nextAction || '-'}</b>
                   </div>
                 </div>
                 <div className="fulfillment-order-progress-block">
@@ -676,7 +676,7 @@ export function OrderControlRoomLiveWorkspace({
                   </div>
                   <div>
                     <div className="commercial-kl">Stage</div>
-                    <b>{order.stage || '—'}</b>
+                    <b>{order.stage || '-'}</b>
                   </div>
                   <div>
                     <div className="commercial-kl">Due</div>
@@ -688,7 +688,7 @@ export function OrderControlRoomLiveWorkspace({
                   </div>
                   <div className="commercial-info-full">
                     <div className="commercial-kl">Next action</div>
-                    <b>{order.nextAction || '—'}</b>
+                    <b>{order.nextAction || '-'}</b>
                   </div>
                 </div>
               </section>
@@ -706,15 +706,15 @@ export function OrderControlRoomLiveWorkspace({
                   </div>
                   <div className="commercial-info-full">
                     <div className="commercial-kl">Invoice</div>
-                    <b>{invoiceNumber || (order.invoiceId ? `#${order.invoiceId}` : '—')}</b>
+                    <b>{invoiceNumber || (order.invoiceId ? `#${order.invoiceId}` : '-')}</b>
                   </div>
                   <div className="commercial-info-full">
                     <div className="commercial-kl">Quote</div>
-                    <b>{order.quoteNumber || (order.quoteId ? `#${order.quoteId}` : '—')}</b>
+                    <b>{order.quoteNumber || (order.quoteId ? `#${order.quoteId}` : '-')}</b>
                   </div>
                   <div className="commercial-info-full">
                     <div className="commercial-kl">Service request</div>
-                    <b>{order.serviceRequestId ? `#${order.serviceRequestId}` : '—'}</b>
+                    <b>{order.serviceRequestId ? `#${order.serviceRequestId}` : '-'}</b>
                   </div>
                 </div>
               </section>

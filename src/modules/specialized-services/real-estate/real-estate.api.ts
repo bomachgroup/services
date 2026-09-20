@@ -118,6 +118,7 @@ const estatePayload = (i: CreateEstateInput) => ({
     ? (i.installmentDownPaymentPercent ?? null)
     : null,
   installment_months: i.allowInstallment ? (i.installmentMonths ?? null) : null,
+  installment_grace_period_days: i.allowInstallment ? (i.installmentGracePeriodDays ?? 7) : 7,
 })
 const feePayload = (fee: {
   id?: string
@@ -147,7 +148,7 @@ const feeConfigPayload = (config: CreatePropertyInput['feeConfig']) =>
 const documentPayload = (documents: CreatePropertyInput['documents']) =>
   (documents ?? [])
     // Never send uploading/failed placeholders (e.g. "my.pdf-12345") as file_url.
-    // Those are local temp keys, not storage URLs — backend would store junk.
+    // Those are local temp keys, not storage URLs - backend would store junk.
     .filter((document) => {
       const state = (document as { uploadState?: string }).uploadState
       if (state === 'uploading' || state === 'failed') return false
@@ -192,6 +193,18 @@ const propertyPayload = (i: CreatePropertyInput) => ({
   units_offices: i.unitsOffices ?? null,
   images: i.images ?? [],
   documents: documentPayload(i.documents),
+  allow_reservation: Boolean(i.allowReservation),
+  reservation_percent: i.allowReservation ? (i.reservationPercent ?? null) : null,
+  reservation_duration_hours: i.allowReservation ? (i.reservationDurationHours ?? null) : null,
+  request_claim_hold_hours: i.requestClaimHoldHours ?? 48,
+  reservation_refundable: i.reservationRefundable !== false,
+  reservation_retention_percent: i.allowReservation ? (i.reservationRetentionPercent ?? 0) : 0,
+  allow_installment: Boolean(i.allowInstallment),
+  installment_down_payment_percent: i.allowInstallment
+    ? (i.installmentDownPaymentPercent ?? null)
+    : null,
+  installment_months: i.allowInstallment ? (i.installmentMonths ?? null) : null,
+  installment_grace_period_days: i.installmentGracePeriodDays ?? 7,
 })
 const brokeragePayload = (i: CreateBrokerageInput) => ({
   title: i.title,
@@ -214,6 +227,18 @@ const brokeragePayload = (i: CreateBrokerageInput) => ({
   documents: documentPayload(i.documents),
   additional_fees: (i.additionalFees ?? []).map(feePayload),
   pricing_change_reason: i.pricingChangeReason ?? '',
+  allow_reservation: Boolean(i.allowReservation),
+  reservation_percent: i.allowReservation ? (i.reservationPercent ?? null) : null,
+  reservation_duration_hours: i.allowReservation ? (i.reservationDurationHours ?? null) : null,
+  request_claim_hold_hours: i.requestClaimHoldHours ?? 48,
+  reservation_refundable: i.reservationRefundable !== false,
+  reservation_retention_percent: i.allowReservation ? (i.reservationRetentionPercent ?? 0) : 0,
+  allow_installment: Boolean(i.allowInstallment),
+  installment_down_payment_percent: i.allowInstallment
+    ? (i.installmentDownPaymentPercent ?? null)
+    : null,
+  installment_months: i.allowInstallment ? (i.installmentMonths ?? null) : null,
+  installment_grace_period_days: i.installmentGracePeriodDays ?? 7,
 })
 const bulkPropertyPayload = (i: BulkPropertyCreateInput) => ({
   count: i.count,
@@ -275,8 +300,16 @@ const mapCommercialContext = (payload: unknown): RealEstateCommercialContext => 
         assetStatus: text(asset.asset_status),
         price: number(asset.price),
         settlementMode: text(asset.settlement_mode),
+        commercialState: text(asset.commercial_state, 'soft_claim'),
+        stateChangedAt: nullableText(asset.state_changed_at),
+        stateReason: text(asset.state_reason),
+        commercialHoldExpiresAt: nullableText(asset.commercial_hold_expires_at),
+        defaultedAt: nullableText(asset.defaulted_at),
         reservationExpiresAt: nullableText(asset.reservation_expires_at),
         claimExpiresAt: nullableText(asset.claim_expires_at),
+        availableActions: Array.isArray(asset.available_actions)
+          ? asset.available_actions.filter((item): item is string => typeof item === 'string')
+          : [],
         paymentPlan: record(asset.payment_plan),
         releasedAt: nullableText(asset.released_at),
         releaseReason: text(asset.release_reason),
@@ -304,6 +337,7 @@ const mapCommercialContext = (payload: unknown): RealEstateCommercialContext => 
       }
     }),
     paymentPolicy: {
+      source: text(policy.source, 'default'),
       allowReservation: Boolean(policy.allow_reservation),
       reservationPercent:
         policy.reservation_percent == null || policy.reservation_percent === ''
@@ -329,6 +363,16 @@ const mapCommercialContext = (payload: unknown): RealEstateCommercialContext => 
         policy.installment_months == null || policy.installment_months === ''
           ? null
           : number(policy.installment_months),
+      installmentGracePeriodDays:
+        policy.installment_grace_period_days == null
+          ? 7
+          : number(policy.installment_grace_period_days),
+      allowedSettlementModes: Array.isArray(policy.allowed_settlement_modes)
+        ? policy.allowed_settlement_modes.filter(
+            (item): item is 'full_payment' | 'reservation' | 'installment' =>
+              item === 'full_payment' || item === 'reservation' || item === 'installment',
+          )
+        : ['full_payment'],
       termsSummary: terms,
     },
     paymentTermsSummary: terms,
@@ -371,6 +415,11 @@ const mapCommercialHistory = (payload: unknown): RealEstateCommercialHistoryItem
       assetStatus: text(value.asset_status),
       releasedAt: nullableText(value.released_at),
       releaseReason: text(value.release_reason),
+      reservationExpiresAt: nullableText(value.reservation_expires_at),
+      commercialState: text(value.commercial_state, 'soft_claim'),
+      stateReason: text(value.state_reason),
+      stateChangedAt: nullableText(value.state_changed_at),
+      defaultedAt: nullableText(value.defaulted_at),
       createdAt: text(value.created_at),
       isCurrent: Boolean(value.is_current),
     }
@@ -451,6 +500,18 @@ export const realEstateApi = {
     mapProperty(await apiClient.put<unknown>(`/estates/properties/all/${id}`, propertyPayload(i))),
   deleteStandaloneProperty: async (id: number) =>
     apiClient.delete<unknown>(`/estates/properties/all/${id}`),
+  validateStandalonePropertyBoundary: async (
+    boundary: BoundaryPoint[],
+    propertyId?: number | null,
+  ) =>
+    mapBoundaryValidation(
+      await apiClient.post<unknown>(
+        propertyId
+          ? `/estates/properties/all/${propertyId}/validate-boundary`
+          : '/estates/properties/all/validate-boundary',
+        boundaryValidationPayload(boundary),
+      ),
+    ),
   updatePropertyRecord: async (
     property: { id: number; estateId: number | null },
     i: CreatePropertyInput,
@@ -537,6 +598,12 @@ export const realEstateApi = {
       await apiClient.post<unknown>(`/real-estate/service-requests/${requestId}/cancel`, {
         reason,
       }),
+    ),
+  releaseExpiredReservation: async (requestId: number) =>
+    mapServiceRequestDetail(
+      await apiClient.post<unknown>(
+        `/real-estate/service-requests/${requestId}/release-expired-reservation`,
+      ),
     ),
   propertyCommercialHistory: async (propertyId: number) =>
     mapCommercialHistory(

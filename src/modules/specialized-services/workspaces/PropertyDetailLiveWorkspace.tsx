@@ -1,17 +1,27 @@
-import { useState } from 'react'
-import { IconBuilding, IconHome, IconMap2, IconX } from '@tabler/icons-react'
+import {
+  IconBuilding,
+  IconChevronDown,
+  IconFiles,
+  IconHistory,
+  IconHome,
+  IconMap2,
+  IconPhoto,
+  IconX,
+} from '@tabler/icons-react'
+import { useState, type ReactNode } from 'react'
 
 import { commercialEmptyLabel } from '@/modules/commercial/lib/commercial-source-context'
-import {
-  DocumentPreviewModal,
-  FileDocumentRow,
-  type PreviewDocument,
-} from '@/modules/commercial/request-intake/DocumentPreviewModal'
 import { formatCurrency } from '@/shared/lib/formatters'
+import { ConfirmDialog } from '@/shared/ui/confirm-dialog'
 
+import { NamedDocumentsPanel } from '../real-estate/NamedDocumentsPanel'
+import { hasViewableDocuments, isFileReference } from '../real-estate/named-documents.utils'
+import { PropertyLocationMap } from '../real-estate/PropertyLocationMap'
+import { isValidBoundary } from '../real-estate/real-estate-map.utils'
 import type {
   AdditionalFee,
   EffectivePricingFee,
+  BoundaryPoint,
   Property,
   PropertyStatus,
 } from '../real-estate/real-estate.types'
@@ -139,27 +149,262 @@ function historyChangedByLabel(changedBy: number | null, reason: string) {
   return 'System'
 }
 
-function displayValue(value: string | number | null | undefined, empty = '—') {
+function historyDateLabel(value: string) {
+  if (!value) return 'Date unavailable'
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return 'Date unavailable'
+  return date.toLocaleDateString(undefined, {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+  })
+}
+
+function displayValue(value: string | number | null | undefined, empty = '-') {
   if (value == null || value === '') return empty
   return String(value)
+}
+
+function PropertyImageGalleryItem({
+  image,
+  propertyName,
+}: {
+  image: Property['images'][number]
+  propertyName: string
+}) {
+  const [failed, setFailed] = useState(false)
+  const label = image.caption || propertyName
+
+  return (
+    <a
+      className="specialized-property-image-gallery-item"
+      href={failed ? undefined : image.image}
+      target={failed ? undefined : '_blank'}
+      rel={failed ? undefined : 'noreferrer'}
+      aria-label={failed ? `${label} image unavailable` : `Open ${label} in a new tab`}
+      aria-disabled={failed || undefined}
+      onClick={failed ? (event) => event.preventDefault() : undefined}
+    >
+      {failed ? (
+        <span className="specialized-property-image-gallery-fallback">
+          <IconPhoto size={22} />
+          <span>Image unavailable</span>
+        </span>
+      ) : (
+        <img src={image.image} alt={label} loading="lazy" onError={() => setFailed(true)} />
+      )}
+    </a>
+  )
+}
+
+function PropertyMediaAccordion({
+  showImages,
+  showLocation,
+  showDocuments,
+  imagesContent,
+  locationContent,
+  documentsContent,
+  imagesCount,
+  documentsCount,
+}: {
+  showImages: boolean
+  showLocation: boolean
+  showDocuments: boolean
+  imagesContent: ReactNode
+  locationContent: ReactNode
+  documentsContent: ReactNode
+  imagesCount: number
+  documentsCount: number
+}) {
+  type MediaSection = 'images' | 'location' | 'documents'
+  const [openSection, setOpenSection] = useState<MediaSection | null>(null)
+
+  if (!showImages && !showLocation && !showDocuments) return null
+
+  const visibleCount = [showImages, showLocation, showDocuments].filter(Boolean).length
+
+  const toggle = (section: MediaSection) => {
+    setOpenSection((current) => (current === section ? null : section))
+  }
+
+  const renderHeader = (
+    section: MediaSection,
+    title: string,
+    subtitle: string,
+    summary: string,
+  ) => {
+    const expanded = openSection === section
+    const Icon = section === 'images' ? IconPhoto : section === 'location' ? IconMap2 : IconFiles
+    return (
+      <button
+        type="button"
+        className={`specialized-card specialized-accordion-header specialized-accordion-header--${section}${expanded ? 'is-expanded' : 'is-collapsed'}`}
+        aria-expanded={expanded}
+        onClick={() => toggle(section)}
+      >
+        <span
+          className={`specialized-accordion-icon specialized-accordion-icon--${section}`}
+          aria-hidden="true"
+        >
+          <Icon size={18} stroke={1.9} />
+        </span>
+        <span className="specialized-accordion-text">
+          <span className="specialized-accordion-title-row">
+            <span className="specialized-card-title">{title}</span>
+            <span className="specialized-accordion-count">{summary}</span>
+          </span>
+          <span className="specialized-card-subtitle">{subtitle}</span>
+        </span>
+        <span className="specialized-foldable-toggle-icon" aria-hidden="true">
+          <IconChevronDown size={16} stroke={2} />
+        </span>
+      </button>
+    )
+  }
+
+  return (
+    <div
+      className={`specialized-location-documents-accordion specialized-property-media-accordion specialized-property-media-accordion--${visibleCount}`}
+    >
+      <div className="specialized-location-documents-row">
+        {showImages
+          ? renderHeader(
+              'images',
+              'Property images',
+              'Browse the property gallery.',
+              `${imagesCount} image${imagesCount === 1 ? '' : 's'}`,
+            )
+          : null}
+        {showLocation
+          ? renderHeader('location', 'Property location', 'Boundary map and estate context.', 'Map')
+          : null}
+        {showDocuments
+          ? renderHeader(
+              'documents',
+              'Property files',
+              'Select a file to preview it.',
+              `${documentsCount} file${documentsCount === 1 ? '' : 's'}`,
+            )
+          : null}
+      </div>
+      {openSection ? (
+        <section className="specialized-card specialized-foldable-card is-expanded specialized-accordion-body">
+          <div className="specialized-foldable-body">
+            {openSection === 'images'
+              ? imagesContent
+              : openSection === 'location'
+                ? locationContent
+                : documentsContent}
+          </div>
+        </section>
+      ) : null}
+    </div>
+  )
+}
+
+function PropertyPricingHistoryAccordion({ events }: { events: Property['pricingHistory'] }) {
+  const [open, setOpen] = useState(false)
+
+  if (!events.length) return null
+
+  const latestEvent = events[0]!
+
+  return (
+    <section className="specialized-property-pricing-history">
+      <div
+        className={`specialized-card specialized-pricing-history-card${open ? 'is-expanded' : ''}`}
+      >
+        <button
+          type="button"
+          className="specialized-pricing-history-trigger"
+          aria-expanded={open}
+          onClick={() => setOpen((current) => !current)}
+        >
+          <span
+            className="specialized-accordion-icon specialized-accordion-icon--history"
+            aria-hidden="true"
+          >
+            <IconHistory size={18} stroke={1.9} />
+          </span>
+          <span className="specialized-pricing-history-copy">
+            <span className="specialized-pricing-history-title">
+              Pricing history
+              <span className="specialized-accordion-count">
+                {events.length} change{events.length === 1 ? '' : 's'}
+              </span>
+            </span>
+            <span className="specialized-pricing-history-meta">
+              Latest update {historyDateLabel(latestEvent.at)} ·{' '}
+              {historyChangedByLabel(latestEvent.changedBy, latestEvent.reason)}
+            </span>
+          </span>
+          <span className="specialized-pricing-history-current">
+            <small>Current price</small>
+            <strong>{historyEventTitle(latestEvent)}</strong>
+          </span>
+          <span className="specialized-pricing-history-action">
+            <span>{open ? 'Hide history' : 'View history'}</span>
+            <span className="specialized-foldable-toggle-icon" aria-hidden="true">
+              <IconChevronDown size={16} stroke={2} />
+            </span>
+          </span>
+        </button>
+        {open ? (
+          <div className="specialized-pricing-history-body">
+            <div className="specialized-pricing-history-list">
+              {events.map((event, index) => (
+                <div key={`${event.at}-${index}`} className="specialized-pricing-history-row">
+                  <span className="specialized-pricing-history-marker" aria-hidden="true" />
+                  <div className="specialized-pricing-history-event">
+                    <div className="specialized-pricing-history-event-heading">
+                      <strong>{historyEventTitle(event)}</strong>
+                      <time dateTime={event.at || undefined}>{historyDateLabel(event.at)}</time>
+                    </div>
+                    <small>
+                      {historyEventDetail(event) || 'Price recorded'} ·{' '}
+                      {historyChangedByLabel(event.changedBy, event.reason)}
+                    </small>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : null}
+      </div>
+    </section>
+  )
 }
 
 export function PropertyDetailLiveWorkspace({
   property,
   estateName,
+  estateBoundary = [],
   estatePricePerSqm = null,
   canPropertyUpdate,
+  canManageCommercialRelease = false,
+  releaseSaving = false,
+  expiredReservationState = null,
   onClose,
   onEdit,
+  onReleaseExpiredReservation,
 }: {
   property: Property
   estateName: string
+  estateBoundary?: BoundaryPoint[]
   estatePricePerSqm?: number | null
   canPropertyUpdate: boolean
+  canManageCommercialRelease?: boolean
+  releaseSaving?: boolean
+  expiredReservationState?: {
+    requestId: number
+    requestNumber: string
+    reservationExpiresAt: string | null
+  } | null
   onClose: () => void
   onEdit: () => void
+  onReleaseExpiredReservation?: () => void
 }) {
-  const [previewDocument, setPreviewDocument] = useState<PreviewDocument | null>(null)
+  const [releaseConfirmOpen, setReleaseConfirmOpen] = useState(false)
   const areaSqm =
     property.effectivePricing?.areaSqm ??
     (property.propertyType === 'plot'
@@ -177,6 +422,9 @@ export function PropertyDetailLiveWorkspace({
   const statusLabel = property.statusDisplay || property.status
   const typeLabel = property.propertyTypeDisplay || property.propertyType
   const feeSummary = resolvePropertyFees(property)
+  const propertyImages = property.images.filter((image) => Boolean(image.image))
+  const showLocation = isValidBoundary(property.boundary)
+  const showDocuments = hasViewableDocuments(property.documents)
 
   return (
     <div className="commercial-modal-backdrop" role="presentation" onMouseDown={onClose}>
@@ -195,7 +443,12 @@ export function PropertyDetailLiveWorkspace({
             <div>
               <h2>{property.propertyName}</h2>
               <p>
-                {estateName} · {typeLabel}
+                {property.estateId
+                  ? estateName
+                  : property.isOurProperty
+                    ? 'Company-owned standalone property'
+                    : 'Managed standalone property'}{' '}
+                · {typeLabel}
                 {property.plotNumber != null ? ` · Plot #${property.plotNumber}` : ''}
               </p>
             </div>
@@ -214,7 +467,29 @@ export function PropertyDetailLiveWorkspace({
         </header>
 
         <div className="commercial-modal-body">
-          <div className="commercial-quote-detail-layout">
+          {expiredReservationState ? (
+            <div className="commercial-notice commercial-notice-yellow">
+              <div>
+                <b>Reservation expired and awaiting staff release</b>
+                <p>
+                  The payment remains recorded, but this property stays protected until an
+                  authorised staff member confirms release.
+                </p>
+              </div>
+              {canManageCommercialRelease && onReleaseExpiredReservation ? (
+                <button
+                  type="button"
+                  className="commercial-btn commercial-btn-primary commercial-btn-small"
+                  disabled={releaseSaving}
+                  onClick={() => setReleaseConfirmOpen(true)}
+                >
+                  Release property
+                </button>
+              ) : null}
+            </div>
+          ) : null}
+
+          <div className="commercial-quote-detail-layout specialized-property-detail-layout">
             <div className="commercial-quote-detail-main">
               {property.propertyType === 'plot' ? (
                 <section className="commercial-form-section">
@@ -222,14 +497,14 @@ export function PropertyDetailLiveWorkspace({
                   <div className="commercial-info-grid">
                     <div>
                       <div className="commercial-kl">Plot use</div>
-                      <b>{property.plotUseDisplay || property.plotUse || '—'}</b>
+                      <b>{property.plotUseDisplay || property.plotUse || '-'}</b>
                     </div>
                     <div>
                       <div className="commercial-kl">Plot size</div>
                       <b>
                         {property.plotSize != null
                           ? `${property.plotSize.toLocaleString()} ${property.plotSizeUnit || 'sqm'}`
-                          : '—'}
+                          : '-'}
                       </b>
                     </div>
                     <div className="commercial-info-full">
@@ -249,7 +524,7 @@ export function PropertyDetailLiveWorkspace({
                       <b>
                         {property.buildingTypeResidentialDisplay ||
                           property.buildingTypeResidential ||
-                          '—'}
+                          '-'}
                       </b>
                     </div>
                     <div>
@@ -269,7 +544,7 @@ export function PropertyDetailLiveWorkspace({
                       <b>
                         {property.totalAreaResidential != null
                           ? `${property.totalAreaResidential.toLocaleString()} sqm`
-                          : '—'}
+                          : '-'}
                       </b>
                     </div>
                     <div className="commercial-info-full">
@@ -289,7 +564,7 @@ export function PropertyDetailLiveWorkspace({
                       <b>
                         {property.buildingTypeCommercialDisplay ||
                           property.buildingTypeCommercial ||
-                          '—'}
+                          '-'}
                       </b>
                     </div>
                     <div>
@@ -297,7 +572,7 @@ export function PropertyDetailLiveWorkspace({
                       <b>
                         {property.totalAreaCommercial != null
                           ? `${property.totalAreaCommercial.toLocaleString()} sqm`
-                          : '—'}
+                          : '-'}
                       </b>
                     </div>
                     <div>
@@ -316,153 +591,135 @@ export function PropertyDetailLiveWorkspace({
                 </section>
               ) : null}
 
-              <section className="commercial-form-section">
-                <h3>Documents</h3>
-                {property.documents.length ? (
-                  <div className="commercial-intake-file-list">
-                    {property.documents.map((document) =>
-                      document.file ? (
-                        <FileDocumentRow
-                          key={document.id}
-                          fileUrl={document.file}
-                          fileName={document.name || 'Document'}
-                          title={document.name || 'Document'}
-                          subtitle="Property document"
-                          onOpen={() =>
-                            setPreviewDocument({
-                              fileUrl: document.file,
-                              fileName: document.name || 'Document',
-                              label: document.name || 'Document',
-                            })
-                          }
+              <PropertyMediaAccordion
+                showImages={propertyImages.length > 0}
+                showLocation={showLocation}
+                showDocuments={showDocuments}
+                imagesCount={propertyImages.length}
+                documentsCount={
+                  property.documents.filter((document) => isFileReference(document.file)).length
+                }
+                imagesContent={
+                  <div className="specialized-property-detail-media-section">
+                    <div className="specialized-property-image-gallery">
+                      {propertyImages.map((image) => (
+                        <PropertyImageGalleryItem
+                          key={image.id}
+                          image={image}
+                          propertyName={property.propertyName}
                         />
-                      ) : (
-                        <div key={document.id} className="commercial-attachment-row is-disabled">
-                          <div className="commercial-attachment-meta">
-                            <div className="commercial-attachment-name">
-                              {document.name || 'Document'}
-                            </div>
-                            <div className="commercial-attachment-sub">File unavailable</div>
-                          </div>
-                        </div>
-                      ),
-                    )}
+                      ))}
+                    </div>
                   </div>
-                ) : (
-                  <p className="commercial-form-note">No documents attached.</p>
-                )}
-              </section>
-
-              {priceHistory.length ? (
-                <section className="commercial-form-section">
-                  <h3>Price history</h3>
-                  <div className="specialized-property-history-list">
-                    {priceHistory.map((event, index) => (
-                      <div
-                        key={`${event.at}-${index}`}
-                        className="specialized-property-history-row"
-                      >
-                        <div>
-                          <strong>{historyEventTitle(event)}</strong>
-                          <small>
-                            {historyEventDetail(event)}
-                            {' · '}
-                            {historyChangedByLabel(event.changedBy, event.reason)}
-                          </small>
-                        </div>
-                        <time dateTime={event.at || undefined}>
-                          {event.at ? new Date(event.at).toLocaleString() : '—'}
-                        </time>
-                      </div>
-                    ))}
+                }
+                locationContent={
+                  <div className="specialized-property-detail-media-section">
+                    <PropertyLocationMap
+                      propertyBoundary={property.boundary}
+                      estateBoundary={estateBoundary}
+                      propertyName={property.propertyName}
+                      status={property.status}
+                    />
                   </div>
-                </section>
-              ) : null}
+                }
+                documentsContent={
+                  <div className="specialized-property-detail-media-section">
+                    <NamedDocumentsPanel documents={property.documents} entityLabel="property" />
+                  </div>
+                }
+              />
             </div>
-
-            <aside className="commercial-quote-detail-side">
-              <section className="commercial-form-section commercial-form-section--compact">
-                <h3>Commercial</h3>
-                <div className="specialized-property-price-summary">
-                  <span>List price</span>
-                  <strong>{formatCurrency(displayPrice)}</strong>
-                  <small>
-                    {property.pricingMode === 'estate_rate' ? 'Estate rate' : 'Manual override'}
-                    {property.pricingMode === 'estate_rate' && estateRate != null && areaSqm
-                      ? ` · ${areaSqm.toLocaleString()} sqm × ${formatCurrency(estateRate)}/sqm`
-                      : ''}
-                  </small>
-                </div>
-                <div className="commercial-info-grid">
-                  <div>
-                    <div className="commercial-kl">Estate</div>
-                    <b>{estateName}</b>
-                  </div>
-                  <div>
-                    <div className="commercial-kl">Type</div>
-                    <b>{typeLabel}</b>
-                  </div>
-                  <div>
-                    <div className="commercial-kl">Plot number</div>
-                    <b>{displayValue(property.plotNumber)}</b>
-                  </div>
-                  <div>
-                    <div className="commercial-kl">Status</div>
-                    <b>{statusLabel}</b>
-                  </div>
-                  {property.clientName ? (
-                    <div className="commercial-info-full">
-                      <div className="commercial-kl">Client / holder</div>
-                      <b>{property.clientName}</b>
-                    </div>
-                  ) : null}
-                </div>
-              </section>
-
-              <section className="commercial-form-section commercial-form-section--compact">
-                <h3>Additional fees</h3>
-                <p className="specialized-property-fee-note">
-                  {feeSummary.inheritEstateFees
-                    ? 'Includes applicable estate fees when inherited.'
-                    : 'Estate fee inheritance is off for this property.'}
-                </p>
-                {feeSummary.fees.length ? (
-                  <div className="specialized-property-fee-list">
-                    {feeSummary.fees.map((fee) => (
-                      <div key={fee.key} className="specialized-property-fee-row">
-                        <div>
-                          <strong>{fee.name}</strong>
-                          <small>
-                            {fee.sourceLabel} · {feeTimingLabel(fee.paymentTiming)}
-                            {!fee.active ? ' · Inactive' : ''}
-                          </small>
-                        </div>
-                        <b>{formatCurrency(fee.amount)}</b>
-                      </div>
-                    ))}
-                    <div className="specialized-property-fee-row specialized-property-fee-row--total">
-                      <div>
-                        <strong>Fees total</strong>
-                      </div>
-                      <b>{formatCurrency(feeSummary.feesTotal)}</b>
-                    </div>
-                    <div className="specialized-property-fee-row specialized-property-fee-row--total">
-                      <div>
-                        <strong>Price + fees</strong>
-                      </div>
-                      <b>
-                        {formatCurrency(
-                          feeSummary.pricingTotal ?? displayPrice + feeSummary.feesTotal,
-                        )}
-                      </b>
-                    </div>
-                  </div>
-                ) : (
-                  <p className="commercial-form-note">No additional fees on this property.</p>
-                )}
-              </section>
-            </aside>
           </div>
+
+          <div className="specialized-property-commercial-grid">
+            <section className="commercial-form-section commercial-form-section--compact">
+              <h3>Commercial</h3>
+              <div className="specialized-property-price-summary">
+                <span>List price</span>
+                <strong>{formatCurrency(displayPrice)}</strong>
+                <small>
+                  {property.pricingMode === 'estate_rate' ? 'Estate rate' : 'Manual override'}
+                  {property.pricingMode === 'estate_rate' && estateRate != null && areaSqm
+                    ? ` · ${areaSqm.toLocaleString()} sqm × ${formatCurrency(estateRate)}/sqm`
+                    : ''}
+                </small>
+              </div>
+              <div className="commercial-info-grid">
+                <div>
+                  <div className="commercial-kl">{property.estateId ? 'Estate' : 'Source'}</div>
+                  <b>
+                    {property.estateId
+                      ? estateName
+                      : property.isOurProperty
+                        ? 'Company-owned inventory'
+                        : 'Managed standalone inventory'}
+                  </b>
+                </div>
+                <div>
+                  <div className="commercial-kl">Type</div>
+                  <b>{typeLabel}</b>
+                </div>
+                <div>
+                  <div className="commercial-kl">Plot number</div>
+                  <b>{displayValue(property.plotNumber)}</b>
+                </div>
+                <div>
+                  <div className="commercial-kl">Status</div>
+                  <b>{statusLabel}</b>
+                </div>
+                {property.clientName ? (
+                  <div className="commercial-info-full">
+                    <div className="commercial-kl">Client / holder</div>
+                    <b>{property.clientName}</b>
+                  </div>
+                ) : null}
+              </div>
+            </section>
+
+            <section className="commercial-form-section commercial-form-section--compact">
+              <h3>Additional fees</h3>
+              <p className="specialized-property-fee-note">
+                {feeSummary.inheritEstateFees
+                  ? 'Includes applicable estate fees when inherited.'
+                  : 'Estate fee inheritance is off for this property.'}
+              </p>
+              {feeSummary.fees.length ? (
+                <div className="specialized-property-fee-list">
+                  {feeSummary.fees.map((fee) => (
+                    <div key={fee.key} className="specialized-property-fee-row">
+                      <div>
+                        <strong>{fee.name}</strong>
+                        <small>
+                          {fee.sourceLabel} · {feeTimingLabel(fee.paymentTiming)}
+                          {!fee.active ? ' · Inactive' : ''}
+                        </small>
+                      </div>
+                      <b>{formatCurrency(fee.amount)}</b>
+                    </div>
+                  ))}
+                  <div className="specialized-property-fee-row specialized-property-fee-row--total">
+                    <div>
+                      <strong>Fees total</strong>
+                    </div>
+                    <b>{formatCurrency(feeSummary.feesTotal)}</b>
+                  </div>
+                  <div className="specialized-property-fee-row specialized-property-fee-row--total">
+                    <div>
+                      <strong>Price + fees</strong>
+                    </div>
+                    <b>
+                      {formatCurrency(
+                        feeSummary.pricingTotal ?? displayPrice + feeSummary.feesTotal,
+                      )}
+                    </b>
+                  </div>
+                </div>
+              ) : (
+                <p className="commercial-form-note">No additional fees on this property.</p>
+              )}
+            </section>
+          </div>
+          <PropertyPricingHistoryAccordion events={priceHistory} />
         </div>
 
         <footer className="commercial-modal-footer">
@@ -482,11 +739,34 @@ export function PropertyDetailLiveWorkspace({
             ) : null}
           </div>
         </footer>
-      </section>
 
-      {previewDocument ? (
-        <DocumentPreviewModal document={previewDocument} onClose={() => setPreviewDocument(null)} />
-      ) : null}
+        <ConfirmDialog
+          open={releaseConfirmOpen}
+          tone="danger"
+          title="Release this expired reservation?"
+          description="This confirms that the expired paid reservation no longer protects the property. The property will become available for a new request."
+          impact="The payment and commercial history remain recorded. This action only releases the property hold."
+          detailsTitle="Release summary"
+          detailRows={[
+            { label: 'Property', value: property.propertyName, highlight: true },
+            { label: 'Request', value: expiredReservationState?.requestNumber || '-' },
+            {
+              label: 'Reservation expired',
+              value: expiredReservationState?.reservationExpiresAt
+                ? new Date(expiredReservationState.reservationExpiresAt).toLocaleString()
+                : 'Expired',
+            },
+          ]}
+          confirmLabel="Release property"
+          cancelLabel="Keep protected"
+          isConfirming={releaseSaving}
+          onCancel={() => setReleaseConfirmOpen(false)}
+          onConfirm={() => {
+            onReleaseExpiredReservation?.()
+            setReleaseConfirmOpen(false)
+          }}
+        />
+      </section>
     </div>
   )
 }

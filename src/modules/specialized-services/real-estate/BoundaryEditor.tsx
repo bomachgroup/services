@@ -70,6 +70,9 @@ function mapBoundaryMessageToFieldErrors(message: string, points: BoundaryPoint[
   const nextErrors: Record<string, string> = {}
 
   if (!message.trim() || points.length === 0) return nextErrors
+  if (normalized.includes('at least three') || normalized.includes('three coordinate')) {
+    return nextErrors
+  }
 
   const markAll = (text: string) => {
     points.forEach((_, index) => {
@@ -146,6 +149,7 @@ export function BoundaryEditor({
   onValidate,
   error,
   fieldErrors: submitFieldErrors,
+  dataField,
 }: {
   label?: string
   value: BoundaryPoint[]
@@ -153,6 +157,7 @@ export function BoundaryEditor({
   onValidate?: ((value: BoundaryPoint[]) => Promise<string>) | undefined
   error?: string | undefined
   fieldErrors?: Record<string, string> | undefined
+  dataField?: string | undefined
 }) {
   const [validationState, setValidationState] = useState<'idle' | 'checking' | 'valid' | 'invalid'>(
     'idle',
@@ -321,7 +326,10 @@ export function BoundaryEditor({
   const noticeValid = validationState === 'valid' && Boolean(validationMessage)
 
   return (
-    <section className="commercial-form-section specialized-inline-editor">
+    <section
+      className="commercial-form-section specialized-inline-editor"
+      data-property-section={dataField}
+    >
       <div className="commercial-form-section-heading">
         <div>
           <h3>{label}</h3>

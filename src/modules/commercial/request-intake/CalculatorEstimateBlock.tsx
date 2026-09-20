@@ -157,7 +157,7 @@ export function CalculatorEstimateBlock(props: CalculatorEstimateBlockProps) {
   } = props
 
   // Parent remounts this block per request+calculator via `key`, so lazy
-  // initial state is sufficient — no reset effect needed.
+  // initial state is sufficient - no reset effect needed.
   const [boundary, setBoundary] = useState<BoundarySurveyEstimateInput>(() =>
     mergeSavedCalculatorInputs(
       autofillBoundaryInputs(answersSnapshot, answers, customerType),
@@ -262,7 +262,7 @@ export function CalculatorEstimateBlock(props: CalculatorEstimateBlockProps) {
   const statusLine =
     stale && estimatedValue > 0 ? (
       <div className="commercial-notice commercial-notice-yellow">
-        Inputs changed since the last estimate. Re-run the estimate — the old{' '}
+        Inputs changed since the last estimate. Re-run the estimate - the old{' '}
         {formatCurrency(estimatedValue)} must not be quoted.
       </div>
     ) : null
@@ -355,8 +355,8 @@ export function CalculatorEstimateBlock(props: CalculatorEstimateBlockProps) {
               fieldClassName="commercial-field"
               options={[
                 { value: '', label: 'Select…' },
-                { value: 'yes', label: 'Yes — one plan' },
-                { value: 'no', label: 'No — separate plans' },
+                { value: 'yes', label: 'Yes - one plan' },
+                { value: 'no', label: 'No - separate plans' },
               ]}
               value={boundary.single_plan === null ? '' : boundary.single_plan ? 'yes' : 'no'}
               onChange={(value) =>
@@ -478,7 +478,7 @@ export function CalculatorEstimateBlock(props: CalculatorEstimateBlockProps) {
         </button>
         <div className="commercial-quote-total-chip">
           <span>Estimated total{stale && estimatedValue > 0 ? ' · stale' : ''}</span>
-          <b>{estimatedValue > 0 ? formatCurrency(estimatedValue) : '—'}</b>
+          <b>{estimatedValue > 0 ? formatCurrency(estimatedValue) : '-'}</b>
         </div>
       </div>
     </section>

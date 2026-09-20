@@ -5,7 +5,7 @@ export function formatFinanceAccountPaymentInstructions(account: FinanceAccount)
     return `Pay at ${account.displayName} (${account.accountName}).`
   }
 
-  const parts = [account.bankName, account.accountName].filter(Boolean).join(' — ')
+  const parts = [account.bankName, account.accountName].filter(Boolean).join(' - ')
   const accountNumber = account.accountNumber ? ` · Account ${account.accountNumber}` : ''
 
   return `Pay by bank transfer to ${parts}${accountNumber}.`

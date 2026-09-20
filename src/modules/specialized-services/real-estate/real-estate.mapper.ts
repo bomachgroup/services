@@ -192,6 +192,7 @@ export function mapEstate(payload: unknown): Estate {
     allowInstallment: bool(v.allow_installment),
     installmentDownPaymentPercent: nnum(v.installment_down_payment_percent),
     installmentMonths: nnum(v.installment_months),
+    installmentGracePeriodDays: num(v.installment_grace_period_days, 7),
     isActive: bool(v.is_active),
     createdAt: str(v.created_at),
     updatedAt: str(v.updated_at),
@@ -220,16 +221,11 @@ export function mapEstateStats(payload: unknown): EstateStats {
 
 export function mapPortfolioStats(payload: unknown): PortfolioStats {
   const v = row(payload)
-  const counts = (value: unknown) => {
-    const item = row(value)
-    return {
-      total: num(item.total),
-      available: num(item.available),
-      underOffer: num(item.under_offer),
-      reserved: num(item.reserved),
-      sold: num(item.sold),
-    }
-  }
+  const projects = row(v.projects)
+  const ownedUnits = row(v.owned_units)
+  const standaloneUnits = row(v.standalone_units)
+  const brokerageListings = row(v.brokerage_listings)
+  const managedAssets = row(v.managed_assets)
   const estateSummaries = Object.fromEntries(
     Object.entries(row(v.estate_summaries)).map(([id, value]) => {
       const item = row(value)
@@ -247,17 +243,29 @@ export function mapPortfolioStats(payload: unknown): PortfolioStats {
     }),
   )
   return {
-    projects: { total: num(row(v.projects).total) },
-    ownedUnits: counts(v.owned_units),
-    standaloneUnits: counts(v.standalone_units),
-    brokerageListings: {
-      total: num(row(v.brokerage_listings).total),
-      available: num(row(v.brokerage_listings).available),
-      sold: num(row(v.brokerage_listings).sold),
-      linked: num(row(v.brokerage_listings).linked),
-      unlinked: num(row(v.brokerage_listings).unlinked),
+    projects: { total: num(projects.total) },
+    ownedUnits: {
+      total: num(ownedUnits.total),
+      available: num(ownedUnits.available),
+      underOffer: num(ownedUnits.under_offer),
+      reserved: num(ownedUnits.reserved),
+      sold: num(ownedUnits.sold),
     },
-    managedAssets: { total: num(row(v.managed_assets).total) },
+    standaloneUnits: {
+      total: num(standaloneUnits.total),
+      available: num(standaloneUnits.available),
+      underOffer: num(standaloneUnits.under_offer),
+      reserved: num(standaloneUnits.reserved),
+      sold: num(standaloneUnits.sold),
+    },
+    brokerageListings: {
+      total: num(brokerageListings.total),
+      available: num(brokerageListings.available),
+      sold: num(brokerageListings.sold),
+      linked: num(brokerageListings.linked),
+      unlinked: num(brokerageListings.unlinked),
+    },
+    managedAssets: { total: num(managedAssets.total) },
     estateSummaries,
   }
 }
@@ -345,6 +353,16 @@ export function mapProperty(payload: unknown): Property {
     totalAreaCommercial: nnum(v.total_area_commercial),
     numberOfFloors: nnum(v.number_of_floors),
     unitsOffices: nnum(v.units_offices),
+    allowReservation: bool(v.allow_reservation),
+    reservationPercent: nnum(v.reservation_percent),
+    reservationDurationHours: nnum(v.reservation_duration_hours),
+    requestClaimHoldHours: num(v.request_claim_hold_hours, 48),
+    reservationRefundable: v.reservation_refundable !== false,
+    reservationRetentionPercent: num(v.reservation_retention_percent),
+    allowInstallment: bool(v.allow_installment),
+    installmentDownPaymentPercent: nnum(v.installment_down_payment_percent),
+    installmentMonths: nnum(v.installment_months),
+    installmentGracePeriodDays: num(v.installment_grace_period_days, 7),
     images: Array.isArray(v.images) ? v.images.map(mapImage) : [],
     documents: Array.isArray(v.documents) ? v.documents.map(mapDocument) : [],
     isActive: bool(v.is_active),
@@ -392,6 +410,16 @@ export function mapBrokerageListing(payload: unknown): BrokerageListing {
     tags: strings(v.tags),
     additionalFees: Array.isArray(v.additional_fees) ? v.additional_fees.map(mapFee) : [],
     pricingHistory: mapPricingHistory(v.pricing_history),
+    allowReservation: bool(v.allow_reservation),
+    reservationPercent: nnum(v.reservation_percent),
+    reservationDurationHours: nnum(v.reservation_duration_hours),
+    requestClaimHoldHours: num(v.request_claim_hold_hours, 48),
+    reservationRefundable: v.reservation_refundable !== false,
+    reservationRetentionPercent: num(v.reservation_retention_percent),
+    allowInstallment: bool(v.allow_installment),
+    installmentDownPaymentPercent: nnum(v.installment_down_payment_percent),
+    installmentMonths: nnum(v.installment_months),
+    installmentGracePeriodDays: num(v.installment_grace_period_days, 7),
     isActive: bool(v.is_active),
     images: Array.isArray(v.images) ? v.images.map(mapBrokerageImage) : [],
     documents: Array.isArray(v.documents) ? v.documents.map(mapDocument) : [],

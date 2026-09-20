@@ -113,6 +113,7 @@ export type AppSectionSearch = AppRecordSearch & {
   estate?: string
   property?: string
   standaloneProperty?: string
+  standalonePropertyView?: string
   brokerage?: string
   page?: number
   parentId?: number
@@ -147,6 +148,7 @@ export function parseRecordSearch(search: Record<string, unknown>): AppSectionSe
   const estate = identifierValue(search.estate)
   const property = identifierValue(search.property) ?? identifierValue(search.plot)
   const standaloneProperty = identifierValue(search.standaloneProperty)
+  const standalonePropertyView = identifierValue(search.standalonePropertyView)
   const brokerage = identifierValue(search.brokerage)
   const feedback = identifierValue(search.feedback)
   const create = stringValue(search.create)
@@ -210,6 +212,7 @@ export function parseRecordSearch(search: Record<string, unknown>): AppSectionSe
   if (estate) result.estate = estate
   if (property) result.property = property
   if (standaloneProperty) result.standaloneProperty = standaloneProperty
+  if (standalonePropertyView) result.standalonePropertyView = standalonePropertyView
   if (brokerage) result.brokerage = brokerage
   if (feedback) result.feedback = feedback
   if (create) result.create = create

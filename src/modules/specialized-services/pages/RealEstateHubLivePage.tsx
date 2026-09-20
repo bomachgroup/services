@@ -30,6 +30,7 @@ import {
   type CreateEstateInput,
   type CreatePropertyInput,
   type Estate,
+  type PortfolioStats,
   type Property,
   type PropertyStatus,
 } from '../real-estate/real-estate.types'
@@ -58,6 +59,12 @@ const CreatePropertyLiveWorkspace = lazy(() =>
 const EditPropertyLiveWorkspace = lazy(() =>
   import('../workspaces/EditPropertyLiveWorkspace').then((module) => ({
     default: module.EditPropertyLiveWorkspace,
+  })),
+)
+
+const PropertyDetailLiveWorkspace = lazy(() =>
+  import('../workspaces/PropertyDetailLiveWorkspace').then((module) => ({
+    default: module.PropertyDetailLiveWorkspace,
   })),
 )
 
@@ -98,6 +105,13 @@ function matchesInventorySearch(haystack: string, search: string) {
 }
 
 type PortfolioStatusFilter = 'available' | 'under_offer' | 'reserved' | 'sold'
+
+function estateStatusBucket(status: Estate['estateStatus']): PortfolioStatusFilter | 'other' {
+  if (status === 'available') return 'available'
+  if (status === 'sold_out') return 'sold'
+  if (status === 'under_development') return 'reserved'
+  return 'other'
+}
 
 function propertyStatusBucket(status: PropertyStatus): PortfolioStatusFilter | 'other' {
   if (
@@ -166,11 +180,13 @@ function brokerageVerificationPillClass(status: BrokerageListing['verificationSt
 
 function EstateCard({
   estate,
+  summary,
   canEdit,
   onOpen,
   onEdit,
 }: {
   estate: Estate
+  summary: PortfolioStats['estateSummaries'][string] | undefined
   canEdit: boolean
   onOpen: () => void
   onEdit: () => void
@@ -209,6 +225,28 @@ function EstateCard({
             {estate.estateTypeDisplay || estate.estateType.replaceAll('_', ' ')}
           </p>
         ) : null}
+        {summary ? (
+          <div className="specialized-estate-card-portfolio-summary">
+            <span>
+              <b>{summary.ownedUnits}</b> owned units
+            </span>
+            <span>
+              <b>{summary.available}</b> available
+            </span>
+            <span>
+              <b>{summary.underOffer}</b> under offer
+            </span>
+            <span>
+              <b>{summary.reserved}</b> reserved
+            </span>
+            <span>
+              <b>{summary.sold}</b> sold
+            </span>
+            <span>
+              <b>{summary.linkedBrokerage}</b> linked brokerage
+            </span>
+          </div>
+        ) : null}
       </div>
       <div className="specialized-estate-card-actions">
         <button
@@ -232,12 +270,18 @@ function StandalonePropertyCard({
   property,
   highlighted,
   canEdit,
+  canSell,
+  onView,
   onEdit,
+  onSell,
 }: {
   property: Property
   highlighted: boolean
   canEdit: boolean
+  canSell: boolean
+  onView: () => void
   onEdit: () => void
+  onSell: () => void
 }) {
   return (
     <article
@@ -254,10 +298,10 @@ function StandalonePropertyCard({
             <small>
               {property.propertyTypeDisplay || property.propertyType}
               {' · '}
-              Standalone owned
+              {property.isOurProperty ? 'Standalone owned' : 'Managed standalone'}
             </small>
           </div>
-          <InventoryKindBadge kind="owned" />
+          <InventoryKindBadge kind={property.isOurProperty ? 'owned' : 'third_party'} />
         </div>
         <div className="specialized-estate-card-row">
           <span className={`commercial-pill ${propertyStatusPillClass(property.status)}`}>
@@ -267,6 +311,18 @@ function StandalonePropertyCard({
         </div>
       </div>
       <div className="specialized-estate-card-actions">
+        {canSell && property.status === 'available' ? (
+          <button
+            type="button"
+            className="commercial-btn commercial-btn-small commercial-btn-primary"
+            onClick={onSell}
+          >
+            Sell property
+          </button>
+        ) : null}
+        <button type="button" className="commercial-btn commercial-btn-small" onClick={onView}>
+          View
+        </button>
         {canEdit ? (
           <button type="button" className="commercial-btn commercial-btn-small" onClick={onEdit}>
             Edit
@@ -375,6 +431,7 @@ export function RealEstateHubLivePage({ recordSearch }: { recordSearch: AppSecti
   const canBrokerageCreate = hasPermission(user, PERMISSIONS.brokerageCreate)
   const canBrokerageUpdate = hasPermission(user, PERMISSIONS.brokerageUpdate)
   const canBrokerageDelete = hasPermission(user, PERMISSIONS.brokerageDelete)
+  const canServiceRequestUpdate = hasPermission(user, PERMISSIONS.serviceRequestsUpdate)
   const canCreateServiceRequest = canPerformAction(user, 'requestCreate')
   const canCreateService = canPerformAction(user, 'serviceCreate')
   const canViewInventory = canEstateList || canPropertyList || canBrokerageList
@@ -403,6 +460,26 @@ export function RealEstateHubLivePage({ recordSearch }: { recordSearch: AppSecti
     ...realEstateQueries.standaloneProperties({ page: 1, limit: 100 }),
     enabled: canPropertyList,
   })
+  const standalonePropertyViewId = recordSearch.standalonePropertyView
+    ? Number(recordSearch.standalonePropertyView)
+    : null
+  const standalonePropertyDetailQuery = useQuery({
+    ...realEstateQueries.standalonePropertyDetail(standalonePropertyViewId ?? 0),
+    enabled:
+      canPropertyList &&
+      standalonePropertyViewId != null &&
+      Number.isInteger(standalonePropertyViewId) &&
+      standalonePropertyViewId > 0,
+  })
+  const standalonePropertyHistoryQuery = useQuery({
+    ...realEstateQueries.propertyCommercialHistory(standalonePropertyViewId ?? 0),
+    enabled:
+      canPropertyList &&
+      standalonePropertyViewId != null &&
+      Number.isInteger(standalonePropertyViewId) &&
+      standalonePropertyViewId > 0,
+    retry: false,
+  })
   const brokerageQuery = useQuery({
     ...realEstateQueries.brokerage({ page: 1, limit: 100 }),
     enabled: canBrokerageList,
@@ -425,16 +502,20 @@ export function RealEstateHubLivePage({ recordSearch }: { recordSearch: AppSecti
 
   const filteredEstates = useMemo(() => {
     if (!canEstateList || (sourceFilter && sourceFilter !== 'estates')) return []
-    const summaryKey =
-      statusFilter === 'under_offer'
-        ? 'underOffer'
-        : statusFilter === 'available'
-          ? 'available'
-          : statusFilter === 'reserved'
-            ? 'reserved'
-            : statusFilter === 'sold'
-              ? 'sold'
-              : null
+    // When filtering by a sellable status, also surface estates holding
+    // nested plots of that status (from the portfolio aggregate) - otherwise
+    // e.g. Under offer would hide Azure Court even though it holds one.
+    const estatesWithUnits =
+      statusFilter && portfolioStatsQuery.data
+        ? new Set(
+            Object.entries(portfolioStatsQuery.data.estateSummaries)
+              .filter(([, summary]) => {
+                const key = statusFilter === 'under_offer' ? 'underOffer' : statusFilter
+                return summary[key] > 0
+              })
+              .map(([estateId]) => Number(estateId)),
+          )
+        : null
     return estates
       .filter((estate) => matchesInventoryType(estate.estateType, typeFilter))
       .filter((estate) =>
@@ -443,10 +524,11 @@ export function RealEstateHubLivePage({ recordSearch }: { recordSearch: AppSecti
           searchToken,
         ),
       )
-      .filter((estate) => {
-        if (!summaryKey || !portfolioStatsQuery.data) return !statusFilter
-        return (portfolioStatsQuery.data.estateSummaries[String(estate.id)]?.[summaryKey] ?? 0) > 0
-      })
+      .filter(
+        (estate) =>
+          matchesPortfolioStatus(estateStatusBucket(estate.estateStatus), statusFilter) ||
+          (estatesWithUnits?.has(estate.id) ?? false),
+      )
       .sort((left, right) => left.estateName.localeCompare(right.estateName))
   }, [
     canEstateList,
@@ -489,6 +571,68 @@ export function RealEstateHubLivePage({ recordSearch }: { recordSearch: AppSecti
       )
       .sort((left, right) => left.title.localeCompare(right.title))
   }, [canBrokerageList, searchToken, sourceFilter, statusFilter, typeFilter, unlinkedBrokerage])
+
+  const portfolioSummaryCards = useMemo(() => {
+    const stats = portfolioStatsQuery.data
+    if (stats) {
+      return {
+        projects: stats.projects.total,
+        ownedUnits: stats.ownedUnits.total,
+        standaloneUnits: stats.standaloneUnits.total,
+        brokerageListings: stats.brokerageListings.total,
+        managedAssets: stats.managedAssets.total,
+      }
+    }
+
+    const brokerageCount = brokerageQuery.data?.items.length ?? unlinkedBrokerage.length
+    const standaloneCount = standaloneProperties.length
+    return {
+      projects: estates.length,
+      ownedUnits: 0,
+      standaloneUnits: standaloneCount,
+      brokerageListings: brokerageCount,
+      managedAssets: standaloneCount + brokerageCount,
+    }
+  }, [
+    brokerageQuery.data?.items.length,
+    estates.length,
+    portfolioStatsQuery.data,
+    standaloneProperties.length,
+    unlinkedBrokerage.length,
+  ])
+
+  // Status cards combine the non-overlapping backend categories for filtering.
+  const portfolioStatusStats = useMemo(() => {
+    const stats = portfolioStatsQuery.data
+    if (stats) {
+      const owned = stats.ownedUnits
+      const standalone = stats.standaloneUnits
+      const brokerage = stats.brokerageListings
+      return {
+        total: stats.managedAssets.total,
+        available: owned.available + standalone.available + brokerage.available,
+        under_offer: owned.underOffer + standalone.underOffer,
+        reserved: owned.reserved + standalone.reserved,
+        sold: owned.sold + standalone.sold + brokerage.sold,
+      }
+    }
+    const counts = { total: 0, available: 0, under_offer: 0, reserved: 0, sold: 0 }
+    for (const property of standaloneProperties) {
+      counts.total += 1
+      const bucket = propertyStatusBucket(property.status)
+      if (bucket !== 'other') counts[bucket] += 1
+    }
+    for (const listing of unlinkedBrokerage) {
+      counts.total += 1
+      const bucket = brokerageStatusBucket(listing.status)
+      if (bucket !== 'other') counts[bucket] += 1
+    }
+    return counts
+  }, [portfolioStatsQuery.data, standaloneProperties, unlinkedBrokerage])
+
+  const selectStatusFilter = useCallback((next: PortfolioStatusFilter | '') => {
+    setStatusFilter((current) => (current === next ? '' : next))
+  }, [])
 
   const inventoryCount =
     filteredEstates.length + filteredStandalone.length + filteredBrokerage.length
@@ -550,6 +694,17 @@ export function RealEstateHubLivePage({ recordSearch }: { recordSearch: AppSecti
     return standaloneProperties.find((item) => item.id === propertyId) ?? null
   }, [recordSearch.standaloneProperty, standaloneProperties])
 
+  const fallbackStandalonePropertyView = useMemo(() => {
+    if (standalonePropertyViewId == null || !Number.isFinite(standalonePropertyViewId)) return null
+    return standaloneProperties.find((property) => property.id === standalonePropertyViewId) ?? null
+  }, [standaloneProperties, standalonePropertyViewId])
+  const activeStandalonePropertyView =
+    standalonePropertyDetailQuery.data ?? fallbackStandalonePropertyView
+  const standaloneExpiredReservationHistory =
+    standalonePropertyHistoryQuery.data?.find(
+      (item) => item.isCurrent && item.commercialState === 'reservation_expired',
+    ) ?? null
+
   const activeEditingProperty = editingProperty ?? deepLinkedStandaloneProperty
   useEffect(() => {
     if (!highlightedBrokerageId || !unlinkedBrokerage.length) return
@@ -565,6 +720,21 @@ export function RealEstateHubLivePage({ recordSearch }: { recordSearch: AppSecti
   const invalidateStandalone = async () => {
     await queryClient.invalidateQueries({ queryKey: realEstateKeys.standaloneProperties() })
   }
+
+  const releaseExpiredReservationMutation = useMutation({
+    mutationFn: (requestId: number) => realEstateApi.releaseExpiredReservation(requestId),
+    onSuccess: async () => {
+      await Promise.all([invalidateStandalone(), standalonePropertyHistoryQuery.refetch()])
+      toast.success('Expired reservation released', {
+        description: 'The property is available for a new commercial request.',
+      })
+    },
+    onError: (error) => {
+      toast.error('Reservation could not be released', {
+        description: presentError(error, 'background-action').message,
+      })
+    },
+  })
 
   const invalidateBrokerage = async () => {
     await Promise.all([
@@ -651,7 +821,9 @@ export function RealEstateHubLivePage({ recordSearch }: { recordSearch: AppSecti
     onSuccess: async (_property, { property }) => {
       await Promise.all([
         property.estateId
-          ? queryClient.invalidateQueries({ queryKey: realEstateKeys.properties(property.estateId) })
+          ? queryClient.invalidateQueries({
+              queryKey: realEstateKeys.properties(property.estateId),
+            })
           : invalidateStandalone(),
         invalidatePortfolioStats(),
       ])
@@ -823,27 +995,71 @@ export function RealEstateHubLivePage({ recordSearch }: { recordSearch: AppSecti
           </div>
         </section>
 
-        <div className="specialized-kpi-grid specialized-kpi-grid--compact">
-          {(
-            [
-              ['projects', 'Projects', portfolioStatsQuery.data?.projects.total ?? 0],
-              ['owned', 'Owned units', portfolioStatsQuery.data?.ownedUnits.total ?? 0],
-              ['standalone', 'Standalone units', portfolioStatsQuery.data?.standaloneUnits.total ?? 0],
-              ['brokerage', 'Brokerage listings', portfolioStatsQuery.data?.brokerageListings.total ?? 0],
-              ['managed', 'Managed assets', portfolioStatsQuery.data?.managedAssets.total ?? 0],
-            ] as const
-          ).map(([key, label, value]) => {
-            return (
-              <div
-                key={key}
-                className={`specialized-kpi-card specialized-kpi-card--${portfolioKpiTone(key)}`}
-              >
-                <div>{label}</div>
+        <section className="specialized-card specialized-portfolio-overview">
+          <header className="specialized-portfolio-overview-header">
+            <div>
+              <div className="specialized-card-title">Portfolio overview</div>
+              <div className="specialized-card-subtitle">
+                Portfolio structure and current inventory status.
+              </div>
+            </div>
+            <div className="specialized-portfolio-overview-total">
+              <span>Managed assets</span>
+              <strong>{portfolioSummaryCards.managedAssets}</strong>
+            </div>
+          </header>
+
+          <div className="specialized-portfolio-summary-grid">
+            {(
+              [
+                ['projects', 'Projects', portfolioSummaryCards.projects],
+                ['owned', 'Owned units', portfolioSummaryCards.ownedUnits],
+                ['standalone', 'Standalone units', portfolioSummaryCards.standaloneUnits],
+                ['brokerage', 'Brokerage listings', portfolioSummaryCards.brokerageListings],
+              ] as const
+            ).map(([key, label, value]) => (
+              <div key={key} className="specialized-portfolio-summary-card">
+                <span>{label}</span>
                 <strong>{value}</strong>
               </div>
-            )
-          })}
-        </div>
+            ))}
+          </div>
+
+          <div className="specialized-portfolio-status-heading">
+            <span>Inventory status</span>
+            <small>Select a status to filter the property board.</small>
+          </div>
+
+          <div className="specialized-kpi-grid specialized-kpi-grid--compact">
+            {(
+              [
+                ['total', 'All inventory', portfolioStatusStats.total],
+                ['available', 'Available', portfolioStatusStats.available],
+                ['under_offer', 'Under offer', portfolioStatusStats.under_offer],
+                ['reserved', 'Reserved', portfolioStatusStats.reserved],
+                ['sold', 'Sold', portfolioStatusStats.sold],
+              ] as const
+            ).map(([key, label, value]) => {
+              const active = key === 'total' ? statusFilter === '' : statusFilter === key
+              return (
+                <button
+                  key={key}
+                  type="button"
+                  className={
+                    active
+                      ? `specialized-kpi-card specialized-kpi-card--action specialized-kpi-card--${portfolioKpiTone(key)} is-active`
+                      : `specialized-kpi-card specialized-kpi-card--action specialized-kpi-card--${portfolioKpiTone(key)}`
+                  }
+                  aria-pressed={active}
+                  onClick={() => selectStatusFilter(key === 'total' ? '' : key)}
+                >
+                  <div>{label}</div>
+                  <strong>{value}</strong>
+                </button>
+              )
+            })}
+          </div>
+        </section>
 
         <section className="specialized-card">
           <header className="specialized-card-header">
@@ -958,6 +1174,7 @@ export function RealEstateHubLivePage({ recordSearch }: { recordSearch: AppSecti
                   <EstateCard
                     key={`estate-${estate.id}`}
                     estate={estate}
+                    summary={portfolioStatsQuery.data?.estateSummaries[String(estate.id)]}
                     canEdit={canEstateUpdate}
                     onOpen={() => openEstate(estate.id)}
                     onEdit={() => setEditingEstate(estate)}
@@ -969,7 +1186,19 @@ export function RealEstateHubLivePage({ recordSearch }: { recordSearch: AppSecti
                     property={property}
                     highlighted={editingProperty?.id === property.id}
                     canEdit={canPropertyUpdate}
+                    canSell={canCreateServiceRequest && property.isOurProperty}
+                    onView={() => setSearchValue('standalonePropertyView', String(property.id))}
                     onEdit={() => setEditingProperty(property)}
+                    onSell={() =>
+                      void navigate({
+                        to: '/app/$section',
+                        params: { section: 'service-requests' },
+                        search: {
+                          create: 'request',
+                          standaloneProperty: String(property.id),
+                        },
+                      })
+                    }
                   />
                 ))}
                 {filteredBrokerage.map((listing) => (
@@ -1078,6 +1307,29 @@ export function RealEstateHubLivePage({ recordSearch }: { recordSearch: AppSecti
           />
         </Suspense>
       ) : null}
+      {activeStandalonePropertyView ? (
+        <Suspense fallback={<RealEstateWorkspaceFallback />}>
+          <PropertyDetailLiveWorkspace
+            property={activeStandalonePropertyView}
+            estateName="Standalone property"
+            canPropertyUpdate={canPropertyUpdate}
+            canManageCommercialRelease={canServiceRequestUpdate}
+            releaseSaving={releaseExpiredReservationMutation.isPending}
+            expiredReservationState={standaloneExpiredReservationHistory}
+            onClose={() => setSearchValue('standalonePropertyView', null)}
+            onEdit={() => {
+              setEditingProperty(activeStandalonePropertyView)
+              setSearchValue('standalonePropertyView', null)
+            }}
+            onReleaseExpiredReservation={() => {
+              if (!standaloneExpiredReservationHistory) return
+              releaseExpiredReservationMutation.mutate(
+                standaloneExpiredReservationHistory.requestId,
+              )
+            }}
+          />
+        </Suspense>
+      ) : null}
       {brokerageOpen ? (
         <Suspense fallback={<RealEstateWorkspaceFallback />}>
           <CreateBrokerageLiveWorkspace
@@ -1098,9 +1350,7 @@ export function RealEstateHubLivePage({ recordSearch }: { recordSearch: AppSecti
             mode="edit"
             saving={updateBrokerageMutation.isPending}
             onClose={() => setEditingBrokerage(null)}
-            onSubmit={(input) =>
-              updateBrokerageMutation.mutate({ id: editingBrokerage.id, input })
-            }
+            onSubmit={(input) => updateBrokerageMutation.mutate({ id: editingBrokerage.id, input })}
           />
         </Suspense>
       ) : null}

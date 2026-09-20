@@ -149,36 +149,37 @@ export function RealEstateRequestContextFields({
   })
   const selectedBrokerageQuery = useQuery({
     ...realEstateQueries.brokerageDetail(context.selectedId ?? 0),
-    enabled:
-      canListBrokerage && context.sourceMode === 'brokerage' && Boolean(context.selectedId),
+    enabled: canListBrokerage && context.sourceMode === 'brokerage' && Boolean(context.selectedId),
   })
 
   const estates = [
     ...(estatesQuery.data?.pages.flatMap((page) => page.items) ?? []),
     ...(selectedEstateQuery.data ? [selectedEstateQuery.data] : []),
-  ].filter((estate, index, all) => all.findIndex((item) => item.id === estate.id) === index).filter(
-    (estate) =>
-      estate.isActive !== false &&
-      (estate.estateStatus === 'available' || estate.estateStatus === 'under_development'),
-  )
+  ]
+    .filter((estate, index, all) => all.findIndex((item) => item.id === estate.id) === index)
+    .filter(
+      (estate) =>
+        estate.isActive !== false &&
+        (estate.estateStatus === 'available' || estate.estateStatus === 'under_development'),
+    )
   const standaloneProperties = [
     ...(standaloneQuery.data?.pages.flatMap((page) => page.items) ?? []),
     ...(selectedStandaloneQuery.data ? [selectedStandaloneQuery.data] : []),
-  ].filter((property, index, all) => all.findIndex((item) => item.id === property.id) === index).filter(
-    (property) => property.status === 'available' && property.isActive !== false,
-  )
+  ]
+    .filter((property, index, all) => all.findIndex((item) => item.id === property.id) === index)
+    .filter((property) => property.status === 'available' && property.isActive !== false)
   const unlinkedBrokerage = [
     ...(brokerageQuery.data?.pages.flatMap((page) => page.items) ?? []),
     ...(selectedBrokerageQuery.data ? [selectedBrokerageQuery.data] : []),
-  ].filter((listing, index, all) => all.findIndex((item) => item.id === listing.id) === index).filter(
-    (listing) => listing.estateId == null && listing.status === 'available',
-  )
+  ]
+    .filter((listing, index, all) => all.findIndex((item) => item.id === listing.id) === index)
+    .filter((listing) => listing.estateId == null && listing.status === 'available')
   const estateProperties = [
     ...(propertiesQuery.data?.pages.flatMap((page) => page.items) ?? []),
     ...(selectedPropertyQuery.data ? [selectedPropertyQuery.data] : []),
-  ].filter((property, index, all) => all.findIndex((item) => item.id === property.id) === index).filter(
-    (property) => property.status === 'available' && property.isActive !== false,
-  )
+  ]
+    .filter((property, index, all) => all.findIndex((item) => item.id === property.id) === index)
+    .filter((property) => property.status === 'available' && property.isActive !== false)
   const selectedEstate = estates.find((estate) => estate.id === context.estateId) ?? null
   const selectedProperty =
     context.sourceMode === 'estate'
@@ -217,10 +218,14 @@ export function RealEstateRequestContextFields({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [context.selectedId, inventoryPrice])
 
-  const allowReservation =
-    context.sourceMode === 'estate' && Boolean(selectedEstate?.allowReservation)
-  const allowInstallment =
-    context.sourceMode === 'estate' && Boolean(selectedEstate?.allowInstallment)
+  const selectedPolicy =
+    context.sourceMode === 'estate'
+      ? selectedEstate
+      : context.sourceMode === 'standalone'
+        ? selectedProperty
+        : selectedBrokerage
+  const allowReservation = Boolean(selectedPolicy?.allowReservation)
+  const allowInstallment = Boolean(selectedPolicy?.allowInstallment)
 
   const paymentPlanOptions: PaymentPlanOption[] = (() => {
     const options: PaymentPlanOption[] = [
@@ -233,26 +238,26 @@ export function RealEstateRequestContextFields({
     ]
 
     if (allowReservation) {
-      const reservationPercent = selectedEstate?.reservationPercent ?? null
-      const holdPeriod = formatDurationHours(selectedEstate?.reservationDurationHours)
+      const reservationPercent = selectedPolicy?.reservationPercent ?? null
+      const holdPeriod = formatDurationHours(selectedPolicy?.reservationDurationHours)
       const terms = [
         reservationPercent != null ? `${formatPercent(reservationPercent)} reservation` : null,
         holdPeriod ? `${holdPeriod} hold` : null,
-        selectedEstate?.reservationRefundable ? 'Refundable' : 'Non-refundable',
+        selectedPolicy?.reservationRefundable ? 'Refundable' : 'Non-refundable',
       ]
         .filter(Boolean)
         .join(' · ')
       options.push({
         mode: 'reservation',
         label: 'Reservation',
-        meta: terms || 'Hold under estate reservation policy',
+        meta: terms || 'Hold under the selected asset policy',
         dueAmount: percentOf(displayPrice, reservationPercent),
       })
     }
 
     if (allowInstallment) {
-      const downPaymentPercent = selectedEstate?.installmentDownPaymentPercent ?? null
-      const months = selectedEstate?.installmentMonths ?? null
+      const downPaymentPercent = selectedPolicy?.installmentDownPaymentPercent ?? null
+      const months = selectedPolicy?.installmentMonths ?? null
       const terms = [
         downPaymentPercent != null ? `${formatPercent(downPaymentPercent)} down payment` : null,
         months != null ? `${months}-month plan` : null,
@@ -262,7 +267,7 @@ export function RealEstateRequestContextFields({
       options.push({
         mode: 'installment',
         label: 'Installment',
-        meta: terms || 'Down payment under estate installment policy',
+        meta: terms || 'Down payment under the selected asset policy',
         dueAmount: percentOf(displayPrice, downPaymentPercent),
       })
     }
@@ -546,7 +551,7 @@ export function RealEstateRequestContextFields({
                   <strong className="commercial-payment-method-due">
                     {option.dueAmount != null && option.dueAmount > 0
                       ? formatCurrency(option.dueAmount)
-                      : '—'}
+                      : '-'}
                   </strong>
                 </button>
               )

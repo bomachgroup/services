@@ -42,7 +42,7 @@ function formatPreciseCurrency(value: number) {
 }
 
 function formatDateTime(value: string) {
-  if (!value) return '—'
+  if (!value) return '-'
   const parsed = new Date(value)
   if (Number.isNaN(parsed.getTime())) return value
   return parsed.toLocaleString('en-GB')
@@ -113,15 +113,15 @@ export function PendingPaymentSubmissionCard({
               </div>
               <div>
                 <div className="commercial-kl">Payment date</div>
-                <b>{submission.paymentDate || '—'}</b>
+                <b>{submission.paymentDate || '-'}</b>
               </div>
               <div>
                 <div className="commercial-kl">Transaction reference</div>
-                <b>{submission.transactionReference || '—'}</b>
+                <b>{submission.transactionReference || '-'}</b>
               </div>
               <div>
                 <div className="commercial-kl">Receiving account</div>
-                <b>{submission.financeAccountName || '—'}</b>
+                <b>{submission.financeAccountName || '-'}</b>
               </div>
               <div>
                 <div className="commercial-kl">Submitted by</div>
@@ -135,7 +135,7 @@ export function PendingPaymentSubmissionCard({
               </div>
               <div>
                 <div className="commercial-kl">Invoice</div>
-                <b>{submission.invoiceNumber || '—'}</b>
+                <b>{submission.invoiceNumber || '-'}</b>
               </div>
             </div>
 
@@ -245,15 +245,15 @@ export function PendingPaymentSubmissionCard({
         detailsTitle="Payment summary"
         detailRows={[
           { label: 'Submission', value: submission.reference, highlight: true },
-          { label: 'Invoice', value: submission.invoiceNumber || '—' },
-          { label: 'Client', value: submission.clientName || '—' },
+          { label: 'Invoice', value: submission.invoiceNumber || '-' },
+          { label: 'Client', value: submission.clientName || '-' },
           {
             label: 'Amount',
             value: formatPreciseCurrency(submission.amount),
             highlight: true,
           },
           { label: 'Method', value: paymentMethodLabel(submission.paymentMethod) },
-          { label: 'Payment date', value: submission.paymentDate || '—' },
+          { label: 'Payment date', value: submission.paymentDate || '-' },
           ...(submission.transactionReference
             ? [{ label: 'Transaction ref', value: submission.transactionReference }]
             : []),

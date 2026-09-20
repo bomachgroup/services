@@ -207,11 +207,7 @@ async function requestBlob(
 
   let response: Response
   try {
-    response = await executeRequest(
-      path,
-      { ...options, method: 'GET' },
-      accessToken ?? undefined,
-    )
+    response = await executeRequest(path, { ...options, method: 'GET' }, accessToken ?? undefined)
   } catch (error) {
     throw new ApiError('The server could not be reached.', {
       status: 0,

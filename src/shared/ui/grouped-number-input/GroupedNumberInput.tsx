@@ -12,7 +12,8 @@ type GroupedNumberInputProps = {
   className?: string
   placeholder?: string
   disabled?: boolean
-  id?: string
+  id?: string | undefined
+  invalid?: boolean
 }
 
 function syncGroupedDisplayValue(
@@ -34,6 +35,7 @@ export function GroupedNumberInput({
   placeholder,
   disabled = false,
   id,
+  invalid = false,
 }: GroupedNumberInputProps) {
   const inputRef = useRef<HTMLInputElement>(null)
   const caretPosRef = useRef<number | null>(null)
@@ -59,6 +61,7 @@ export function GroupedNumberInput({
       inputMode="decimal"
       placeholder={placeholder}
       disabled={disabled}
+      aria-invalid={invalid || undefined}
       value={displayValue}
       onChange={(event) => {
         const input = event.target

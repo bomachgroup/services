@@ -67,7 +67,7 @@ export function ApprovalsScreen({
                   <td>{approval.requestedBy}</td>
                   <td>{approval.assignedTo}</td>
                   <td>
-                    <b>{approval.amount > 0 ? commercialMoney.format(approval.amount) : '—'}</b>
+                    <b>{approval.amount > 0 ? commercialMoney.format(approval.amount) : '-'}</b>
                   </td>
                   <td>{approval.dueAt}</td>
                   <td>

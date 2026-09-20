@@ -131,6 +131,30 @@ function servicesForParent(services: ServiceOption[], parentKey: string) {
     .sort((left, right) => left.name.localeCompare(right.name))
 }
 
+function findInitialService(
+  services: ServiceOption[],
+  initialServiceId: number,
+  initialSpecializedContext: unknown,
+) {
+  if (initialServiceId > 0) {
+    return services.find((service) => service.id === initialServiceId) ?? null
+  }
+
+  if (!initialSpecializedContext) return null
+
+  const landSaleServices = services.filter(
+    (service) => realEstateRequestContext(service) === 'land_sale',
+  )
+
+  return (
+    landSaleServices.find((service) => service.code.trim().toUpperCase() === 'RE-LAND-SALE') ??
+    landSaleServices.find((service) => service.parentName.toLowerCase().includes('real estate')) ??
+    landSaleServices[0] ??
+    services.find(isSaleCapableRealEstateService) ??
+    null
+  )
+}
+
 const NEW_CLIENT_FIELD_ORDER: NewClientField[] = ['firstName', 'lastName', 'email', 'phoneNumber']
 
 function validateNewClientInput(input: {
@@ -318,9 +342,9 @@ function ClientResultsTable({
                   <td>
                     <b>{client.name}</b>
                   </td>
-                  <td>{client.phone || '—'}</td>
-                  <td>{client.email || '—'}</td>
-                  <td>{client.companyName || '—'}</td>
+                  <td>{client.phone || '-'}</td>
+                  <td>{client.email || '-'}</td>
+                  <td>{client.companyName || '-'}</td>
                 </tr>
               )
             }
@@ -346,9 +370,9 @@ function ClientResultsTable({
                 <td>
                   <b>{client.name}</b>
                 </td>
-                <td>{client.phone || '—'}</td>
-                <td>{client.email || '—'}</td>
-                <td>{client.companyName || '—'}</td>
+                <td>{client.phone || '-'}</td>
+                <td>{client.email || '-'}</td>
+                <td>{client.companyName || '-'}</td>
               </tr>
             )
           })}
@@ -470,9 +494,9 @@ function LeadResultsTable({
                 <td>
                   <b>{lead.fullName}</b>
                 </td>
-                <td>{lead.phone || '—'}</td>
-                <td>{lead.email || '—'}</td>
-                <td>{lead.statusDisplay || lead.status || '—'}</td>
+                <td>{lead.phone || '-'}</td>
+                <td>{lead.email || '-'}</td>
+                <td>{lead.statusDisplay || lead.status || '-'}</td>
                 <td>{lead.linkedClientName ?? 'Select'}</td>
               </tr>
             )
@@ -528,8 +552,11 @@ export function CreateServiceRequestLiveWorkspace({
   const canSearchLeads = hasPermission(user, PERMISSIONS.leadsList)
   const activeClients = clients.filter((item) => item.active)
   const parentServiceOptions = useMemo(() => buildParentServiceOptions(services), [services])
-  const [parentServiceKey, setParentServiceKey] = useState('')
-  const [serviceId, setServiceId] = useState(0)
+  const initialService = findInitialService(services, initialServiceId, initialSpecializedContext)
+  const [parentServiceKey, setParentServiceKey] = useState(() =>
+    initialService ? serviceParentKey(initialService) : '',
+  )
+  const [serviceId, setServiceId] = useState(() => initialService?.id ?? 0)
   const [commercialPath, setCommercialPath] = useState<'quotation' | 'direct_invoice'>('quotation')
   const [error, setError] = useState('')
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
@@ -912,9 +939,7 @@ export function CreateServiceRequestLiveWorkspace({
 
   useEffect(() => {
     if (initialServiceId || serviceId || !initialSpecializedContext || services.length === 0) return
-    const service =
-      services.find((item) => realEstateRequestContext(item) === 'land_sale') ??
-      services.find(isSaleCapableRealEstateService)
+    const service = findInitialService(services, initialServiceId, initialSpecializedContext)
     if (!service) return
     queueMicrotask(() => {
       setParentServiceKey(serviceParentKey(service))

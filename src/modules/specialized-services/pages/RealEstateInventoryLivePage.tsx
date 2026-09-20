@@ -38,6 +38,8 @@ import {
 
 import { EstateLocationMap } from '../real-estate/EstateLocationMap'
 import { NamedDocumentsPanel } from '../real-estate/NamedDocumentsPanel'
+import { hasViewableDocuments } from '../real-estate/named-documents.utils'
+import { isValidBoundary } from '../real-estate/real-estate-map.utils'
 import { realEstateApi } from '../real-estate/real-estate.api'
 import { realEstateKeys } from '../real-estate/real-estate.keys'
 import { realEstateQueries } from '../real-estate/real-estate.queries'
@@ -196,7 +198,7 @@ function LocationDocumentsAccordion({
           ? renderHeader(
               'location',
               'Estate Location',
-              'Boundary shown on the map. Hover a plot outline for its status.',
+              'Boundary shown on the map. Hover a property outline for its status.',
               locationSummary,
             )
           : null}
@@ -204,7 +206,7 @@ function LocationDocumentsAccordion({
           ? renderHeader(
               'documents',
               'Estate Documents',
-              'Collected estate documents — select one to open it.',
+              'Estate documents. Select one to preview it.',
               documentsSummary,
             )
           : null}
@@ -228,10 +230,10 @@ function estateBoardLabel(property: Property) {
 }
 function secondary(property: Property) {
   if (property.propertyType === 'plot')
-    return `${property.plotSize ?? '—'} ${property.plotSizeUnit || 'sqm'}`
+    return `${property.plotSize ?? '-'} ${property.plotSizeUnit || 'sqm'}`
   if (property.propertyType === 'residential')
-    return `${property.buildingTypeResidentialDisplay || property.buildingTypeResidential || 'Residential'} · ${property.bedrooms ?? '—'} bed · ${property.bathrooms ?? '—'} bath`
-  return `${property.buildingTypeCommercialDisplay || property.buildingTypeCommercial || 'Commercial'} · ${property.numberOfFloors ?? '—'} floor(s) · ${property.unitsOffices ?? '—'} unit(s)`
+    return `${property.buildingTypeResidentialDisplay || property.buildingTypeResidential || 'Residential'} · ${property.bedrooms ?? '-'} bed · ${property.bathrooms ?? '-'} bath`
+  return `${property.buildingTypeCommercialDisplay || property.buildingTypeCommercial || 'Commercial'} · ${property.numberOfFloors ?? '-'} floor(s) · ${property.unitsOffices ?? '-'} unit(s)`
 }
 
 function historyPriceLabel(value: unknown) {
@@ -252,7 +254,7 @@ function historyEventTitle(event: {
   const newPrice = historyPriceLabel(event.data.new_price ?? event.data.newPrice)
   const setPrice = historyPriceLabel(event.data.price)
 
-  if (oldPrice && newPrice) return `${oldPrice} → ${newPrice}`
+  if (oldPrice && newPrice) return `From ${oldPrice} to ${newPrice}`
   if (newPrice) return newPrice
   if (setPrice) return setPrice
   if (oldPrice) return oldPrice
@@ -291,9 +293,9 @@ function propertyAreaSqm(property: Property) {
 }
 
 /**
- * Status-aware next action. Available → Create Request.
- * Sold → View Invoice (primary). Reserved → invoice or request.
- * Under offer → View Request. Hold / not-for-sale → hidden by caller.
+ * Status-aware next action. Available starts a request.
+ * Sold opens the closing invoice. Reserved opens the invoice or request.
+ * Under offer opens the active request. Hold and not-for-sale are hidden by the caller.
  */
 function PropertyNextStep({
   status,
@@ -350,12 +352,12 @@ function PropertyNextStep({
     return (
       <div className={`specialized-property-next-step${allowed ? '' : 'is-muted'}`}>
         <div className="specialized-property-next-step-copy">
-          <span>Next step</span>
-          <strong>Start a service request</strong>
+          <span>Recommended action</span>
+          <strong>Sell this property</strong>
           <small>
             {allowed
-              ? 'Opens the request flow with this property selected.'
-              : 'You do not have permission to create service requests.'}
+              ? 'Start the property sale with this asset already selected.'
+              : 'You do not have permission to start a property sale.'}
           </small>
         </div>
         <button
@@ -364,7 +366,7 @@ function PropertyNextStep({
           disabled={!allowed}
           onClick={onCreateRequest}
         >
-          Create Request
+          Sell property
         </button>
       </div>
     )
@@ -374,15 +376,17 @@ function PropertyNextStep({
     return (
       <div className="specialized-property-next-step">
         <div className="specialized-property-next-step-copy">
-          <span>Next step</span>
-          <strong>Sold — view closing invoice</strong>
+          <span>Recommended action</span>
+          <strong>Sale completed. Review the closing invoice</strong>
           <small>
-            Sold{clientName?.trim() ? ` to ${clientName.trim()}` : ''}. New requests are blocked to
-            prevent double-sell.
+            {clientName?.trim()
+              ? `This property was sold to ${clientName.trim()}. `
+              : 'This property has been sold. '}
+            New requests are unavailable to prevent a duplicate sale.
             {historyLoading
               ? ' Loading records…'
               : invoiceNumber.trim()
-                ? ` Invoice ${invoiceNumber.trim()}.`
+                ? ` Closing invoice ${invoiceNumber.trim()} is available.`
                 : ''}
           </small>
         </div>
@@ -394,12 +398,12 @@ function PropertyNextStep({
             onClick={goInvoice}
           >
             <IconReceipt size={14} />
-            View Invoice
+            Open closing invoice
           </button>
           {requestId ? (
             <button type="button" className="commercial-btn" onClick={goRequest}>
               <IconFileText size={14} />
-              View Request
+              Open service request
             </button>
           ) : null}
         </div>
@@ -411,17 +415,17 @@ function PropertyNextStep({
     return (
       <div className="specialized-property-next-step">
         <div className="specialized-property-next-step-copy">
-          <span>Next step</span>
-          <strong>Reserved — check hold records</strong>
+          <span>Recommended action</span>
+          <strong>Reservation in progress. Review the hold</strong>
           <small>
-            {clientName?.trim() ? `Held for ${clientName.trim()}. ` : ''}
+            {clientName?.trim() ? `Reserved for ${clientName.trim()}. ` : ''}
             {historyLoading
               ? 'Loading records…'
               : invoiceNumber.trim()
-                ? `Reservation invoice ${invoiceNumber.trim()}.`
+                ? `Reservation invoice ${invoiceNumber.trim()} is available.`
                 : requestNumber.trim()
-                  ? `Request ${requestNumber.trim()}.`
-                  : 'See who holds it before releasing.'}
+                  ? `Service request ${requestNumber.trim()} is associated with this hold.`
+                  : 'Review the reservation details before releasing the property.'}
           </small>
         </div>
         <div className="specialized-property-next-step-actions">
@@ -432,7 +436,7 @@ function PropertyNextStep({
               onClick={goInvoice}
             >
               <IconReceipt size={14} />
-              View Invoice
+              Open reservation invoice
             </button>
           ) : requestId ? (
             <button
@@ -441,13 +445,13 @@ function PropertyNextStep({
               onClick={goRequest}
             >
               <IconFileText size={14} />
-              View Request
+              Open service request
             </button>
           ) : null}
           {invoiceNumber.trim() && requestId ? (
             <button type="button" className="commercial-btn" onClick={goRequest}>
               <IconFileText size={14} />
-              View Request
+              Open service request
             </button>
           ) : null}
         </div>
@@ -459,12 +463,12 @@ function PropertyNextStep({
     return (
       <div className="specialized-property-next-step">
         <div className="specialized-property-next-step-copy">
-          <span>Next step</span>
-          <strong>Under offer — follow the live request</strong>
+          <span>Recommended action</span>
+          <strong>Offer in progress. Follow the active request</strong>
           <small>
             {requestNumber.trim()
-              ? `Locked to request ${requestNumber.trim()}.`
-              : 'Locked to another live request.'}
+              ? `This property is linked to service request ${requestNumber.trim()}.`
+              : 'This property is linked to another active service request.'}
           </small>
         </div>
         <div className="specialized-property-next-step-actions">
@@ -475,11 +479,11 @@ function PropertyNextStep({
             onClick={goRequest}
           >
             <IconFileText size={14} />
-            View Service Request
+            Open service request
           </button>
           {quoteNumber.trim() ? (
             <button type="button" className="commercial-btn" onClick={goQuote}>
-              View Quote
+              Open quotation
               <IconArrowUpRight size={13} />
             </button>
           ) : null}
@@ -491,9 +495,12 @@ function PropertyNextStep({
   return (
     <div className="specialized-property-next-step is-muted">
       <div className="specialized-property-next-step-copy">
-        <span>Next step</span>
+        <span>Current status</span>
         <strong>{statusDisplay}</strong>
-        <small>This status can’t start a request. See details for what’s next.</small>
+        <small>
+          This status does not allow a new service request. Review the property details for next
+          steps.
+        </small>
       </div>
     </div>
   )
@@ -544,21 +551,9 @@ function SelectedPropertyForm({
     enabled: needsHistory,
     retry: false,
   })
-  // Best pick: latest non-cancelled record, fallback to latest overall.
-  // Prefer records carrying an invoice for sold/reserved.
-  const bestHistory = (() => {
-    const items = historyQuery.data ?? []
-    if (!items.length) return null
-    const byDate = [...items].sort(
-      (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
-    )
-    const active = byDate.filter((i) => !/cancel/i.test(i.requestStatus ?? ''))
-    const pool = active.length ? active : byDate
-    if (selectedProperty.status === 'sold' || selectedProperty.status === 'reserved') {
-      return pool.find((i) => i.invoiceNumber?.trim()) ?? pool[0] ?? null
-    }
-    return pool[0] ?? null
-  })()
+  // The backend marks the current commercial transaction explicitly. Do not
+  // infer it from dates, request status, or invoice presence.
+  const bestHistory = (historyQuery.data ?? []).find((item) => item.isCurrent) ?? null
   const statusLocked =
     selectedProperty.status === 'under_offer' ||
     selectedProperty.status === 'reserved' ||
@@ -798,6 +793,7 @@ export function RealEstateInventoryLivePage({ recordSearch }: { recordSearch: Ap
   const canBrokerageCreate = hasPermission(user, PERMISSIONS.brokerageCreate)
   const canBrokerageUpdate = hasPermission(user, PERMISSIONS.brokerageUpdate)
   const canBrokerageDelete = hasPermission(user, PERMISSIONS.brokerageDelete)
+  const canServiceRequestUpdate = hasPermission(user, PERMISSIONS.serviceRequestsUpdate)
   const canCreateServiceRequest = canPerformAction(user, 'requestCreate')
   const canCreateService = canPerformAction(user, 'serviceCreate')
 
@@ -816,6 +812,15 @@ export function RealEstateInventoryLivePage({ recordSearch }: { recordSearch: Ap
   const propertiesQuery = useQuery({
     ...realEstateQueries.properties(estateId ?? 0, { page: 1, limit: 250 }),
     enabled: Boolean(estateId) && canPropertyList,
+  })
+  const propertyDetailQuery = useQuery({
+    ...realEstateQueries.propertyDetail(estateId ?? 0, propertyId ?? 0),
+    enabled: Boolean(estateId && propertyId && propertyViewOpen && canPropertyList),
+  })
+  const propertyCommercialHistoryQuery = useQuery({
+    ...realEstateQueries.propertyCommercialHistory(propertyId ?? 0),
+    enabled: Boolean(propertyId && propertyViewOpen && canPropertyList),
+    retry: false,
   })
   const brokerageQuery = useQuery({
     ...realEstateQueries.brokerage({ page: 1, limit: 100 }),
@@ -848,6 +853,11 @@ export function RealEstateInventoryLivePage({ recordSearch }: { recordSearch: Ap
       })
   }, [properties, statusFilter, typeFilter])
   const selectedProperty = properties.find((property) => property.id === propertyId) ?? null
+  const propertyForView = propertyDetailQuery.data ?? selectedProperty
+  const expiredReservationHistory =
+    propertyCommercialHistoryQuery.data?.find(
+      (item) => item.isCurrent && item.commercialState === 'reservation_expired',
+    ) ?? null
 
   useEffect(() => {
     queueMicrotask(() => {
@@ -958,6 +968,20 @@ export function RealEstateInventoryLivePage({ recordSearch }: { recordSearch: Ap
       toast.error('Property could not be deleted', {
         description: presentError(error, 'background-action').message,
       }),
+  })
+  const releaseExpiredReservationMutation = useMutation({
+    mutationFn: (requestId: number) => realEstateApi.releaseExpiredReservation(requestId),
+    onSuccess: async () => {
+      await Promise.all([invalidateEstate(estateId!), propertyCommercialHistoryQuery.refetch()])
+      toast.success('Expired reservation released', {
+        description: 'The property is available for a new commercial request.',
+      })
+    },
+    onError: (error) => {
+      toast.error('Reservation could not be released', {
+        description: presentError(error, 'background-action').message,
+      })
+    },
   })
   const createBrokerageMutation = useMutation({
     mutationFn: (input: CreateBrokerageInput) => realEstateApi.createBrokerage(input),
@@ -1127,7 +1151,7 @@ export function RealEstateInventoryLivePage({ recordSearch }: { recordSearch: Ap
                 onClick={() => selectStatusFilter(filterValue)}
               >
                 <div>{label}</div>
-                <strong>{value ?? '—'}</strong>
+                <strong>{value ?? '-'}</strong>
               </button>
             )
           })}
@@ -1187,10 +1211,10 @@ export function RealEstateInventoryLivePage({ recordSearch }: { recordSearch: Ap
         </section>
 
         <LocationDocumentsAccordion
-          showLocation={Boolean(selectedEstate!.boundary.length)}
-          showDocuments={Boolean(selectedEstate!.documents.length)}
-          locationSummary={properties.length ? `${properties.length} plots` : undefined}
-          documentsSummary={`${selectedEstate!.documents.length} collected`}
+          showLocation={isValidBoundary(selectedEstate!.boundary)}
+          showDocuments={hasViewableDocuments(selectedEstate!.documents)}
+          locationSummary={properties.length ? `${properties.length} properties` : undefined}
+          documentsSummary={`${selectedEstate!.documents.length} documents`}
           locationContent={
             <EstateLocationMap
               estateBoundary={selectedEstate!.boundary}
@@ -1402,15 +1426,23 @@ export function RealEstateInventoryLivePage({ recordSearch }: { recordSearch: Ap
         </div>
       ) : null}
 
-      {selectedProperty && propertyViewOpen && !propertyEditOpen ? (
+      {propertyForView && propertyViewOpen && !propertyEditOpen ? (
         <Suspense fallback={<RealEstateWorkspaceFallback />}>
           <PropertyDetailLiveWorkspace
-            property={selectedProperty}
+            property={propertyForView}
             estateName={selectedEstate!.estateName}
+            estateBoundary={selectedEstate!.boundary}
             estatePricePerSqm={selectedEstate?.pricePerSqm ?? null}
             canPropertyUpdate={canPropertyUpdate}
+            canManageCommercialRelease={canServiceRequestUpdate}
+            releaseSaving={releaseExpiredReservationMutation.isPending}
+            expiredReservationState={expiredReservationHistory}
             onClose={() => setPropertyViewOpen(false)}
             onEdit={() => setPropertyEditOpen(true)}
+            onReleaseExpiredReservation={() => {
+              if (!expiredReservationHistory) return
+              releaseExpiredReservationMutation.mutate(expiredReservationHistory.requestId)
+            }}
           />
         </Suspense>
       ) : null}

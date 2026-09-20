@@ -44,7 +44,7 @@ function assigneeLabel(employee: EmployeeOption) {
 }
 
 function emptyText(value: string) {
-  return value.trim() ? value : '—'
+  return value.trim() ? value : '-'
 }
 
 export function ExecutionTaskDetailLiveWorkspace({
@@ -186,7 +186,7 @@ export function ExecutionTaskDetailLiveWorkspace({
                 </div>
                 <div>
                   <div className="commercial-kl">Milestone</div>
-                  <b>{milestone?.name ?? '—'}</b>
+                  <b>{milestone?.name ?? '-'}</b>
                 </div>
                 <div>
                   <div className="commercial-kl">Owner</div>
@@ -194,7 +194,7 @@ export function ExecutionTaskDetailLiveWorkspace({
                 </div>
                 <div>
                   <div className="commercial-kl">Due date</div>
-                  <b>{task.dueDate || '—'}</b>
+                  <b>{task.dueDate || '-'}</b>
                 </div>
                 <div>
                   <div className="commercial-kl">Priority</div>
@@ -251,7 +251,7 @@ export function ExecutionTaskDetailLiveWorkspace({
                       ))}
                     </div>
                   ) : (
-                    <b>—</b>
+                    <b>-</b>
                   )}
                 </div>
               </div>
@@ -268,7 +268,7 @@ export function ExecutionTaskDetailLiveWorkspace({
                 </div>
                 <div className="commercial-info-full">
                   <div className="commercial-kl">Milestone</div>
-                  <b>{milestone?.name ?? '—'}</b>
+                  <b>{milestone?.name ?? '-'}</b>
                 </div>
               </div>
 

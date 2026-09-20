@@ -1885,6 +1885,11 @@ button.commercial-attachment-row {
   box-shadow: 0 0 0 1px #fecaca;
 }
 
+.commercial-field--invalid .specialized-policy-input-with-suffix {
+  border-color: #f04438;
+  box-shadow: 0 0 0 1px #fecaca;
+}
+
 .commercial-field--invalid > span {
   color: #b42318;
 }

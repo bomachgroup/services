@@ -116,19 +116,19 @@ export function AttentionQueue({ items, title, description, action }: AttentionQ
                         {item.requestNumber ?? item.recordNumber ?? item.id}
                       </div>
                       <div className="text-foreground-subtle mt-0.5 text-[0.5625rem]">
-                        {item.createdLabel ?? item.dueLabel ?? '—'}
+                        {item.createdLabel ?? item.dueLabel ?? '-'}
                       </div>
                     </td>
-                    <td className="px-3 py-2 align-top text-[0.625rem]">{item.client ?? '—'}</td>
-                    <td className="px-3 py-2 align-top text-[0.625rem]">{item.service ?? '—'}</td>
+                    <td className="px-3 py-2 align-top text-[0.625rem]">{item.client ?? '-'}</td>
+                    <td className="px-3 py-2 align-top text-[0.625rem]">{item.service ?? '-'}</td>
                     <td className="px-3 py-2 align-top">
                       <Badge tone={tone} className="px-2 py-0.5 text-[0.5625rem]">
                         {item.statusLabel ?? item.severity}
                       </Badge>
                     </td>
-                    <td className="px-3 py-2 align-top text-[0.625rem]">{item.owner ?? '—'}</td>
+                    <td className="px-3 py-2 align-top text-[0.625rem]">{item.owner ?? '-'}</td>
                     <td className="px-3 py-2 align-top text-[0.625rem]">
-                      {item.nextAction ?? item.description ?? '—'}
+                      {item.nextAction ?? item.description ?? '-'}
                     </td>
                   </tr>
                 )
