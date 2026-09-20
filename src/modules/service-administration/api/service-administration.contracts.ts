@@ -16,6 +16,7 @@ export interface ServiceListFilters {
   clientVisibility?: string
   branchId?: number
   specializedDomain?: string
+  calculatorOnly?: boolean
   search?: string
   limit?: number
   offset?: number

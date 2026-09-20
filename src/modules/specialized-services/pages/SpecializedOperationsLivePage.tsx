@@ -1,10 +1,4 @@
-import {
-  IconArrowRight,
-  IconFilePlus,
-  IconPlus,
-  IconRefresh,
-  IconSettings,
-} from '@tabler/icons-react'
+import { IconFilePlus, IconPlus, IconRefresh, IconSettings } from '@tabler/icons-react'
 import { useQuery } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
 import { useMemo } from 'react'
@@ -19,7 +13,6 @@ import { SPECIALIZED_DOMAIN_OPTIONS } from '@/modules/service-administration/api
 import type { ServiceCatalogueItem } from '@/modules/service-administration/types/service-administration.types'
 import type { AppSectionSearch } from '@/routes/app/$section'
 import { presentError } from '@/shared/errors'
-import { formatCurrency } from '@/shared/lib/formatters'
 import { withoutSearchKeys } from '@/shared/navigation/search-state'
 import { ErrorState } from '@/shared/ui'
 import { DropdownSelect } from '@/shared/ui/dropdown-select'
@@ -30,17 +23,11 @@ import {
   ModulePageFrame,
   ModulePageStatus,
 } from '@/shared/ui/module-controls'
+import { CalculatorServiceCard } from '../components/CalculatorServiceCard'
+import { CalculatorServiceDetailWorkspace } from '../workspaces/CalculatorServiceDetailWorkspace'
 import '../styles/specialized-services.css'
 import '../../commercial/styles/commercial.css'
 
-const statusClass = (s: string) =>
-  s === 'completed' || s === 'converted' || s === 'quoted'
-    ? 'commercial-pill-green'
-    : s === 'awaiting_client' || s === 'quality_review' || s === 'site_assessment'
-      ? 'commercial-pill-yellow'
-      : s === 'rejected' || s === 'cancelled' || s === 'on_hold'
-        ? 'commercial-pill-gray'
-        : 'commercial-pill-blue'
 const hasWorkflow = (s: ServiceCatalogueItem) =>
   Boolean(s.activeWorkflow || s.workflowName || s.workflowStages?.length)
 
@@ -58,37 +45,48 @@ export function SpecializedOperationsLivePage({
   const canOrders = hasPermission(user, PERMISSIONS.ordersList)
 
   const allQ = useQuery({
-    ...serviceAdministrationQueries.catalogueList({ status: 'active', limit: 100, offset: 0 }),
+    ...serviceAdministrationQueries.catalogueList({
+      status: 'active',
+      calculatorOnly: true,
+      limit: 100,
+      offset: 0,
+    }),
     enabled: canServices,
   })
   const domainOptions = useMemo(
-    () => SPECIALIZED_DOMAIN_OPTIONS.filter((option) => option.value),
+    () =>
+      SPECIALIZED_DOMAIN_OPTIONS.filter((option) => option.value && option.value !== 'real_estate'),
     [],
+  )
+  const calculatorServices = useMemo(
+    () => (allQ.data?.items ?? []).filter((item) => item.specializedDomain !== 'real_estate'),
+    [allQ.data?.items],
   )
   const availableDomains = useMemo(() => {
     const configured = new Set(
-      (allQ.data?.items ?? [])
+      calculatorServices
         .map((item) => item.specializedDomain?.trim())
         .filter((value): value is string => Boolean(value)),
     )
     return domainOptions.filter((option) => configured.has(option.value))
-  }, [allQ.data?.items, domainOptions])
+  }, [calculatorServices, domainOptions])
   const specializedDomain =
     recordSearch.specializedDomain &&
     availableDomains.some((option) => option.value === recordSearch.specializedDomain)
       ? recordSearch.specializedDomain
-      : (availableDomains[0]?.value ?? '')
-  const domainQ = useQuery({
-    ...serviceAdministrationQueries.catalogueList({
-      status: 'active',
-      ...(specializedDomain ? { specializedDomain } : {}),
-      limit: 100,
-      offset: 0,
-    }),
-    enabled: canServices && Boolean(specializedDomain),
-  })
-  const services = domainQ.data?.items ?? []
-  const selected = services.find((x) => Number(x.id) === Number(recordSearch.service)) ?? null
+      : ''
+  const services = useMemo(() => {
+    const search = recordSearch.search?.trim().toLowerCase() ?? ''
+    return calculatorServices.filter((service) => {
+      if (specializedDomain && service.specializedDomain !== specializedDomain) return false
+      if (!search) return true
+      return [service.name, service.code, service.description, service.calculatorName]
+        .filter(Boolean)
+        .some((value) => value?.toLowerCase().includes(search))
+    })
+  }, [calculatorServices, recordSearch.search, specializedDomain])
+  const selected =
+    calculatorServices.find((x) => Number(x.id) === Number(recordSearch.service)) ?? null
   const serviceId = selected ? Number(selected.id) : null
   const detailQ = useQuery({
     ...serviceAdministrationQueries.catalogueDetail(serviceId ?? 0),
@@ -111,7 +109,6 @@ export function SpecializedOperationsLivePage({
     [orderQ.data?.items, serviceId],
   )
   const detail = detailQ.data ?? selected
-  const stages = detail?.activeWorkflow?.stages ?? []
   const activeServices = services.filter((x) => x.status === 'active').length
   const workflows = services.filter(hasWorkflow).length
   const branches = new Set(services.flatMap((x) => x.branchNames)).size
@@ -119,7 +116,7 @@ export function SpecializedOperationsLivePage({
     ? Math.round(services.reduce((n, x) => n + (x.slaDays ?? 0), 0) / services.length)
     : 0
 
-  const setContext = (nextDomain: string, nextService?: string) =>
+  const setContext = (nextDomain: string, nextService?: string, nextSearch = '') =>
     void navigate({
       to: '/app/$section',
       params: { section: 'survey-engineering-others' },
@@ -127,13 +124,13 @@ export function SpecializedOperationsLivePage({
         ...withoutSearchKeys(p, ['specializedDomain', 'service', 'page', 'search', 'status']),
         ...(nextDomain ? { specializedDomain: nextDomain } : {}),
         ...(nextService ? { service: nextService } : {}),
+        ...(nextSearch ? { search: nextSearch } : {}),
       }),
       replace: true,
     })
   const refresh = () =>
     Promise.all([
       allQ.refetch(),
-      domainQ.refetch(),
       ...(serviceId
         ? [
             detailQ.refetch(),
@@ -142,6 +139,33 @@ export function SpecializedOperationsLivePage({
           ]
         : []),
     ])
+  const openRequest = (id?: number | null) =>
+    void navigate({
+      to: '/app/$section',
+      params: { section: 'service-requests' },
+      search: {
+        create: 'request',
+        ...(id ? { service: String(id) } : {}),
+      },
+    })
+  const openRequests = (id: number) =>
+    void navigate({
+      to: '/app/$section',
+      params: { section: 'service-requests' },
+      search: { service: String(id) },
+    })
+  const openRequestDetail = (id: number) =>
+    void navigate({
+      to: '/app/$section',
+      params: { section: 'service-requests' },
+      search: { request: String(id) },
+    })
+  const openOrderDetail = (id: number) =>
+    void navigate({
+      to: '/app/$section',
+      params: { section: 'service-orders' },
+      search: { order: String(id) },
+    })
 
   if (!canServices) {
     return (
@@ -212,7 +236,7 @@ export function SpecializedOperationsLivePage({
       }
     >
       <main className="specialized-content">
-        {specializedDomain ? (
+        {calculatorServices.length ? (
           <section className="specialized-kpi-grid specialized-kpi-grid--top">
             {[
               ['Active Services', activeServices],
@@ -236,11 +260,14 @@ export function SpecializedOperationsLivePage({
               fieldClassName="specialized-field specialized-specialized-selector"
               options={
                 availableDomains.length
-                  ? availableDomains.map((option) => ({
-                      value: option.value,
-                      label: option.label,
-                    }))
-                  : [{ value: '', label: 'No specialized domains' }]
+                  ? [
+                      { value: '', label: 'All calculator services' },
+                      ...availableDomains.map((option) => ({
+                        value: option.value,
+                        label: option.label,
+                      })),
+                    ]
+                  : [{ value: '', label: 'No calculator services' }]
               }
               value={specializedDomain}
               onChange={(value) => setContext(value)}
@@ -250,7 +277,7 @@ export function SpecializedOperationsLivePage({
               label="Service"
               fieldClassName="specialized-field specialized-specialized-selector"
               placeholder="All services"
-              disabled={!specializedDomain}
+              disabled={!calculatorServices.length}
               searchable
               options={[
                 { value: '', label: 'All services' },
@@ -259,8 +286,12 @@ export function SpecializedOperationsLivePage({
                   label: service.name,
                 })),
               ]}
-              value={selected?.id != null ? String(selected.id) : ''}
-              onChange={(value) => setContext(specializedDomain, value || undefined)}
+              value={
+                services.some((service) => service.id === selected?.id) ? String(selected?.id) : ''
+              }
+              onChange={(value) =>
+                setContext(specializedDomain, value || undefined, recordSearch.search ?? '')
+              }
             />
             <span className="specialized-grow" />
             <div className="specialized-action-row">
@@ -274,8 +305,13 @@ export function SpecializedOperationsLivePage({
                     to: '/app/$section',
                     params: { section: 'service-catalogue' },
                     search: selected
-                      ? { search: selected.name, specializedDomain }
-                      : { specializedDomain },
+                      ? {
+                          search: selected.name,
+                          ...(specializedDomain ? { specializedDomain } : {}),
+                        }
+                      : specializedDomain
+                        ? { specializedDomain }
+                        : {},
                   })
                 }
               >
@@ -286,294 +322,69 @@ export function SpecializedOperationsLivePage({
           </div>
         </section>
 
-        {!specializedDomain ? (
+        {!calculatorServices.length ? (
           <EmptyState
-            title="No specialized domains configured"
-            description="Active services with a specialized domain appear here automatically from the Service Catalogue."
+            title="No calculator services configured"
+            description="Active services with an attached calculator will appear here from the Service Catalogue."
           />
         ) : (
           <>
             <section className="specialized-card">
               <header className="specialized-card-header">
                 <div>
-                  <div className="specialized-card-title">Configured Services</div>
+                  <div className="specialized-card-title">Calculator Services</div>
                   <div className="specialized-card-subtitle">
-                    Live Service Catalogue configuration for {specializedDomain}
+                    Active survey, engineering, and other services with calculator-backed pricing
                   </div>
                 </div>
                 <span className="commercial-count">{services.length} services</span>
               </header>
               {services.length ? (
-                <div className="specialized-service-grid specialized-service-grid--scroll">
+                <div className="specialized-calculator-grid">
                   {services.map((s) => (
-                    <button
+                    <CalculatorServiceCard
                       key={s.id}
-                      className={
-                        selected?.id === s.id
-                          ? 'specialized-service-card is-selected'
-                          : 'specialized-service-card'
+                      service={s}
+                      selected={selected?.id === s.id}
+                      canCreateRequest={canCreateRequest}
+                      onViewDetails={() =>
+                        setContext(specializedDomain, s.id, recordSearch.search ?? '')
                       }
-                      onClick={() => setContext(specializedDomain, s.id)}
-                    >
-                      <b>{s.name}</b>
-                      <small>{s.code || 'No code'}</small>
-                      <p>{s.description || 'No description configured.'}</p>
-                      <div>
-                        <span>{s.owner || 'Unassigned'}</span>
-                        <span>{s.slaDays ?? 0}d SLA</span>
-                        <span>{s.fulfilmentMode || 'No fulfilment mode'}</span>
-                        <span>{s.branchNames.length} branches</span>
-                      </div>
-                    </button>
+                      onCreateRequest={() => openRequest(Number(s.id))}
+                    />
                   ))}
                 </div>
               ) : (
                 <EmptyState
-                  title="No services in this domain"
-                  description="No active Service Catalogue records are configured for this specialized domain."
+                  title="No services match this filter"
+                  description="Try another domain or clear the search and service filters."
                 />
               )}
             </section>
 
             {detail ? (
-              <div className="specialized-grid-2-1">
-                <section className="specialized-card">
-                  <header className="specialized-card-header">
-                    <div>
-                      <div className="specialized-card-title">{detail.name} Lifecycle</div>
-                      <div className="specialized-card-subtitle">
-                        Configured workflow template - not an individual Order
-                      </div>
-                    </div>
-                  </header>
-                  {stages.length ? (
-                    <div className="specialized-lifecycle specialized-lifecycle--rail">
-                      {stages.map((s, i) => (
-                        <article className="specialized-step specialized-step--rail" key={s.id}>
-                          <div className="specialized-step-head" aria-hidden="true">
-                            <span className="specialized-step-badge">
-                              {String(i + 1).padStart(2, '0')}
-                            </span>
-                          </div>
-                          <div className="specialized-step-content">
-                            <b>{s.name}</b>
-                            <div className="specialized-step-meta">
-                              <span>{s.ownerRole || 'Unassigned role'}</span>
-                              <span>{Math.round(s.slaHours / 24)}d SLA</span>
-                            </div>
-                          </div>
-                        </article>
-                      ))}
-                    </div>
-                  ) : (
-                    <EmptyState
-                      title="No active workflow"
-                      description="This Service has no active workflow stages configured."
-                    />
-                  )}
-                </section>
-                <aside>
-                  <section className="specialized-card specialized-card--sticky">
-                    <header className="specialized-card-header">
-                      <div>
-                        <div className="specialized-card-title">Service Control</div>
-                      </div>
-                    </header>
-                    <div className="specialized-control-list">
-                      <div>
-                        <span>Owner</span>
-                        <b>{detail.owner || 'Unassigned'}</b>
-                      </div>
-                      <div>
-                        <span>Default SLA</span>
-                        <b>{detail.slaDays ?? 0} days</b>
-                      </div>
-                      <div>
-                        <span>Fulfilment Mode</span>
-                        <b>{detail.fulfilmentMode || 'Not configured'}</b>
-                      </div>
-                      <div>
-                        <span>Request Form</span>
-                        <b>{detail.requestFormName || 'Not configured'}</b>
-                      </div>
-                      <div>
-                        <span>Pricing</span>
-                        <b>{detail.calculatorName || 'Not configured'}</b>
-                      </div>
-                      <div>
-                        <span>Branches</span>
-                        <b>{detail.branchNames.length}</b>
-                      </div>
-                    </div>
-                  </section>
-                </aside>
-              </div>
-            ) : (
-              <section className="specialized-card">
-                <EmptyState
-                  title="Select a Service"
-                  description="Division mode shows configuration health. Select a Service to see its exact lifecycle and live records."
-                />
-              </section>
-            )}
-
-            {serviceId ? (
-              <>
-                <div className="specialized-preview-stack">
-                  <section className="specialized-card">
-                    <header className="specialized-card-header">
-                      <div>
-                        <div className="specialized-card-title">Live Service Requests</div>
-                        <div>
-                          <div className="specialized-card-subtitle">
-                            Exact backend service filter for {selected?.name}
-                          </div>
-                        </div>
-                      </div>
-                      <CompactActionButton
-                        onClick={() =>
-                          void navigate({
-                            to: '/app/$section',
-                            params: { section: 'service-requests' },
-                            search: { service: String(serviceId) },
-                          })
-                        }
-                      >
-                        Open Requests
-                        <IconArrowRight size={13} />
-                      </CompactActionButton>
-                    </header>
-                    {!canRequests ? (
-                      <div className="specialized-empty">Service Request access not granted.</div>
-                    ) : requestQ.data?.items.length ? (
-                      <div className="specialized-table-wrap">
-                        <table className="specialized-table">
-                          <thead>
-                            <tr>
-                              <th>Request</th>
-                              <th>Client</th>
-                              <th>Status</th>
-                              <th>Priority</th>
-                              <th>Owner</th>
-                              <th></th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {requestQ.data.items.map((r) => (
-                              <tr key={r.id}>
-                                <td>
-                                  <b>{r.requestNumber}</b>
-                                </td>
-                                <td>{r.clientName}</td>
-                                <td>
-                                  <span className={`commercial-pill ${statusClass(r.status)}`}>
-                                    {r.statusDisplay}
-                                  </span>
-                                </td>
-                                <td>{r.priority}</td>
-                                <td>{r.ownerName || 'Unassigned'}</td>
-                                <td>
-                                  <button
-                                    className="specialized-btn specialized-btn-small"
-                                    onClick={() =>
-                                      void navigate({
-                                        to: '/app/$section',
-                                        params: { section: 'service-requests' },
-                                        search: { request: String(r.id) },
-                                      })
-                                    }
-                                  >
-                                    Open
-                                  </button>
-                                </td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    ) : (
-                      <div className="specialized-empty">No Requests for this Service.</div>
-                    )}
-                  </section>
-
-                  <section className="specialized-card">
-                    <header className="specialized-card-header">
-                      <div>
-                        <div className="specialized-card-title">Live Order Preview</div>
-                        <div className="specialized-card-subtitle">
-                          Existing Order search only; authoritative management stays in Service
-                          Orders.
-                        </div>
-                      </div>
-                      <CompactActionButton
-                        onClick={() =>
-                          void navigate({
-                            to: '/app/$section',
-                            params: { section: 'service-orders' },
-                            search: selected ? { search: selected.name } : {},
-                          })
-                        }
-                      >
-                        Open Service Orders
-                        <IconArrowRight size={13} />
-                      </CompactActionButton>
-                    </header>
-                    {!canOrders ? (
-                      <div className="specialized-empty">Service Order access not granted.</div>
-                    ) : orders.length ? (
-                      <div className="specialized-table-wrap">
-                        <table className="specialized-table">
-                          <thead>
-                            <tr>
-                              <th>Order</th>
-                              <th>Stage</th>
-                              <th>Progress</th>
-                              <th>Value</th>
-                              <th>Status</th>
-                              <th></th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {orders.map((o) => (
-                              <tr key={o.id}>
-                                <td>
-                                  <b>{o.orderNumber}</b>
-                                </td>
-                                <td>{o.stage || '-'}</td>
-                                <td>{o.progress}%</td>
-                                <td>{formatCurrency(o.amount)}</td>
-                                <td>
-                                  <span className={`commercial-pill ${statusClass(o.orderStatus)}`}>
-                                    {o.orderStatus.replaceAll('_', ' ')}
-                                  </span>
-                                </td>
-                                <td>
-                                  <button
-                                    className="specialized-btn specialized-btn-small"
-                                    onClick={() =>
-                                      void navigate({
-                                        to: '/app/$section',
-                                        params: { section: 'service-orders' },
-                                        search: { order: String(o.id) },
-                                      })
-                                    }
-                                  >
-                                    Open
-                                  </button>
-                                </td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    ) : (
-                      <div className="specialized-empty">
-                        No exact Service matches returned in the current Order search window.
-                      </div>
-                    )}
-                  </section>
-                </div>
-              </>
+              <CalculatorServiceDetailWorkspace
+                detail={detail}
+                requests={requestQ.data?.items ?? []}
+                orders={orders}
+                canRequests={canRequests}
+                canOrders={canOrders}
+                canCreateRequest={canCreateRequest}
+                requestsLoading={requestQ.isPending}
+                ordersLoading={orderQ.isPending}
+                onClose={() => setContext(specializedDomain, undefined, recordSearch.search ?? '')}
+                onCreateRequest={() => openRequest(Number(detail.id))}
+                onOpenRequests={() => openRequests(Number(detail.id))}
+                onOpenOrders={() =>
+                  void navigate({
+                    to: '/app/$section',
+                    params: { section: 'service-orders' },
+                    search: selected ? { search: selected.name } : {},
+                  })
+                }
+                onOpenRequest={openRequestDetail}
+                onOpenOrder={openOrderDetail}
+              />
             ) : null}
           </>
         )}

@@ -60,6 +60,7 @@ function serviceListPath(path: string, filters: ServiceListFilters = {}) {
     client_visibility: filters.clientVisibility,
     branch_id: filters.branchId,
     specialized_domain: filters.specializedDomain,
+    calculator_only: filters.calculatorOnly,
     search: filters.search,
     limit: filters.limit,
     offset: filters.offset,
