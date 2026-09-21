@@ -1,4 +1,4 @@
-import { queryOptions } from '@tanstack/react-query'
+import { infiniteQueryOptions, queryOptions } from '@tanstack/react-query'
 
 import { executionTaskApi } from './execution-task.api'
 import { executionTaskKeys } from './execution-task.keys'
@@ -18,5 +18,17 @@ export const executionTaskQueries = {
       queryKey: executionTaskKeys.detail(orderId, taskId),
       queryFn: () => executionTaskApi.detail(orderId, taskId),
       staleTime: 10_000,
+    }),
+  infiniteList: (orderId: number, filters: ExecutionTaskFilters = {}, limit = 20) =>
+    infiniteQueryOptions({
+      queryKey: [...executionTaskKeys.lists(orderId), 'infinite', filters, limit],
+      queryFn: ({ pageParam }) =>
+        executionTaskApi.list(orderId, { ...filters, page: pageParam, limit }),
+      initialPageParam: 1,
+      staleTime: 10_000,
+      getNextPageParam: (lastPage, pages) => {
+        const loaded = pages.reduce((total, page) => total + page.items.length, 0)
+        return loaded < lastPage.count ? pages.length + 1 : undefined
+      },
     }),
 }

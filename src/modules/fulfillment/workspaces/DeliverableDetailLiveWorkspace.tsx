@@ -130,10 +130,11 @@ export function DeliverableDetailLiveWorkspace({
         onMouseDown={(event) => event.stopPropagation()}
       >
         <header className="commercial-modal-header">
-          <div className="min-w-0">
-            <h2>Deliverable - {deliverable.deliverableNumber}</h2>
+          <div className="fulfillment-modal-heading">
+            <span className="fulfillment-modal-kicker">Deliverable review</span>
+            <h2>Document details</h2>
             <p>
-              {order.orderNumber} · {order.serviceName}
+              {deliverable.deliverableNumber} · {order.orderNumber} · {order.serviceName}
             </p>
           </div>
           <div className="commercial-modal-header-meta">

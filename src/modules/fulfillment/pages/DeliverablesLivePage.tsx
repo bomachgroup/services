@@ -1,4 +1,4 @@
-import { IconFilePlus, IconPlus, IconRefresh, IconSearch } from '@tabler/icons-react'
+import { IconListDetails, IconPlus, IconRefresh, IconSearch } from '@tabler/icons-react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
 import { useCallback, useEffect, useMemo, useState } from 'react'
@@ -40,6 +40,7 @@ import { serviceOrderKeys } from '../service-orders/service-order.keys'
 import { serviceOrderQueries } from '../service-orders/service-order.queries'
 import { CreateDeliverableLiveWorkspace } from '../workspaces/CreateDeliverableLiveWorkspace'
 import { DeliverableDetailLiveWorkspace } from '../workspaces/DeliverableDetailLiveWorkspace'
+import { FulfillmentSummaryStrip } from '../components/FulfillmentSummaryStrip'
 import '../../commercial/styles/commercial.css'
 import '../styles/fulfillment.css'
 
@@ -312,6 +313,7 @@ export function DeliverablesLivePage({ recordSearch }: { recordSearch: AppSectio
     recordSearch.deliverableType ||
     recordSearch.clientVisible,
   )
+  const visibleDeliverables = listQuery.data?.items ?? []
 
   if (!selectedOrderId && canListOrders && ordersQuery.isPending) {
     return <SectionLoadingState section="deliverables" />
@@ -338,40 +340,76 @@ export function DeliverablesLivePage({ recordSearch }: { recordSearch: AppSectio
           breadcrumb="Fulfillment / Documents"
           secondaryAction={
             <CompactActionButton
-              disabled={!hasPermission(user, PERMISSIONS.serviceRequestsCreate)}
-              locked={!hasPermission(user, PERMISSIONS.serviceRequestsCreate)}
               onClick={() =>
                 void navigate({
                   to: '/app/$section',
-                  params: { section: 'service-requests' },
-                  search: { create: 'request' },
+                  params: { section: 'service-orders' },
                 })
               }
             >
-              <IconFilePlus size={14} /> New Request
+              <IconListDetails size={14} /> Service Orders
             </CompactActionButton>
           }
           primaryAction={
             <CompactActionButton
               tone="primary"
-              disabled={!hasPermission(user, PERMISSIONS.servicesCreate)}
-              locked={!hasPermission(user, PERMISSIONS.servicesCreate)}
-              onClick={() =>
-                void navigate({ to: '/app/$section', params: { section: 'service-catalogue' } })
-              }
+              disabled={!selectedOrderId || !canUpdateOrders}
+              locked={!canUpdateOrders}
+              onClick={() => setCreateOpen(true)}
             >
-              <IconPlus size={14} /> Create Service
+              <IconPlus size={14} /> Add deliverable
             </CompactActionButton>
           }
         />
       }
     >
       <main className="fulfillment-content">
+        <FulfillmentSummaryStrip
+          items={[
+            {
+              label: 'Deliverables in view',
+              value: selectedOrderId ? (listQuery.data?.count ?? 'N/A') : 'N/A',
+              note: selectedOrderId ? 'Matching the current filters' : 'Select an order to begin',
+            },
+            {
+              label: 'Awaiting review',
+              value: selectedOrderId
+                ? visibleDeliverables.filter((item) => item.status === 'under_review').length
+                : 'N/A',
+              note: 'Visible on the current page',
+              tone: 'amber',
+            },
+            {
+              label: 'Approved',
+              value: selectedOrderId
+                ? visibleDeliverables.filter((item) => item.status === 'approved').length
+                : 'N/A',
+              note: 'Approved outputs on the current page',
+              tone: 'green',
+            },
+            {
+              label: 'Rejected',
+              value: selectedOrderId
+                ? visibleDeliverables.filter((item) => item.status === 'rejected').length
+                : 'N/A',
+              note: 'Needs correction or replacement',
+              tone: 'red',
+            },
+            {
+              label: 'Client visible',
+              value: selectedOrderId
+                ? visibleDeliverables.filter((item) => item.clientVisible).length
+                : 'N/A',
+              note: 'Visible on the current page',
+              tone: 'blue',
+            },
+          ]}
+        />
         <section className="commercial-card">
           <header className="commercial-card-header">
             <div>
-              <h2>Deliverables & Document Inbox</h2>
-              <p>Reports, drawings, plans, certificates and approval-controlled outputs.</p>
+              <h2>Document review inbox</h2>
+              <p>Review, approve, and track formal outputs from service delivery.</p>
             </div>
             <div className="commercial-card-header-actions">
               {listQuery.isFetching ? <span className="commercial-count">Refreshing…</span> : null}
@@ -380,14 +418,6 @@ export function DeliverablesLivePage({ recordSearch }: { recordSearch: AppSectio
                 onClick={() => void refresh()}
               >
                 <IconRefresh size={14} /> Refresh
-              </CompactActionButton>
-              <CompactActionButton
-                tone="primary"
-                disabled={!canUpdateOrders || (!selectedOrder && !canListOrders)}
-                locked={!canUpdateOrders}
-                onClick={() => setCreateOpen(true)}
-              >
-                <IconPlus size={14} /> Add Deliverable
               </CompactActionButton>
             </div>
           </header>

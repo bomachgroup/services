@@ -8,7 +8,7 @@ export type ServiceOrderStatus =
   | 'cancelled'
 
 export type ServiceOrderPaymentStatus = 'unpaid' | 'partial' | 'paid'
-export type ServiceOrderMilestoneStatus = 'pending' | 'active' | 'done'
+export type ServiceOrderMilestoneStatus = 'pending' | 'active' | 'done' | 'blocked'
 export type ServiceOrderActivityVisibility = 'internal_client' | 'internal' | 'management'
 
 export interface ServiceOrderMilestone {
@@ -91,6 +91,7 @@ export interface CreateServiceOrderFromInvoiceInput {
 }
 
 export interface UpdateServiceOrderInput {
+  orderStatus?: ServiceOrderStatus
   assignedToId?: number | null
   dueDate?: string | null
   description?: string

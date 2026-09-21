@@ -30,22 +30,20 @@ import { serviceOrderQueries } from '../service-orders/service-order.queries'
 import {
   allOrderStatuses,
   operationalOrderStatuses,
-  type ServiceOrder,
 } from '../service-orders/service-order.types'
+import {
+  serviceOrderIsOverdue,
+  serviceOrderPaymentStatusClass,
+  serviceOrderStatusClass,
+} from '../service-orders/service-order.presentation'
 import { CreateServiceOrderLiveWorkspace } from '../workspaces/CreateServiceOrderLiveWorkspace'
 import { OrderControlRoomLiveWorkspace } from '../workspaces/OrderControlRoomLiveWorkspace'
+import { FulfillmentSummaryStrip } from '../components/FulfillmentSummaryStrip'
 import '../styles/fulfillment.css'
 import '../../commercial/styles/commercial.css'
 
 function statusLabel(status: string) {
   return status.replaceAll('_', ' ').replace(/\b\w/g, (letter) => letter.toUpperCase())
-}
-
-function statusClass(status: ServiceOrder['orderStatus']) {
-  if (status === 'completed') return 'commercial-pill-green'
-  if (status === 'cancelled' || status === 'on_hold') return 'commercial-pill-gray'
-  if (status === 'quality_review' || status === 'awaiting_client') return 'commercial-pill-yellow'
-  return 'commercial-pill-blue'
 }
 
 export function ServiceOrdersLivePage({ recordSearch }: { recordSearch: AppSectionSearch }) {
@@ -383,6 +381,16 @@ export function ServiceOrdersLivePage({ recordSearch }: { recordSearch: AppSecti
     activityMutation.isPending ||
     milestoneMutation.isPending
 
+  const boardCountFor = (status: (typeof operationalOrderStatuses)[number]['value']) => {
+    const index = operationalOrderStatuses.findIndex((item) => item.value === status)
+    return index >= 0 ? (boardQueries[index]?.data?.count ?? 0) : 0
+  }
+  const openOrderCount = operationalOrderStatuses.reduce(
+    (total, status) => total + boardCountFor(status.value),
+    0,
+  )
+  const visibleOverdueCount = listQuery.data.items.filter((order) => serviceOrderIsOverdue(order)).length
+
   return (
     <ModulePageFrame
       header={
@@ -408,28 +416,65 @@ export function ServiceOrdersLivePage({ recordSearch }: { recordSearch: AppSecti
           primaryAction={
             <CompactActionButton
               tone="primary"
-              disabled={!hasPermission(user, PERMISSIONS.servicesCreate)}
-              locked={!hasPermission(user, PERMISSIONS.servicesCreate)}
+              disabled={
+                !hasPermission(user, PERMISSIONS.ordersCreate) ||
+                !hasPermission(user, PERMISSIONS.serviceInvoicesList)
+              }
+              locked={
+                !hasPermission(user, PERMISSIONS.ordersCreate) ||
+                !hasPermission(user, PERMISSIONS.serviceInvoicesList)
+              }
               onClick={() => {
-                void navigate({
-                  to: '/app/$section',
-                  params: { section: 'service-catalogue' },
-                })
+                setBuilderOpen(true)
+                setBuilderInvoice(null)
               }}
             >
               <IconPlus size={14} />
-              Create Service
+              New service order
             </CompactActionButton>
           }
         />
       }
     >
       <main className="fulfillment-content">
+        <FulfillmentSummaryStrip
+          items={[
+            {
+              label: 'Total orders',
+              value: listQuery.data.count,
+              note: 'Orders in the current register',
+            },
+            {
+              label: 'Open work',
+              value: openOrderCount,
+              note: 'Orders still moving through delivery',
+              tone: 'blue',
+            },
+            {
+              label: 'Awaiting client',
+              value: boardCountFor('awaiting_client'),
+              note: 'Client checkpoint is required',
+              tone: 'amber',
+            },
+            {
+              label: 'On hold',
+              value: boardCountFor('on_hold'),
+              note: 'Orders paused by an explicit hold',
+              tone: 'amber',
+            },
+            {
+              label: 'Overdue visible',
+              value: visibleOverdueCount,
+              note: 'Overdue orders on this register page',
+              tone: visibleOverdueCount ? 'red' : 'green',
+            },
+          ]}
+        />
         <section className="commercial-card">
           <header className="commercial-card-header">
             <div>
-              <h2>Operational Order Board</h2>
-              <p>Mobilisation, active execution, quality review, client checkpoints and holds.</p>
+              <h2>Delivery pipeline</h2>
+              <p>See where every active order is in its delivery lifecycle.</p>
             </div>
             <div className="commercial-card-header-actions">
               {boardRefreshing ? <span className="commercial-count">Refreshing…</span> : null}
@@ -510,11 +555,17 @@ export function ServiceOrdersLivePage({ recordSearch }: { recordSearch: AppSecti
                           <span className="fulfillment-pill fulfillment-pill-blue">
                             {order.progress}%
                           </span>
-                          <span className="fulfillment-row-sub">
-                            {order.dueDate
-                              ? `Due ${order.dueDate}`
-                              : statusLabel(order.paymentStatus)}
-                          </span>
+                          {serviceOrderIsOverdue(order) ? (
+                            <span className="commercial-pill commercial-pill-red">Overdue</span>
+                          ) : order.dueDate ? (
+                            <span className="fulfillment-row-sub">Due {order.dueDate}</span>
+                          ) : (
+                            <span
+                              className={`commercial-pill ${serviceOrderPaymentStatusClass(order.paymentStatus)}`}
+                            >
+                              {statusLabel(order.paymentStatus)}
+                            </span>
+                          )}
                         </div>
                       </button>
                     ))
@@ -533,24 +584,6 @@ export function ServiceOrdersLivePage({ recordSearch }: { recordSearch: AppSecti
             </div>
             <div className="commercial-card-header-actions">
               <span className="commercial-count">{listQuery.data.count} records</span>
-              <CompactActionButton
-                tone="primary"
-                disabled={
-                  !hasPermission(user, PERMISSIONS.ordersCreate) ||
-                  !hasPermission(user, PERMISSIONS.serviceInvoicesList)
-                }
-                locked={
-                  !hasPermission(user, PERMISSIONS.ordersCreate) ||
-                  !hasPermission(user, PERMISSIONS.serviceInvoicesList)
-                }
-                onClick={() => {
-                  setBuilderOpen(true)
-                  setBuilderInvoice(null)
-                }}
-              >
-                <IconPlus size={14} />
-                Create Order
-              </CompactActionButton>
               {boardRefreshing ? <span className="commercial-count">Refreshing…</span> : null}
             </div>
           </header>
@@ -634,9 +667,18 @@ export function ServiceOrdersLivePage({ recordSearch }: { recordSearch: AppSecti
                           : 'Unassigned'}
                       </td>
                       <td>{order.dueDate ?? '-'}</td>
-                      <td>{statusLabel(order.paymentStatus)}</td>
                       <td>
-                        <span className={`commercial-pill ${statusClass(order.orderStatus)}`}>
+                        <span
+                          className={`commercial-pill ${serviceOrderPaymentStatusClass(order.paymentStatus)}`}
+                        >
+                          {statusLabel(order.paymentStatus)}
+                        </span>
+                        {serviceOrderIsOverdue(order) ? (
+                          <span className="commercial-pill commercial-pill-red">Overdue</span>
+                        ) : null}
+                      </td>
+                      <td>
+                        <span className={`commercial-pill ${serviceOrderStatusClass(order.orderStatus)}`}>
                           {statusLabel(order.orderStatus)}
                         </span>
                       </td>

@@ -1,4 +1,4 @@
-import { IconFilePlus, IconPlus, IconRefresh, IconSearch } from '@tabler/icons-react'
+import { IconListDetails, IconPlus, IconRefresh, IconSearch } from '@tabler/icons-react'
 import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
 import { useCallback, useEffect, useMemo, useState } from 'react'
@@ -32,6 +32,7 @@ import { serviceOrderKeys } from '../service-orders/service-order.keys'
 import { serviceOrderQueries } from '../service-orders/service-order.queries'
 import { CreateExecutionTaskLiveWorkspace } from '../workspaces/CreateExecutionTaskLiveWorkspace'
 import { ExecutionTaskDetailLiveWorkspace } from '../workspaces/ExecutionTaskDetailLiveWorkspace'
+import { FulfillmentSummaryStrip } from '../components/FulfillmentSummaryStrip'
 import '../styles/fulfillment.css'
 import '../../commercial/styles/commercial.css'
 
@@ -282,6 +283,13 @@ export function ExecutionTasksLivePage({ recordSearch }: { recordSearch: AppSect
     cancelMutation.isPending ||
     deleteMutation.isPending
   const boardRefreshing = boardQueries.some((query) => query.isFetching)
+  const taskCountFor = (status: (typeof executionTaskBoardStatuses)[number]['value']) => {
+    const index = executionTaskBoardStatuses.findIndex((item) => item.value === status)
+    return index >= 0 ? (boardQueries[index]?.data?.count ?? 0) : 0
+  }
+  const visibleTaskCount = selectedOrderId
+    ? executionTaskBoardStatuses.reduce((total, status) => total + taskCountFor(status.value), 0)
+    : 'N/A'
 
   if (!selectedOrderId && canListOrders && ordersQuery.isPending) {
     return <SectionLoadingState section="execution-tasks" />
@@ -308,45 +316,74 @@ export function ExecutionTasksLivePage({ recordSearch }: { recordSearch: AppSect
           breadcrumb="Fulfillment / Tasks"
           secondaryAction={
             <CompactActionButton
-              disabled={!hasPermission(user, PERMISSIONS.serviceRequestsCreate)}
-              locked={!hasPermission(user, PERMISSIONS.serviceRequestsCreate)}
               onClick={() =>
                 void navigate({
                   to: '/app/$section',
-                  params: { section: 'service-requests' },
-                  search: { create: 'request' },
+                  params: { section: 'service-orders' },
                 })
               }
             >
-              <IconFilePlus size={14} />
-              New Request
+              <IconListDetails size={14} />
+              Service Orders
             </CompactActionButton>
           }
           primaryAction={
             <CompactActionButton
               tone="primary"
-              disabled={!hasPermission(user, PERMISSIONS.servicesCreate)}
-              locked={!hasPermission(user, PERMISSIONS.servicesCreate)}
-              onClick={() =>
-                void navigate({
-                  to: '/app/$section',
-                  params: { section: 'service-catalogue' },
-                })
-              }
+              disabled={!selectedOrderId || !canUpdateOrders}
+              locked={!canUpdateOrders}
+              onClick={() => setCreateOpen(true)}
             >
               <IconPlus size={14} />
-              Create Service
+              New task
             </CompactActionButton>
           }
         />
       }
     >
       <main className="fulfillment-content">
+        <FulfillmentSummaryStrip
+          items={[
+            {
+              label: 'Tasks in view',
+              value: visibleTaskCount,
+              note: selectedOrderId ? 'Across the selected order board' : 'Select an order to begin',
+            },
+            {
+              label: 'In progress',
+              value: selectedOrderId ? taskCountFor('in_progress') : 'N/A',
+              note: 'Work currently being executed',
+              tone: 'blue',
+            },
+            {
+              label: 'Awaiting review',
+              value: selectedOrderId ? taskCountFor('review') : 'N/A',
+              note: 'Tasks waiting for a quality check',
+              tone: 'amber',
+            },
+            {
+              label: 'Completed',
+              value: selectedOrderId ? taskCountFor('done') : 'N/A',
+              note: 'Completed work in the selected order',
+              tone: 'green',
+            },
+            {
+              label: 'Cancelled',
+              value: selectedOrderId
+                ? recordSearch.status === 'cancelled'
+                  ? (cancelledQuery.data?.count ?? 0)
+                  : 'View'
+                : 'N/A',
+              note: recordSearch.status === 'cancelled' ? 'Cancelled tasks' : 'Use the board filter',
+              tone: 'red',
+            },
+          ]}
+        />
         <section className="commercial-card">
           <header className="commercial-card-header">
             <div>
-              <h2>Execution Task Board</h2>
-              <p>Service delivery work progresses through To Do, In Progress, Review and Done.</p>
+              <h2>Execution board</h2>
+              <p>Move delivery work from assignment to review and completion.</p>
             </div>
             <div className="commercial-card-header-actions">
               {boardRefreshing ? <span className="commercial-count">Refreshing…</span> : null}
@@ -355,15 +392,6 @@ export function ExecutionTasksLivePage({ recordSearch }: { recordSearch: AppSect
                 onClick={() => void refresh()}
               >
                 <IconRefresh size={14} /> Refresh
-              </CompactActionButton>
-              <CompactActionButton
-                tone="primary"
-                disabled={!canUpdateOrders}
-                locked={!canUpdateOrders}
-                onClick={() => setCreateOpen(true)}
-              >
-                <IconPlus size={14} />
-                New Task
               </CompactActionButton>
             </div>
           </header>

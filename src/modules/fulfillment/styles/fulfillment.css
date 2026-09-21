@@ -4,6 +4,96 @@
   padding: 19px;
 }
 
+.fulfillment-summary-strip {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 9px;
+  margin-bottom: 12px;
+}
+
+.fulfillment-summary-item {
+  position: relative;
+  display: grid;
+  min-width: 0;
+  min-height: 86px;
+  gap: 5px;
+  padding: 13px 14px 11px;
+  overflow: hidden;
+  background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+  border: 1px solid #dbe4f2;
+  border-radius: 13px;
+  box-shadow: 0 2px 8px rgb(20 32 64 / 5%);
+}
+
+.fulfillment-summary-item::before {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 3px;
+  content: '';
+  background: #cbd5e1;
+}
+
+.fulfillment-summary-item > span {
+  color: #71809a;
+  font-size: 8px;
+  font-weight: 800;
+  letter-spacing: 0.07em;
+  line-height: 1.2;
+  text-transform: uppercase;
+}
+
+.fulfillment-summary-item strong {
+  color: #15172d;
+  font-size: 21px;
+  font-weight: 850;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.04em;
+  line-height: 1;
+}
+
+.fulfillment-summary-item small {
+  min-width: 0;
+  overflow: hidden;
+  color: #8c95a8;
+  font-size: 8.5px;
+  font-weight: 600;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.fulfillment-summary-item--blue::before {
+  background: #2563eb;
+}
+
+.fulfillment-summary-item--blue strong {
+  color: #1e40af;
+}
+
+.fulfillment-summary-item--green::before {
+  background: #059669;
+}
+
+.fulfillment-summary-item--green strong {
+  color: #047857;
+}
+
+.fulfillment-summary-item--amber::before {
+  background: #d97706;
+}
+
+.fulfillment-summary-item--amber strong {
+  color: #92400e;
+}
+
+.fulfillment-summary-item--red::before {
+  background: #dc2626;
+}
+
+.fulfillment-summary-item--red strong {
+  color: #b91c1c;
+}
+
 .fulfillment-filter-row {
   display: flex;
   align-items: center;
@@ -1228,6 +1318,12 @@
   color: #1f3d7a;
 }
 
+.fulfillment-step-blocked {
+  background: #fff8ed;
+  border-color: #f2c46f;
+  color: #8a4b08;
+}
+
 .fulfillment-step-head {
   position: relative;
   display: flex;
@@ -1275,6 +1371,11 @@
 
 .fulfillment-step-active .fulfillment-step-head::after {
   background: #cfd9e8;
+}
+
+.fulfillment-step-blocked .fulfillment-step-head::before,
+.fulfillment-step-blocked .fulfillment-step-head::after {
+  background: #e7bd68;
 }
 
 .fulfillment-step-badge {
@@ -1486,6 +1587,19 @@
     padding: 12px;
   }
 
+  .fulfillment-summary-strip {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .fulfillment-summary-item {
+    min-height: 76px;
+    padding: 11px 12px 10px;
+  }
+
+  .fulfillment-summary-item strong {
+    font-size: 18px;
+  }
+
   .fulfillment-form-grid {
     grid-template-columns: 1fr;
   }
@@ -1618,5 +1732,144 @@
 
   .fulfillment-task-detail-actions {
     grid-template-columns: 1fr;
+  }
+}
+
+/* Keep the three fulfillment detail workspaces visually related without changing their data flow. */
+.fulfillment-task-modal,
+.fulfillment-order-room-modal,
+.fulfillment-deliverable-modal,
+.commercial-order-create-modal {
+  border: 1px solid #cfd9e8;
+  box-shadow: 0 24px 70px rgb(15 35 75 / 22%);
+}
+
+.fulfillment-task-modal > .commercial-modal-header,
+.fulfillment-order-room-modal > .commercial-modal-header,
+.fulfillment-deliverable-modal > .commercial-modal-header,
+.commercial-order-create-modal > .commercial-modal-header {
+  min-height: 72px;
+  padding: 15px 18px;
+  background: linear-gradient(135deg, #ffffff 0%, #f5f9ff 100%);
+  border-bottom-color: #d7e1ef;
+}
+
+.fulfillment-modal-heading {
+  min-width: 0;
+}
+
+.fulfillment-modal-kicker {
+  display: block;
+  margin-bottom: 4px;
+  color: #55709d;
+  font-size: 8px;
+  font-weight: 900;
+  letter-spacing: 0.1em;
+  line-height: 1.1;
+  text-transform: uppercase;
+}
+
+.fulfillment-task-modal > .commercial-modal-header h2,
+.fulfillment-order-room-modal > .commercial-modal-header h2,
+.fulfillment-deliverable-modal > .commercial-modal-header h2,
+.commercial-order-create-modal > .commercial-modal-header h2 {
+  color: #14213d;
+  font-size: 15px;
+  letter-spacing: -0.02em;
+  line-height: 1.15;
+}
+
+.fulfillment-task-modal > .commercial-modal-header p,
+.fulfillment-order-room-modal > .commercial-modal-header p,
+.fulfillment-deliverable-modal > .commercial-modal-header p,
+.commercial-order-create-modal > .commercial-modal-header p {
+  max-width: min(70vw, 720px);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.fulfillment-task-modal > .commercial-modal-body,
+.fulfillment-order-room-modal > .commercial-modal-body,
+.fulfillment-deliverable-modal > .commercial-modal-body,
+.commercial-order-create-modal > .commercial-modal-body {
+  background: #f7faff;
+}
+
+.fulfillment-task-modal > .commercial-modal-body > .fulfillment-order-room-layout,
+.fulfillment-order-room-modal > .commercial-modal-body > .fulfillment-order-room-layout,
+.fulfillment-deliverable-modal > .commercial-modal-body > .fulfillment-order-room-layout {
+  gap: 14px;
+}
+
+.fulfillment-task-modal .commercial-form-section,
+.fulfillment-order-room-modal > .commercial-modal-body .commercial-form-section,
+.fulfillment-deliverable-modal > .commercial-modal-body .commercial-form-section {
+  border: 1px solid #dbe4f2;
+  box-shadow: 0 2px 10px rgb(20 32 64 / 4%);
+}
+
+.fulfillment-task-modal > .commercial-modal-footer,
+.fulfillment-order-room-modal > .commercial-modal-footer,
+.fulfillment-deliverable-modal > .commercial-modal-footer,
+.commercial-order-create-modal > .commercial-modal-footer {
+  min-height: 56px;
+  padding: 11px 18px;
+  background: #ffffff;
+  border-top-color: #d7e1ef;
+  box-shadow: 0 -4px 12px rgb(20 32 64 / 3%);
+}
+
+.fulfillment-task-modal > .commercial-modal-footer .commercial-btn-primary,
+.fulfillment-order-room-modal > .commercial-modal-footer .commercial-btn-primary,
+.fulfillment-deliverable-modal > .commercial-modal-footer .commercial-btn-primary,
+.commercial-order-create-modal > .commercial-modal-footer .commercial-btn-primary {
+  box-shadow: 0 4px 10px rgb(31 61 122 / 14%);
+}
+
+@media (max-width: 920px) {
+  .fulfillment-order-room-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .fulfillment-order-room-aside {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: start;
+  }
+}
+
+@media (max-width: 680px) {
+  .fulfillment-task-modal > .commercial-modal-header,
+  .fulfillment-order-room-modal > .commercial-modal-header,
+  .fulfillment-deliverable-modal > .commercial-modal-header,
+  .commercial-order-create-modal > .commercial-modal-header {
+    min-height: 66px;
+    padding: 13px 14px;
+  }
+
+  .fulfillment-task-modal > .commercial-modal-body,
+  .fulfillment-order-room-modal > .commercial-modal-body,
+  .fulfillment-deliverable-modal > .commercial-modal-body,
+  .commercial-order-create-modal > .commercial-modal-body {
+    padding: 12px;
+  }
+
+  .fulfillment-task-modal > .commercial-modal-footer,
+  .fulfillment-order-room-modal > .commercial-modal-footer,
+  .fulfillment-deliverable-modal > .commercial-modal-footer,
+  .commercial-order-create-modal > .commercial-modal-footer {
+    padding: 10px 12px;
+  }
+
+  .fulfillment-order-room-aside {
+    grid-template-columns: 1fr;
+  }
+
+  .fulfillment-task-modal > .commercial-modal-header p,
+  .fulfillment-order-room-modal > .commercial-modal-header p,
+  .fulfillment-deliverable-modal > .commercial-modal-header p,
+  .commercial-order-create-modal > .commercial-modal-header p {
+    max-width: 62vw;
   }
 }

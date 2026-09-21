@@ -272,7 +272,8 @@ export function CreateDeliverableLiveWorkspace({
         }}
       >
         <header className="commercial-modal-header">
-          <div>
+          <div className="fulfillment-modal-heading">
+            <span className="fulfillment-modal-kicker">Delivery output</span>
             <h2>Add deliverable</h2>
             <p>
               {activeOrder

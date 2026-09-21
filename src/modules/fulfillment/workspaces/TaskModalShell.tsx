@@ -44,7 +44,8 @@ export function TaskModalShell({
         {...(isForm && onSubmit ? { onSubmit } : {})}
       >
         <header className="commercial-modal-header">
-          <div>
+          <div className="fulfillment-modal-heading">
+            <span className="fulfillment-modal-kicker">Execution task</span>
             <h2>{title}</h2>
             {subtitle ? <p>{subtitle}</p> : null}
           </div>

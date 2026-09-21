@@ -1,5 +1,5 @@
 import { IconX } from '@tabler/icons-react'
-import { useQuery } from '@tanstack/react-query'
+import { useInfiniteQuery } from '@tanstack/react-query'
 import { useForm } from '@tanstack/react-form'
 import { useEffect, useRef, useState } from 'react'
 
@@ -18,6 +18,12 @@ import type {
   ServiceOrder,
   UpdateServiceOrderInput,
 } from '../service-orders/service-order.types'
+import { allOrderStatuses } from '../service-orders/service-order.types'
+import {
+  serviceOrderPaymentStatusClass,
+  serviceOrderStatusClass,
+  serviceOrderStatusOptions,
+} from '../service-orders/service-order.presentation'
 import {
   validateOrderActivity,
   validateOrderMilestone,
@@ -31,13 +37,6 @@ function visibilityLabel(visibility: string) {
   if (visibility === 'internal_client') return 'Internal and client'
   if (visibility === 'management') return 'Management only'
   return 'Internal only'
-}
-
-function statusClass(status: ServiceOrder['orderStatus']) {
-  if (status === 'completed') return 'commercial-pill-green'
-  if (status === 'cancelled' || status === 'on_hold') return 'commercial-pill-gray'
-  if (status === 'quality_review' || status === 'awaiting_client') return 'commercial-pill-yellow'
-  return 'commercial-pill-blue'
 }
 
 function taskStatusClass(status: ExecutionTask['status']) {
@@ -105,17 +104,18 @@ export function OrderControlRoomLiveWorkspace({
   const [milestoneError, setMilestoneError] = useState('')
   const activeMilestoneRef = useRef<HTMLElement | null>(null)
 
-  const tasksQuery = useQuery({
-    ...executionTaskQueries.list(order.id, { page: 1, limit: 100 }),
+  const tasksQuery = useInfiniteQuery({
+    ...executionTaskQueries.infiniteList(order.id),
   })
-  const deliverablesQuery = useQuery({
-    ...deliverableQueries.list(order.id, { page: 1, limit: 100 }),
+  const deliverablesQuery = useInfiniteQuery({
+    ...deliverableQueries.infiniteList(order.id),
   })
-  const tasks = tasksQuery.data?.items ?? []
-  const deliverables = deliverablesQuery.data?.items ?? []
+  const tasks = tasksQuery.data?.pages.flatMap((page) => page.items) ?? []
+  const deliverables = deliverablesQuery.data?.pages.flatMap((page) => page.items) ?? []
 
   const editForm = useForm({
     defaultValues: {
+      orderStatus: order.orderStatus,
       assignedToId: order.assignedToId ?? 0,
       dueDate: order.dueDate ?? '',
       description: order.description,
@@ -123,6 +123,7 @@ export function OrderControlRoomLiveWorkspace({
     },
     onSubmit: ({ value }) => {
       onUpdate({
+        orderStatus: value.orderStatus,
         assignedToId: value.assignedToId || null,
         dueDate: value.dueDate || null,
         description: value.description.trim(),
@@ -186,8 +187,8 @@ export function OrderControlRoomLiveWorkspace({
   const canShowAdvanceStage = canUpdate && !['completed', 'cancelled'].includes(order.orderStatus)
   const canAdvanceStage =
     canShowAdvanceStage && activeMilestones.length === 1 && order.orderStatus !== 'on_hold'
-  const taskTotal = Object.values(order.taskCounts).reduce((sum, count) => sum + count, 0)
-  const deliverableTotal = Object.values(order.deliverableCounts).reduce(
+  const taskTotal = tasksQuery.data?.pages[0]?.count ?? Object.values(order.taskCounts).reduce((sum, count) => sum + count, 0)
+  const deliverableTotal = deliverablesQuery.data?.pages[0]?.count ?? Object.values(order.deliverableCounts).reduce(
     (sum, count) => sum + count,
     0,
   )
@@ -203,11 +204,20 @@ export function OrderControlRoomLiveWorkspace({
   }, [activeMilestone?.id, order.id, order.updatedAt])
 
   useEffect(() => {
+    editForm.setFieldValue('orderStatus', order.orderStatus)
     editForm.setFieldValue('assignedToId', order.assignedToId ?? 0)
     editForm.setFieldValue('dueDate', order.dueDate ?? '')
     editForm.setFieldValue('description', order.description)
     editForm.setFieldValue('nextAction', order.nextAction)
-  }, [editForm, order.assignedToId, order.description, order.dueDate, order.nextAction, order.id])
+  }, [
+    editForm,
+    order.assignedToId,
+    order.description,
+    order.dueDate,
+    order.nextAction,
+    order.orderStatus,
+    order.id,
+  ])
 
   return (
     <div className="commercial-modal-backdrop" role="presentation" onMouseDown={onClose}>
@@ -219,14 +229,15 @@ export function OrderControlRoomLiveWorkspace({
         onMouseDown={(event) => event.stopPropagation()}
       >
         <header className="commercial-modal-header">
-          <div>
-            <h2>{order.orderNumber}</h2>
+          <div className="fulfillment-modal-heading">
+            <span className="fulfillment-modal-kicker">Service order</span>
+            <h2>Order control room</h2>
             <p>
-              {clientName} · {order.serviceName}
+              {order.orderNumber} · {clientName} · {order.serviceName}
             </p>
           </div>
           <div className="commercial-modal-header-meta">
-            <span className={`commercial-pill ${statusClass(order.orderStatus)}`}>
+            <span className={`commercial-pill ${serviceOrderStatusClass(order.orderStatus)}`}>
               {statusLabel(order.orderStatus)}
             </span>
             <button
@@ -311,7 +322,9 @@ export function OrderControlRoomLiveWorkspace({
                           ? 'fulfillment-step-done'
                           : milestone.status === 'active'
                             ? 'fulfillment-step-active'
-                            : ''
+                            : milestone.status === 'blocked'
+                              ? 'fulfillment-step-blocked'
+                              : ''
                       }`}
                     >
                       <div className="fulfillment-step-head" aria-hidden="true">
@@ -375,13 +388,27 @@ export function OrderControlRoomLiveWorkspace({
               <section className="commercial-form-section commercial-form-section--compact">
                 <div className="commercial-form-section-heading">
                   <h3>Execution tasks</h3>
-                  <button
-                    type="button"
-                    className="commercial-btn commercial-btn-small"
-                    onClick={onOpenTasks}
-                  >
-                    New task
-                  </button>
+                  <div className="commercial-card-header-actions">
+                    {tasksQuery.hasNextPage ? (
+                      <button
+                        type="button"
+                        className="commercial-btn commercial-btn-small"
+                        disabled={tasksQuery.isFetchingNextPage}
+                        onClick={() => void tasksQuery.fetchNextPage()}
+                      >
+                        {tasksQuery.isFetchingNextPage ? 'Loading...' : 'Load more'}
+                      </button>
+                    ) : null}
+                    {canUpdate ? (
+                      <button
+                        type="button"
+                        className="commercial-btn commercial-btn-small"
+                        onClick={onOpenTasks}
+                      >
+                        New task
+                      </button>
+                    ) : null}
+                  </div>
                 </div>
                 <div className="fulfillment-metric-strip" aria-label="Execution task counts">
                   <div className="fulfillment-metric">
@@ -448,13 +475,27 @@ export function OrderControlRoomLiveWorkspace({
               <section className="commercial-form-section commercial-form-section--compact">
                 <div className="commercial-form-section-heading">
                   <h3>Deliverables</h3>
-                  <button
-                    type="button"
-                    className="commercial-btn commercial-btn-small"
-                    onClick={onOpenDeliverables}
-                  >
-                    Add deliverable
-                  </button>
+                  <div className="commercial-card-header-actions">
+                    {deliverablesQuery.hasNextPage ? (
+                      <button
+                        type="button"
+                        className="commercial-btn commercial-btn-small"
+                        disabled={deliverablesQuery.isFetchingNextPage}
+                        onClick={() => void deliverablesQuery.fetchNextPage()}
+                      >
+                        {deliverablesQuery.isFetchingNextPage ? 'Loading...' : 'Load more'}
+                      </button>
+                    ) : null}
+                    {canUpdate ? (
+                      <button
+                        type="button"
+                        className="commercial-btn commercial-btn-small"
+                        onClick={onOpenDeliverables}
+                      >
+                        Add deliverable
+                      </button>
+                    ) : null}
+                  </div>
                 </div>
                 <div className="fulfillment-metric-strip" aria-label="Deliverable counts">
                   <div className="fulfillment-metric">
@@ -527,15 +568,18 @@ export function OrderControlRoomLiveWorkspace({
               <section className="commercial-form-section">
                 <div className="commercial-form-section-heading">
                   <h3>Activity</h3>
-                  {canUpdate ? (
-                    <button
-                      type="button"
-                      className="commercial-btn commercial-btn-small"
-                      onClick={() => setAddingUpdate((value) => !value)}
-                    >
-                      {addingUpdate ? 'Close' : 'Add update'}
-                    </button>
-                  ) : null}
+                  <div className="commercial-card-header-actions">
+                    <span className="commercial-count">Newest first</span>
+                    {canUpdate ? (
+                      <button
+                        type="button"
+                        className="commercial-btn commercial-btn-small"
+                        onClick={() => setAddingUpdate((value) => !value)}
+                      >
+                        {addingUpdate ? 'Close' : 'Add update'}
+                      </button>
+                    ) : null}
+                  </div>
                 </div>
 
                 {addingUpdate ? (
@@ -630,7 +674,7 @@ export function OrderControlRoomLiveWorkspace({
                   <div className="commercial-empty">No activity recorded yet.</div>
                 ) : (
                   <div className="commercial-timeline-list fulfillment-order-activity-list">
-                    {[...order.activities].reverse().map((activity) => (
+                    {order.activities.map((activity) => (
                       <article className="commercial-tl" key={activity.id}>
                         <b>{statusLabel(activity.activityType)}</b>
                         <p>{activity.note}</p>
@@ -702,7 +746,11 @@ export function OrderControlRoomLiveWorkspace({
                   </div>
                   <div>
                     <div className="commercial-kl">Payment</div>
-                    <b>{statusLabel(order.paymentStatus)}</b>
+                    <span
+                      className={`commercial-pill ${serviceOrderPaymentStatusClass(order.paymentStatus)}`}
+                    >
+                      {statusLabel(order.paymentStatus)}
+                    </span>
                   </div>
                   <div className="commercial-info-full">
                     <div className="commercial-kl">Invoice</div>
@@ -773,6 +821,26 @@ export function OrderControlRoomLiveWorkspace({
 
             <div className="commercial-modal-body">
               <div className="commercial-form-grid">
+                <editForm.Field name="orderStatus">
+                  {(field) => (
+                    <DropdownSelect
+                      label="Order status"
+                      fieldClassName="commercial-field"
+                      options={mapDropdownOptions(
+                        serviceOrderStatusOptions(order.orderStatus).map((value) => ({
+                          value,
+                          label:
+                            allOrderStatuses.find((option) => option.value === value)?.label ??
+                            value,
+                        })),
+                      )}
+                      value={field.state.value}
+                      onChange={(value) =>
+                        field.handleChange(value as ServiceOrder['orderStatus'])
+                      }
+                    />
+                  )}
+                </editForm.Field>
                 <editForm.Field name="assignedToId">
                   {(field) => (
                     <DropdownSelect

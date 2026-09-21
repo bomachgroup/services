@@ -79,7 +79,8 @@ export function CreateServiceOrderLiveWorkspace({
         }}
       >
         <header className="commercial-modal-header">
-          <div>
+          <div className="fulfillment-modal-heading">
+            <span className="fulfillment-modal-kicker">Fulfillment setup</span>
             <h2>Create service order</h2>
             <p>
               {invoice.invoiceNumber

@@ -57,6 +57,7 @@ export const serviceOrderApi = {
   async update(orderId: number, input: UpdateServiceOrderInput) {
     return mapServiceOrder(
       await apiClient.patch<unknown>(`/orders/${orderId}`, {
+        ...(input.orderStatus !== undefined ? { order_status: input.orderStatus } : {}),
         ...(input.assignedToId !== undefined ? { assigned_to_id: input.assignedToId } : {}),
         ...(input.dueDate !== undefined ? { due_date: input.dueDate } : {}),
         ...(input.description !== undefined ? { description: input.description } : {}),
