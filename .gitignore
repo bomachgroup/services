@@ -45,3 +45,4 @@ node_modules/.tmp/
 .tanstack/
 test.md
 phase-1-foundation.md
+.vercel
