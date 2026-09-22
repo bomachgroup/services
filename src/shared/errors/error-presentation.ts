@@ -344,10 +344,18 @@ export function presentError(
   }
 
   if (error.status === 404) {
+    if (context === 'page-load' || context === 'section-load') {
+      return {
+        title: 'This capability is unavailable',
+        message: 'This capability is not available from the current backend contract.',
+        placement: context === 'page-load' ? 'page' : 'section',
+        retryable: false,
+      }
+    }
     return {
       title: 'Record not found',
       message: 'This record may have been removed or you may no longer have access to it.',
-      placement: context === 'page-load' ? 'page' : 'toast',
+      placement: 'toast',
       retryable: false,
     }
   }
