@@ -97,6 +97,8 @@ export const VERIFIED_APP_PERMISSION_VALUES = [
   'orders.update',
   'orders.delete',
 
+  'projects.list',
+
   'tasks.list',
   'tasks.view',
   'tasks.view_own',

@@ -6,6 +6,7 @@ import {
   mapServiceOrderActivity,
   mapServiceOrderList,
   mapServiceOrderMilestone,
+  mapServiceOrderProjects,
 } from './service-order.mapper'
 import type {
   AddOrderActivityInput,
@@ -43,9 +44,22 @@ export const serviceOrderApi = {
     )
   },
 
+  async projects(clientId: number) {
+    const query = new URLSearchParams({
+      client_id: String(clientId),
+      limit: '100',
+      offset: '0',
+    })
+    const projects = mapServiceOrderProjects(
+      await apiClient.get<unknown>(`/projects?${query.toString()}`),
+    )
+    return projects.filter((project) => project.clientId === clientId)
+  },
+
   async createFromInvoice(input: CreateServiceOrderFromInvoiceInput) {
     return mapServiceOrder(
       await apiClient.post<unknown>(`/invoices/${input.invoiceId}/service-order`, {
+        ...(input.projectId ? { project_id: input.projectId } : {}),
         ...(input.assignedToId ? { assigned_to_id: input.assignedToId } : {}),
         ...(input.dueDate ? { due_date: input.dueDate } : {}),
         description: input.description ?? '',
