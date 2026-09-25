@@ -1,4 +1,5 @@
 import { apiClient } from '@/shared/api/api-client'
+import { env } from '@/shared/config/env'
 
 import {
   mapNotification,
@@ -24,7 +25,8 @@ export const notificationApi = {
     search.set('limit', String(params.limit ?? 20))
     search.set('offset', String(params.offset ?? 0))
 
-    const payload = await apiClient.get<NotificationListDto>(`/notifications/?${search.toString()}`)
+    const listPath = env.notificationListPath || '/notifications/'
+    const payload = await apiClient.get<NotificationListDto>(`${listPath}?${search.toString()}`)
 
     return mapNotificationList(payload)
   },
@@ -42,13 +44,15 @@ export const notificationApi = {
   },
 
   async markRead(notificationId: string): Promise<AppNotification> {
-    const payload = await apiClient.patch<NotificationDto>(
-      `/notifications/${encodeURIComponent(notificationId)}/read`,
+    const path = (env.notificationMarkReadPath || '/notifications/{id}/read').replace(
+      '{id}',
+      encodeURIComponent(notificationId),
     )
+    const payload = await apiClient.patch<NotificationDto>(path)
     return mapNotification(payload)
   },
 
   async markAllRead(): Promise<void> {
-    await apiClient.post('/notifications/read-all')
+    await apiClient.post(env.notificationMarkAllReadPath || '/notifications/read-all')
   },
 }

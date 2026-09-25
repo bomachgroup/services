@@ -1,4 +1,4 @@
-export type NotificationTone = 'info' | 'success' | 'warning' | 'danger'
+export type NotificationTone = 'info' | 'success' | 'warning' | 'danger' | 'approval' | 'task'
 
 export interface NotificationMetadata {
   entity_type?: string
@@ -15,6 +15,11 @@ export interface AppNotification {
   read: boolean
   link?: string
   metadata: NotificationMetadata
+  eventType?: string
+  priority?: 'low' | 'normal' | 'high' | 'critical'
+  action?: string
+  entityType?: string
+  entityId?: string
 }
 
 export interface NotificationListResult {
