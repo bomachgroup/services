@@ -98,6 +98,8 @@ export const PERMISSIONS = {
   ordersUpdate: 'orders.update',
   ordersDelete: 'orders.delete',
 
+  projectsList: 'projects.list',
+
   tasksList: 'tasks.list',
   tasksView: 'tasks.view',
   tasksViewOwn: 'tasks.view_own',

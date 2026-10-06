@@ -1,12 +1,17 @@
 import { IconX } from '@tabler/icons-react'
 import { useForm } from '@tanstack/react-form'
+import { useQuery } from '@tanstack/react-query'
 import { useEffect, useState } from 'react'
 
+import { useAuth } from '@/app/auth'
+import { hasPermission, PERMISSIONS } from '@/app/permissions'
 import type { Invoice } from '@/modules/commercial/billing/billing.types'
+import { presentError } from '@/shared/errors'
 import { formatCurrency } from '@/shared/lib/formatters'
 import { DatePicker } from '@/shared/ui/date-picker'
 import { DropdownSelect, mapDropdownOptions } from '@/shared/ui/dropdown-select'
 
+import { serviceOrderQueries } from '../service-orders/service-order.queries'
 import { validateOrderCreation } from '../service-orders/service-order.validation'
 import type {
   CreateServiceOrderFromInvoiceInput,
@@ -39,6 +44,17 @@ export function CreateServiceOrderLiveWorkspace({
   onSubmit: (input: CreateServiceOrderFromInvoiceInput) => void
 }) {
   const [nextActionError, setNextActionError] = useState('')
+  const [attachToProject, setAttachToProject] = useState(false)
+  const [selectedProjectId, setSelectedProjectId] = useState('')
+  const [projectSelectionError, setProjectSelectionError] = useState('')
+  const { user } = useAuth()
+  const canListProjects = hasPermission(user, PERMISSIONS.projectsList)
+  const projectsQuery = useQuery({
+    ...serviceOrderQueries.projects(invoice.clientId),
+    enabled: attachToProject && canListProjects && invoice.clientId > 0,
+    retry: false,
+  })
+  const projects = projectsQuery.data ?? []
   const form = useForm({
     defaultValues: {
       assignedToId: 0,
@@ -50,8 +66,13 @@ export function CreateServiceOrderLiveWorkspace({
       const error = validateOrderCreation(value)
       setNextActionError(error)
       if (error) return
+      if (attachToProject && !selectedProjectId) {
+        setProjectSelectionError('Choose a project or turn off project linking.')
+        return
+      }
       onSubmit({
         invoiceId: invoice.id,
+        ...(attachToProject ? { projectId: Number(selectedProjectId) } : {}),
         assignedToId: value.assignedToId || null,
         dueDate: value.dueDate,
         description: value.description.trim(),
@@ -158,6 +179,86 @@ export function CreateServiceOrderLiveWorkspace({
                 <b>{invoice.activationThresholdMetAt ? 'Met' : 'Pending'}</b>
               </div>
             </div>
+          </section>
+
+          <section className="commercial-form-section">
+            <h3>Project link</h3>
+            <p className="fulfillment-order-project-intro">
+              Optionally associate this order with an existing project for the same client.
+            </p>
+            <label className="fulfillment-order-project-toggle">
+              <input
+                type="checkbox"
+                checked={attachToProject}
+                disabled={!canListProjects}
+                onChange={(event) => {
+                  const checked = event.target.checked
+                  setAttachToProject(checked)
+                  setProjectSelectionError('')
+                  if (!checked) setSelectedProjectId('')
+                }}
+              />
+              <span>
+                <b>Attach this order to a project</b>
+                <small>
+                  {canListProjects
+                    ? 'The project will be linked to this Service Order, not the invoice.'
+                    : 'Project linking is unavailable because your account cannot list projects.'}
+                </small>
+              </span>
+            </label>
+
+            {attachToProject ? (
+              <div className="fulfillment-order-project-picker">
+                <DropdownSelect
+                  label="Project"
+                  required
+                  fullWidth
+                  searchable
+                  fieldClassName="commercial-field commercial-field--full"
+                  placeholder="Choose a project"
+                  helpText="Only projects belonging to this invoice client are shown."
+                  error={projectSelectionError}
+                  invalid={Boolean(projectSelectionError)}
+                  loading={projectsQuery.isPending}
+                  loadingMessage="Loading client projects..."
+                  disabled={
+                    projectsQuery.isPending || projectsQuery.isError || projects.length === 0
+                  }
+                  emptyMessage="This client has no projects available."
+                  options={mapDropdownOptions(
+                    projects.map((project) => ({
+                      value: project.id,
+                      label: `${project.name}${project.shortCode ? ` (${project.shortCode})` : ''}`,
+                      description: project.status.replaceAll('_', ' '),
+                    })),
+                  )}
+                  value={selectedProjectId}
+                  onChange={(value) => {
+                    setSelectedProjectId(value)
+                    setProjectSelectionError('')
+                  }}
+                />
+                {projectsQuery.isError ? (
+                  <div className="fulfillment-order-project-message" role="alert">
+                    <span>{presentError(projectsQuery.error, 'section-load').message}</span>
+                    <button
+                      type="button"
+                      className="commercial-btn commercial-btn-small"
+                      onClick={() => void projectsQuery.refetch()}
+                    >
+                      Retry
+                    </button>
+                  </div>
+                ) : null}
+                {projectsQuery.isSuccess && projects.length === 0 ? (
+                  <p className="fulfillment-order-project-message" role="status">
+                    No projects are available for this client. Turn off project linking to continue
+                    without one.
+                  </p>
+                ) : null}
+              </div>
+            ) : null}
           </section>
 
           <section className="commercial-form-section">

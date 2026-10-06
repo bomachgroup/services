@@ -40,6 +40,7 @@ export interface ServiceOrder {
   id: number
   orderNumber: string
   clientId: number
+  projectId: number | null
   serviceId: number
   serviceName: string
   quoteId: number | null
@@ -84,6 +85,7 @@ export interface ServiceOrderFilters {
 
 export interface CreateServiceOrderFromInvoiceInput {
   invoiceId: number
+  projectId?: number
   assignedToId?: number | null
   dueDate?: string
   description?: string
@@ -120,6 +122,14 @@ export interface EmployeeOption {
   designation: string
   branchName: string
   active: boolean
+}
+
+export interface ServiceOrderProjectOption {
+  id: number
+  name: string
+  shortCode: string
+  clientId: number
+  status: string
 }
 
 export const operationalOrderStatuses: Array<{

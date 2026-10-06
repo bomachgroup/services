@@ -4,6 +4,7 @@ import type {
   ServiceOrder,
   ServiceOrderActivity,
   ServiceOrderMilestone,
+  ServiceOrderProjectOption,
 } from './service-order.types'
 
 type R = Record<string, unknown>
@@ -60,6 +61,7 @@ export function mapServiceOrder(payload: unknown): ServiceOrder {
     id: num(value.id),
     orderNumber: str(value.order_number),
     clientId: num(value.client_id),
+    projectId: nullableNum(value.project_id),
     serviceId: num(service.id),
     serviceName: str(service.name),
     quoteId: nullableNum(quote.id),
@@ -120,6 +122,21 @@ export function mapEmployeeOptions(payload: unknown): EmployeeOption[] {
       designation: str(row.designation),
       branchName: str(row.branch_name),
       active: Boolean(row.is_active),
+    }
+  })
+}
+
+export function mapServiceOrderProjects(payload: unknown): ServiceOrderProjectOption[] {
+  const value = rec(payload)
+  const items = Array.isArray(payload) ? payload : (value.items ?? value.results)
+  return arr(items).map((raw) => {
+    const row = rec(raw)
+    return {
+      id: num(row.id),
+      name: str(row.name),
+      shortCode: str(row.short_code),
+      clientId: num(row.client_id),
+      status: str(row.status),
     }
   })
 }

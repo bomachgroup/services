@@ -1,4 +1,11 @@
-import { IconAlertTriangle, IconBell, IconCircleCheck, IconInfoCircle } from '@tabler/icons-react'
+import {
+  IconAlertTriangle,
+  IconBell,
+  IconCircleCheck,
+  IconClipboardCheck,
+  IconInfoCircle,
+  IconListCheck,
+} from '@tabler/icons-react'
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
 import { useState } from 'react'
@@ -14,6 +21,7 @@ import { useToast } from '@/shared/ui'
 
 import { notificationApi } from './notification.api'
 import { notificationKeys, notificationQueries } from './notification.queries'
+import { getNotificationDetails, getNotificationPriorityLabel } from './notification-presentation'
 import type { AppNotification, NotificationTone } from './notification.types'
 
 const toneIcons = {
@@ -21,6 +29,8 @@ const toneIcons = {
   success: IconCircleCheck,
   warning: IconAlertTriangle,
   danger: IconAlertTriangle,
+  approval: IconClipboardCheck,
+  task: IconListCheck,
 } as const
 
 const toneClasses: Record<NotificationTone, string> = {
@@ -28,7 +38,14 @@ const toneClasses: Record<NotificationTone, string> = {
   success: 'bg-success-50 text-success-700',
   warning: 'bg-warning-50 text-warning-700',
   danger: 'bg-danger-50 text-danger-700',
+  approval: 'bg-warning-50 text-warning-700',
+  task: 'bg-brand-50 text-brand-700',
 }
+
+const priorityClasses = {
+  high: 'bg-warning-50 text-warning-700',
+  critical: 'bg-danger-50 text-danger-700',
+} as const
 
 function metadataString(metadata: Record<string, unknown>, key: string): string | undefined {
   const value = metadata[key]
@@ -48,18 +65,15 @@ function parseBackendLink(link: string | undefined) {
   const [, type, id] = match
   if (!type || !id) return null
 
-  const entityType =
-    type === 'quotes'
-      ? 'quote'
-      : type === 'invoices'
-        ? 'invoice'
-        : type === 'approvals'
-          ? 'approval'
-          : type === 'requests'
-            ? 'request'
-            : type === 'orders'
-              ? 'order'
-              : type.slice(0, -1)
+  const entityAliases: Record<string, string> = {
+    quotes: 'quote',
+    invoices: 'invoice',
+    approvals: 'approval',
+    requests: 'request',
+    orders: 'order',
+    feedback: 'feedback',
+  }
+  const entityType = entityAliases[type] ?? type.slice(0, -1)
 
   return getRecordDestination(entityType, id)
 }
@@ -152,8 +166,8 @@ export function NotificationPanel() {
 
     const destination =
       getRecordDestination(
-        metadataString(notification.metadata, 'entity_type'),
-        metadataString(notification.metadata, 'entity_id'),
+        notification.entityType || metadataString(notification.metadata, 'entity_type'),
+        notification.entityId || metadataString(notification.metadata, 'entity_id'),
       ) ?? parseBackendLink(notification.link)
 
     if (!destination) return
@@ -171,7 +185,7 @@ export function NotificationPanel() {
       <Button
         variant="ghost"
         size="icon"
-        className="relative text-white hover:bg-white/10 hover:text-white"
+        className="text-foreground-muted hover:bg-surface-muted hover:text-foreground relative"
         aria-label={unreadCount > 0 ? `Notifications, ${unreadCount} unread` : 'Notifications'}
         onClick={() => setOpen(true)}
       >
@@ -234,18 +248,24 @@ export function NotificationPanel() {
         ) : (
           <div className="space-y-2">
             {notifications.map((notification) => {
-              const Icon = toneIcons[notification.tone]
+              const visualTone = notification.priority === 'critical' ? 'danger' : notification.tone
+              const Icon = toneIcons[visualTone]
+              const detailLines = getNotificationDetails(notification)
+              const priority = notification.priority
+              const priorityLabel = getNotificationPriorityLabel(priority)
 
               return (
                 <button
                   key={notification.id}
                   type="button"
-                  className="border-border hover:bg-surface-muted rounded-control flex w-full items-start gap-3 border p-3 text-left transition-colors"
+                  className={`border-border hover:bg-surface-muted rounded-control flex w-full items-start gap-3 border p-3 text-left transition-colors ${
+                    priority === 'critical' ? 'border-danger-200 bg-danger-50/30' : ''
+                  }`}
                   disabled={markRead.isPending}
                   onClick={() => void openNotification(notification)}
                 >
                   <span
-                    className={`grid size-9 shrink-0 place-items-center rounded-full ${toneClasses[notification.tone]}`}
+                    className={`grid size-9 shrink-0 place-items-center rounded-full ${toneClasses[visualTone]}`}
                   >
                     <Icon size={18} aria-hidden="true" />
                   </span>
@@ -254,15 +274,34 @@ export function NotificationPanel() {
                       <span className="text-foreground text-xs font-bold">
                         {notification.title}
                       </span>
-                      {!notification.read ? (
-                        <span className="bg-accent-600 mt-1 size-2 shrink-0 rounded-full" />
-                      ) : null}
+                      <span className="flex shrink-0 items-center gap-2">
+                        {priorityLabel ? (
+                          <span
+                            className={`rounded-full px-2 py-0.5 text-[0.625rem] font-bold ${
+                              priorityClasses[priority as keyof typeof priorityClasses]
+                            }`}
+                          >
+                            {priorityLabel}
+                          </span>
+                        ) : null}
+                        {!notification.read ? (
+                          <span className="bg-accent-600 mt-1 size-2 rounded-full" />
+                        ) : null}
+                      </span>
                     </span>
                     <span className="text-foreground-muted mt-1 block text-xs leading-5">
                       {notification.description}
                     </span>
+                    {detailLines.length > 0 ? (
+                      <span className="text-foreground-subtle mt-1.5 block text-[0.6875rem] leading-4">
+                        {detailLines.join(' / ')}
+                      </span>
+                    ) : null}
                     <span className="text-foreground-subtle mt-1.5 block text-[0.6875rem]">
                       {new Date(notification.timestamp).toLocaleString('en-NG')}
+                    </span>
+                    <span className="text-brand-700 mt-2 block text-[0.6875rem] font-bold">
+                      {notification.action === 'review' ? 'Review item' : 'Open details'}
                     </span>
                   </span>
                 </button>

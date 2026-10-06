@@ -7,4 +7,5 @@ export const serviceOrderKeys = {
   details: () => [...serviceOrderKeys.all, 'detail'] as const,
   detail: (id: number) => [...serviceOrderKeys.details(), id] as const,
   employees: () => [...serviceOrderKeys.all, 'employees'] as const,
+  projects: (clientId: number) => [...serviceOrderKeys.all, 'projects', clientId] as const,
 }

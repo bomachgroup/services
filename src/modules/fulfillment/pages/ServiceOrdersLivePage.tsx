@@ -30,6 +30,7 @@ import { serviceOrderQueries } from '../service-orders/service-order.queries'
 import {
   allOrderStatuses,
   operationalOrderStatuses,
+  type ServiceOrderProjectOption,
 } from '../service-orders/service-order.types'
 import {
   serviceOrderIsOverdue,
@@ -210,11 +211,20 @@ export function ServiceOrdersLivePage({ recordSearch }: { recordSearch: AppSecti
   const createMutation = useMutation({
     mutationFn: (input: Parameters<typeof serviceOrderApi.createFromInvoice>[0]) =>
       serviceOrderApi.createFromInvoice(input),
-    onSuccess: async (order) => {
+    onSuccess: async (order, input) => {
       await invalidateOrders(order.id, order.invoiceId)
       setBuilderOpen(false)
       setBuilderInvoice(null)
-      toast.success(`Service Order ${order.orderNumber} created`)
+      const linkedProject = input.projectId
+        ? queryClient
+            .getQueryData<ServiceOrderProjectOption[]>(serviceOrderKeys.projects(order.clientId))
+            ?.find((project) => project.id === input.projectId)
+        : null
+      toast.success(`Service Order ${order.orderNumber} created`, {
+        ...(order.projectId === input.projectId && linkedProject
+          ? { description: `Linked to ${linkedProject.name}.` }
+          : {}),
+      })
       await navigate({
         to: '/app/$section',
         params: { section: 'service-orders' },
@@ -389,7 +399,9 @@ export function ServiceOrdersLivePage({ recordSearch }: { recordSearch: AppSecti
     (total, status) => total + boardCountFor(status.value),
     0,
   )
-  const visibleOverdueCount = listQuery.data.items.filter((order) => serviceOrderIsOverdue(order)).length
+  const visibleOverdueCount = listQuery.data.items.filter((order) =>
+    serviceOrderIsOverdue(order),
+  ).length
 
   return (
     <ModulePageFrame
@@ -678,7 +690,9 @@ export function ServiceOrdersLivePage({ recordSearch }: { recordSearch: AppSecti
                         ) : null}
                       </td>
                       <td>
-                        <span className={`commercial-pill ${serviceOrderStatusClass(order.orderStatus)}`}>
+                        <span
+                          className={`commercial-pill ${serviceOrderStatusClass(order.orderStatus)}`}
+                        >
                           {statusLabel(order.orderStatus)}
                         </span>
                       </td>

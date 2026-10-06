@@ -14,6 +14,11 @@ export interface NotificationDto {
   link: string
   metadata: Record<string, unknown>
   created_at: string
+  event_type?: string | null
+  priority?: 'low' | 'normal' | 'high' | 'critical'
+  action?: string
+  entity_type?: string
+  entity_id?: string
 }
 
 export interface NotificationListDto {
@@ -36,12 +41,19 @@ function tone(type: string): NotificationTone {
       return 'warning'
     case 'error':
       return 'danger'
+    case 'approval':
+      return 'approval'
+    case 'task':
+      return 'task'
     default:
       return 'info'
   }
 }
 
 export function mapNotification(dto: NotificationDto): AppNotification {
+  const metadata = dto.metadata ?? {}
+  const entityType = dto.entity_type || stringMetadata(metadata, 'entity_type')
+  const entityId = dto.entity_id || stringMetadata(metadata, 'entity_id')
   return {
     id: String(dto.id),
     title: dto.title,
@@ -50,8 +62,20 @@ export function mapNotification(dto: NotificationDto): AppNotification {
     tone: tone(dto.notification_type),
     read: dto.is_read,
     ...(dto.link ? { link: dto.link } : {}),
-    metadata: dto.metadata ?? {},
+    metadata,
+    ...(dto.event_type ? { eventType: dto.event_type } : {}),
+    ...(dto.priority ? { priority: dto.priority } : {}),
+    ...(dto.action ? { action: dto.action } : {}),
+    ...(entityType ? { entityType } : {}),
+    ...(entityId ? { entityId: String(entityId) } : {}),
   }
+}
+
+function stringMetadata(metadata: Record<string, unknown>, key: string): string | undefined {
+  const value = metadata[key]
+  if (typeof value === 'string' && value.trim()) return value
+  if (typeof value === 'number') return String(value)
+  return undefined
 }
 
 export function mapNotificationList(dto: NotificationListDto): NotificationListResult {

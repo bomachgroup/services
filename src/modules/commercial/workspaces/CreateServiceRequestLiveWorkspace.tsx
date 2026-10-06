@@ -1849,9 +1849,16 @@ export function CreateServiceRequestLiveWorkspace({
                           )
                         }
                         if (service.specializedDomain) {
+                          const realEstateContext = realEstateRequestContext(service)
+                          const realEstateDescription =
+                            realEstateContext === 'land_sale'
+                              ? 'Property sale · Company-owned inventory'
+                              : realEstateContext === 'property_brokerage'
+                                ? 'Property sale · Brokerage listing'
+                                : 'Real-estate service'
                           details.push(
                             service.specializedDomain === 'real_estate'
-                              ? 'Specialized service · Estate sales flow'
+                              ? realEstateDescription
                               : `Specialized service · ${service.specializedDomain.replace(/_/g, ' ')}`,
                           )
                         }

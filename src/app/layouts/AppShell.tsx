@@ -25,6 +25,7 @@ import { Link, useNavigate, useRouter, useRouterState } from '@tanstack/react-ro
 import { useMemo, useState, type PropsWithChildren } from 'react'
 
 import { useAuth } from '@/app/auth'
+import { NotificationPanel } from '@/app/notifications'
 import {
   getVisibleNavigation,
   isNavigationItemActive,
@@ -127,6 +128,7 @@ export function AppShell({ children, navigation }: AppShellProps) {
                 Navigation
               </span>
             )}
+            <NotificationPanel />
             <Button
               variant="ghost"
               size="icon"
@@ -229,6 +231,10 @@ export function AppShell({ children, navigation }: AppShellProps) {
         )}
       >
         <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">{children}</div>
+      </div>
+
+      <div className="border-border bg-surface fixed top-2 right-3 z-40 rounded-full border shadow-sm lg:hidden">
+        <NotificationPanel />
       </div>
 
       <ConfirmDialog

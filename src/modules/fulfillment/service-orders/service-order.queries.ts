@@ -24,4 +24,10 @@ export const serviceOrderQueries = {
       queryFn: () => serviceOrderApi.employees(),
       staleTime: 60_000,
     }),
+  projects: (clientId: number) =>
+    queryOptions({
+      queryKey: serviceOrderKeys.projects(clientId),
+      queryFn: () => serviceOrderApi.projects(clientId),
+      staleTime: 30_000,
+    }),
 }
