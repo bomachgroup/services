@@ -1,5 +1,4 @@
 import { APP_PERMISSION_VALUES, type AppPermission } from '@/app/permissions/permission.types'
-import { PERMISSIONS } from '@/app/permissions'
 
 const appPermissions = new Set<string>(APP_PERMISSION_VALUES)
 
@@ -27,33 +26,42 @@ export function mapBackendPermissions(
   const granted = new Set<AppPermission>()
   const unmappedBackendPermissions: string[] = []
 
-  for (const backendPermission of backendPermissions) {
-    if (appPermissions.has(backendPermission)) {
-      granted.add(backendPermission as AppPermission)
-    } else {
-      unmappedBackendPermissions.push(backendPermission)
+  const isGlobalWildcard =
+    Boolean(permissions['*']?.some((a) => a === '*' || a === 'all')) ||
+    Boolean(permissions['all']?.some((a) => a === '*' || a === 'all')) ||
+    backendPermissions.includes('*.*') ||
+    backendPermissions.includes('*.all') ||
+    backendPermissions.includes('all.*') ||
+    backendPermissions.includes('all.all')
+
+  if (isGlobalWildcard) {
+    for (const perm of APP_PERMISSION_VALUES) {
+      granted.add(perm)
     }
-  }
+  } else {
+    for (const [resource, actions] of Object.entries(permissions)) {
+      const normalizedResource = normalize(resource)
+      const hasWildcardAction = actions.some((a) => {
+        const norm = normalize(a)
+        return norm === '*' || norm === 'all' || norm === 'manage'
+      })
 
-  if (
-    backendPermissions.includes('categories.list') ||
-    backendPermissions.includes('service_parents.list') ||
-    backendPermissions.includes('services.create')
-  ) {
-    granted.add(PERMISSIONS.serviceParentsList)
-  }
+      if (hasWildcardAction) {
+        for (const appPerm of APP_PERMISSION_VALUES) {
+          if (appPerm.startsWith(`${normalizedResource}.`)) {
+            granted.add(appPerm)
+          }
+        }
+      }
+    }
 
-  if (backendPermissions.includes('service_requests.create')) {
-    granted.add(PERMISSIONS.clientsList)
-    granted.add(PERMISSIONS.clientsCreate)
-  }
-
-  if (
-    backendPermissions.includes('documents.view') ||
-    backendPermissions.includes('orders.view') ||
-    backendPermissions.includes('orders.list')
-  ) {
-    granted.add(PERMISSIONS.deliverableRead)
+    for (const backendPermission of backendPermissions) {
+      if (appPermissions.has(backendPermission)) {
+        granted.add(backendPermission as AppPermission)
+      } else {
+        unmappedBackendPermissions.push(backendPermission)
+      }
+    }
   }
 
   return {
