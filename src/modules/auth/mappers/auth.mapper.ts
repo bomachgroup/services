@@ -42,10 +42,7 @@ export function mapAuthenticatedUser(
   user: UserResponseDto,
   role: RoleResponseDto,
 ): AuthenticatedUser {
-  const { permissions, backendPermissions } = mapBackendPermissions(role.permissions, {
-    isSuperUser: Boolean(user.is_superuser),
-    roleName: role.name,
-  })
+  const { permissions, backendPermissions } = mapBackendPermissions(role.permissions)
 
   const firstName = user.first_name?.trim() || ''
   const lastName = user.last_name?.trim() || ''
