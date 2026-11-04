@@ -1,63 +1,35 @@
-# Authentication Implementation
+# Shared Browser Authentication
 
-## Backend contract used
+Services is an independently deployed Vite application composed under the React OS host at `/services/*`. The default React OS app owns browser login and the shared session flow. Services does not own a login form or exchange credentials with a parent window.
 
-The frontend currently integrates these BOMACH endpoints:
+## Requests and session
 
-- `POST /auth/login`
-- `POST /auth/verify-2fa`
-- `POST /auth/refresh`
-- `POST /auth/logout`
-- `GET /auth/me`
-- `GET /roles/employees/{user_id}`
-- `GET /clients/clients/profile`
+Services calls same-origin `/api/v1/*` endpoints with `credentials: 'include'` and `cache: 'no-store'`. Unsafe requests include `X-Bomach-Request: browser`. On a `401`, the shared API client coalesces one `POST /auth/browser/refresh` attempt and retries the original request at most once. Browser access and refresh cookies remain HttpOnly, host-only, and inaccessible to application JavaScript. The integrated experience keeps these requests on the current Bomach host, so cookies are scoped to the shared OS hostname.
 
-The API uses HTTP Bearer JWT authentication.
+The API base is fixed to `/api/v1`; browser query parameters and referrer-based origin detection cannot override it. In the composed host, `/api/*` is routed by the default React OS project to the configured staging or production backend. Backend-relative `/media/*` document and image URLs are also routed through that backend instead of falling into the root SPA.
 
-## Automatic mock and real switching
+## Identity and authorization
 
-The same API functions are used in both modes.
+The bootstrap preserves the existing Services contract:
 
-### Mock
+1. `GET /auth/me` loads the authenticated staff identity.
+2. `GET /roles/employees/{user_id}` loads the staff role and permission map.
+3. Existing role normalization and permission mapping determine visible destinations; backend endpoints continue to enforce authorization.
 
-```env
-VITE_API_BASE_URL=/api/v1
-VITE_ENABLE_MOCKS=true
-```
+Services redirects signed-out sessions to the root app's `/login` with a sanitized `/services/*` return target. When running under `bomach-os-test.vercel.app` or `bomach-os.vercel.app`, login stays on that current host rather than using a build-time production origin. The root login owner runs the existing password, two-factor, reset, and expiry flows. Return targets are retained through login, two-factor verification, and password reset, then checked against the user's permissions before navigation. Logout revokes and clears the shared browser session, then returns to root login.
 
-MSW intercepts the normal HTTP requests and returns responses matching the backend contract.
-The mock login handler only accepts the known demo credentials in the repository and returns
-`401` for anything else.
+## Local development and deployment
 
-### Real
+Run the root and Services Vite development servers separately. For the shared host, open Services at `http://localhost:5174/services`; the production build creates both a standalone root bundle and a prefixed `dist/services` bundle. The backend must allow the exact local browser origin in `BOMACH_WEB_AUTH_ORIGINS`. Keep API mocks disabled for an end-to-end sign-in test; mock handlers do not emulate the shared HttpOnly cookie session. Services does not use bearer tokens, localStorage token storage, Flutter `embed` query parameters, or token `postMessage` handling.
+
+Configure the backend with exact browser origins for each environment, retaining any other intentional origins:
 
 ```env
-VITE_API_BASE_URL=https://bomachauthtest.bgbot.app/api/v1
-VITE_ENABLE_MOCKS=false
+# Test backend environment
+BOMACH_WEB_AUTH_ORIGINS=https://bomach-os-test.vercel.app
+
+# Production backend environment
+BOMACH_WEB_AUTH_ORIGINS=https://bomach-os.vercel.app
 ```
 
-The same requests reach the deployed backend without changing the UI or feature code.
-
-## Token handling
-
-The backend returns an access token and refresh token. The current frontend stores both in localStorage because the API does not expose an HttpOnly-cookie session contract.
-
-This keeps refresh and browser-reload restoration working, but it also means XSS prevention is important. A future backend improvement should prefer secure HttpOnly refresh cookies where possible.
-
-## User context
-
-`GET /auth/me` returns identity fields but does not include the assigned role or permissions. The frontend therefore loads:
-
-1. the current user;
-2. the employee role through `/roles/employees/{user_id}`;
-3. or, when no employee role exists, probes `/clients/clients/profile` and treats the account as a client.
-
-The role response contains a permission map. Known frontend permissions are used directly. Existing role defaults remain as a temporary compatibility fallback until the backend permission names and service-module permission names are fully aligned.
-
-## Two-factor authentication
-
-Login can return either tokens or a two-factor challenge. The login card switches to a six-digit verification-code form while keeping the same visual frame.
-
-## Logout
-
-Logout calls the backend, clears tokens, clears TanStack Query data, invalidates Router authentication context, and returns the user to login.
+Configure `VITE_BOMACH_OS_ORIGIN` for the standalone Services deployment to the canonical OS host. On the composed Bomach host, Services derives the root login/switcher origin from the current browser host so Preview remains on test and Production remains on production. The OS project uses ordinary external rewrites to preserve `/services` and sends `/api/*` to the environment-specific backend. Validate the Services build and its `/services` assets before routing the OS Preview host; then test nested-route refreshes, API routing, cookie attributes, 2FA, reset, expiry, logout, and permission-filtered switching before enabling the production rewrite.

@@ -20,12 +20,14 @@ import {
   IconShieldCheck,
   IconListCheck,
   IconFolders,
+  IconMenu2,
 } from '@tabler/icons-react'
 import { Link, useNavigate, useRouter, useRouterState } from '@tanstack/react-router'
 import { useMemo, useState, type PropsWithChildren } from 'react'
 
 import { useAuth } from '@/app/auth'
 import { NotificationPanel } from '@/app/notifications'
+import { AppSwitcher } from '@/app/layouts/AppSwitcher'
 import {
   getVisibleNavigation,
   isNavigationItemActive,
@@ -92,19 +94,11 @@ export function AppShell({ children, navigation }: AppShellProps) {
     await navigate({ to: '/login', replace: true })
   }
 
-  const searchParams = new URLSearchParams(
-    typeof window !== 'undefined' ? window.location.search : '',
-  )
-  const isEmbed = searchParams.get('embed') === 'true' || searchParams.get('embedded') === 'true'
-  const hideSidebar =
-    isEmbed ||
-    searchParams.get('hideSidebar') === 'true' ||
-    searchParams.get('hide_sidebar') === 'true'
   const compactSidebar = sidebarCollapsed && !mobileSidebarOpen
 
   return (
     <div className="bg-background h-dvh overflow-hidden">
-      {mobileSidebarOpen && !hideSidebar ? (
+      {mobileSidebarOpen ? (
         <button
           type="button"
           aria-label="Close navigation"
@@ -113,22 +107,23 @@ export function AppShell({ children, navigation }: AppShellProps) {
         />
       ) : null}
 
-      {!hideSidebar && (
-        <aside
-          id="operations-navigation"
-          className={cn(
-            'border-border bg-surface fixed top-0 bottom-0 left-0 z-50 flex flex-col border-r transition-[width,transform] duration-200 lg:z-30 lg:translate-x-0',
-            compactSidebar ? 'w-14' : 'w-60',
-            mobileSidebarOpen ? 'translate-x-0' : '-translate-x-full',
+      <aside
+        id="operations-navigation"
+        className={cn(
+          'border-border bg-surface fixed top-0 bottom-0 left-0 z-50 flex flex-col border-r transition-[width,transform] duration-200 lg:z-30 lg:translate-x-0',
+          compactSidebar ? 'w-14' : 'w-60',
+          mobileSidebarOpen ? 'translate-x-0' : '-translate-x-full',
+        )}
+      >
+        <div className="border-border flex items-center justify-between gap-1.5 border-b px-2 py-1.5">
+          <AppSwitcher user={user} compact={compactSidebar} placement="left" />
+          {compactSidebar ? null : (
+            <span className="text-foreground-muted min-w-0 flex-1 truncate text-[0.5rem] leading-none font-bold tracking-[0.14em] uppercase">
+              Navigation
+            </span>
           )}
-        >
-          <div className="border-border hidden items-center justify-between gap-1.5 border-b px-2 py-1.5 lg:flex">
-            {compactSidebar ? null : (
-              <span className="text-foreground-muted text-[0.5rem] leading-none font-bold tracking-[0.14em] uppercase">
-                Navigation
-              </span>
-            )}
-            <NotificationPanel />
+          <NotificationPanel />
+          <div className="hidden lg:block">
             <Button
               variant="ghost"
               size="icon"
@@ -139,102 +134,116 @@ export function AppShell({ children, navigation }: AppShellProps) {
               {sidebarCollapsed ? <IconChevronRight size={18} /> : <IconChevronLeft size={18} />}
             </Button>
           </div>
+        </div>
 
-          <nav
-            aria-label="Main navigation"
-            className="flex-1 scrollbar-thin space-y-3 overflow-y-auto py-1.5"
+        <nav
+          aria-label="Main navigation"
+          className="flex-1 scrollbar-thin space-y-3 overflow-y-auto py-1.5"
+        >
+          {visibleNavigation.map((group) => (
+            <section key={group.id} aria-labelledby={`${group.id}-navigation-label`}>
+              {group.label && !compactSidebar ? (
+                <h2
+                  id={`${group.id}-navigation-label`}
+                  className="text-foreground-subtle mb-1 px-3 text-[0.5rem] font-extrabold tracking-[0.14em] uppercase"
+                >
+                  {group.label}
+                </h2>
+              ) : null}
+
+              <div className="space-y-0.5 px-2">
+                {group.items.map((item) => {
+                  const Icon = navigationIcons[item.icon]
+                  const active = isNavigationItemActive(pathname, item)
+                  const itemClasses = cn(
+                    'flex min-h-8 w-full items-center gap-2 rounded-md border-l-3 border-l-transparent px-2.5 py-1.5 text-left text-[0.65625rem] font-semibold transition-colors',
+                    active
+                      ? 'bg-brand-50 text-brand-700 border-l-brand-600'
+                      : 'text-foreground-muted hover:bg-surface-muted hover:text-foreground',
+                    compactSidebar && 'justify-center px-1.5',
+                  )
+
+                  const content = (
+                    <>
+                      <Icon size={16} className="shrink-0" aria-hidden="true" />
+                      {compactSidebar ? null : (
+                        <>
+                          <span className="min-w-0 flex-1 truncate">{item.label}</span>
+                          {item.badge !== undefined ? (
+                            <span
+                              className={cn(
+                                'ml-auto rounded-full px-1.5 py-0.5 text-[0.5rem] font-extrabold',
+                                item.badgeTone === 'alert'
+                                  ? 'bg-danger-50 text-danger-700'
+                                  : 'bg-brand-50 text-brand-700',
+                              )}
+                            >
+                              {item.badge}
+                            </span>
+                          ) : null}
+                        </>
+                      )}
+                    </>
+                  )
+
+                  return (
+                    <Link
+                      key={item.id}
+                      to={item.to}
+                      {...(item.params ? { params: item.params } : {})}
+                      className={itemClasses}
+                      aria-current={active ? 'page' : undefined}
+                      title={compactSidebar ? item.label : undefined}
+                      onClick={() => setMobileSidebarOpen(false)}
+                    >
+                      {content}
+                    </Link>
+                  )
+                })}
+              </div>
+            </section>
+          ))}
+        </nav>
+
+        <div className="border-border space-y-2 border-t p-3">
+          <Button
+            variant="danger"
+            size="sm"
+            fullWidth
+            className={cn('justify-start px-2.5', compactSidebar && 'justify-center px-0')}
+            onClick={() => setLogoutConfirmOpen(true)}
           >
-            {visibleNavigation.map((group) => (
-              <section key={group.id} aria-labelledby={`${group.id}-navigation-label`}>
-                {group.label && !compactSidebar ? (
-                  <h2
-                    id={`${group.id}-navigation-label`}
-                    className="text-foreground-subtle mb-1 px-3 text-[0.5rem] font-extrabold tracking-[0.14em] uppercase"
-                  >
-                    {group.label}
-                  </h2>
-                ) : null}
-
-                <div className="space-y-0.5 px-2">
-                  {group.items.map((item) => {
-                    const Icon = navigationIcons[item.icon]
-                    const active = isNavigationItemActive(pathname, item)
-                    const itemClasses = cn(
-                      'flex min-h-8 w-full items-center gap-2 rounded-md border-l-3 border-l-transparent px-2.5 py-1.5 text-left text-[0.65625rem] font-semibold transition-colors',
-                      active
-                        ? 'bg-brand-50 text-brand-700 border-l-brand-600'
-                        : 'text-foreground-muted hover:bg-surface-muted hover:text-foreground',
-                      compactSidebar && 'justify-center px-1.5',
-                    )
-
-                    const content = (
-                      <>
-                        <Icon size={16} className="shrink-0" aria-hidden="true" />
-                        {compactSidebar ? null : (
-                          <>
-                            <span className="min-w-0 flex-1 truncate">{item.label}</span>
-                            {item.badge !== undefined ? (
-                              <span
-                                className={cn(
-                                  'ml-auto rounded-full px-1.5 py-0.5 text-[0.5rem] font-extrabold',
-                                  item.badgeTone === 'alert'
-                                    ? 'bg-danger-50 text-danger-700'
-                                    : 'bg-brand-50 text-brand-700',
-                                )}
-                              >
-                                {item.badge}
-                              </span>
-                            ) : null}
-                          </>
-                        )}
-                      </>
-                    )
-
-                    return (
-                      <Link
-                        key={item.id}
-                        to={item.to}
-                        {...(item.params ? { params: item.params } : {})}
-                        className={itemClasses}
-                        aria-current={active ? 'page' : undefined}
-                        title={compactSidebar ? item.label : undefined}
-                        onClick={() => setMobileSidebarOpen(false)}
-                      >
-                        {content}
-                      </Link>
-                    )
-                  })}
-                </div>
-              </section>
-            ))}
-          </nav>
-
-          <div className="border-border space-y-2 border-t p-3">
-            <Button
-              variant="danger"
-              size="sm"
-              fullWidth
-              className={cn('justify-start px-2.5', compactSidebar && 'justify-center px-0')}
-              onClick={() => setLogoutConfirmOpen(true)}
-            >
-              <IconLogout size={16} />
-              {compactSidebar ? null : 'Sign out'}
-            </Button>
-          </div>
-        </aside>
-      )}
+            <IconLogout size={16} />
+            {compactSidebar ? null : 'Sign out'}
+          </Button>
+        </div>
+      </aside>
 
       <div
         className={cn(
           'flex h-dvh min-w-0 flex-col overflow-hidden transition-[padding] duration-200',
-          !hideSidebar && (sidebarCollapsed ? 'lg:pl-14' : 'lg:pl-60'),
+          sidebarCollapsed ? 'lg:pl-14' : 'lg:pl-60',
         )}
       >
+        <header className="border-border bg-surface flex h-12 shrink-0 items-center gap-2 border-b px-3 lg:hidden">
+          <Button
+            variant="ghost"
+            size="icon"
+            aria-label="Open navigation"
+            aria-controls="operations-navigation"
+            aria-expanded={mobileSidebarOpen}
+            className="text-foreground-muted size-9"
+            onClick={() => setMobileSidebarOpen(true)}
+          >
+            <IconMenu2 size={20} />
+          </Button>
+          <span className="text-foreground min-w-0 flex-1 truncate text-xs font-semibold">
+            Bomach Services
+          </span>
+          <AppSwitcher user={user} compact />
+          <NotificationPanel />
+        </header>
         <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">{children}</div>
-      </div>
-
-      <div className="border-border bg-surface fixed top-2 right-3 z-40 rounded-full border shadow-sm lg:hidden">
-        <NotificationPanel />
       </div>
 
       <ConfirmDialog
@@ -247,7 +256,11 @@ export function AppShell({ children, navigation }: AppShellProps) {
         onCancel={() => setLogoutConfirmOpen(false)}
         onConfirm={async () => {
           setLogoutConfirmOpen(false)
-          await handleSignOut()
+          try {
+            await handleSignOut()
+          } catch {
+            // AuthProvider shows the failure; keep the current session mounted.
+          }
         }}
       />
     </div>

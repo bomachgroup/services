@@ -1,14 +1,12 @@
-import { AUTH_ENDPOINTS } from '@/shared/auth/auth-endpoints'
-import { tokenStore } from '@/shared/auth/token-store'
 import { env } from '@/shared/config/env'
+import { AUTH_ENDPOINTS } from '@/shared/auth/auth-endpoints'
 
 import { ApiError } from './api-error'
 
-type RequestBody = BodyInit | object | null
+type RequestBody = BodyInit | object | null | undefined
 
-interface ApiRequestOptions extends Omit<RequestInit, 'body'> {
+interface ApiRequestOptions extends Omit<RequestInit, 'body' | 'credentials'> {
   body?: RequestBody
-  skipAuth?: boolean
   skipRefresh?: boolean
 }
 
@@ -19,13 +17,18 @@ interface ApiErrorPayload {
   errors?: unknown
 }
 
+export const SESSION_ESTABLISHED_KEY = 'bomach:session-established'
+export const SESSION_EXPIRED_NOTICE_KEY = 'bomach:session-expired-notice'
+export const SESSION_EXPIRED_EVENT = 'bomach:session-expired'
+export const BROWSER_REQUEST_HEADER = 'X-Bomach-Request'
+export const BROWSER_REQUEST_VALUE = 'browser'
+
+const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS', 'TRACE'])
+let refreshPromise: Promise<boolean> | null = null
+
 function resolveApiErrorMessage(payload: ApiErrorPayload | undefined, fallback: string): string {
   if (!payload) return fallback
-
-  if (typeof payload.detail === 'string' && payload.detail.trim()) {
-    return payload.detail.trim()
-  }
-
+  if (typeof payload.detail === 'string' && payload.detail.trim()) return payload.detail.trim()
   if (Array.isArray(payload.detail)) {
     for (const item of payload.detail) {
       if (!item || typeof item !== 'object') continue
@@ -33,19 +36,9 @@ function resolveApiErrorMessage(payload: ApiErrorPayload | undefined, fallback: 
       if (message) return message
     }
   }
-
-  if (typeof payload.message === 'string' && payload.message.trim()) {
-    return payload.message.trim()
-  }
-
+  if (typeof payload.message === 'string' && payload.message.trim()) return payload.message.trim()
   return fallback
 }
-
-interface RefreshTokenResponse {
-  access_token: string
-}
-
-let refreshPromise: Promise<string | null> | null = null
 
 function buildUrl(path: string): string {
   const normalizedPath = path.startsWith('/') ? path : `/${path}`
@@ -54,71 +47,33 @@ function buildUrl(path: string): string {
 
 function isNativeBody(body: RequestBody): body is BodyInit {
   return (
-    typeof body === 'string' ||
-    body instanceof Blob ||
-    body instanceof FormData ||
-    body instanceof URLSearchParams ||
-    body instanceof ArrayBuffer ||
-    ArrayBuffer.isView(body)
+    body !== null &&
+    body !== undefined &&
+    (typeof body === 'string' ||
+      body instanceof Blob ||
+      body instanceof FormData ||
+      body instanceof URLSearchParams ||
+      body instanceof ArrayBuffer ||
+      ArrayBuffer.isView(body))
   )
 }
 
 async function parseResponse(response: Response): Promise<unknown> {
-  if (response.status === 204) return undefined
-
+  if (response.status === 204 || response.status === 205) return undefined
   const contentType = response.headers.get('content-type') ?? ''
   if (contentType.includes('application/json')) return response.json()
-
   return response.text()
 }
 
-async function refreshAccessToken(): Promise<string | null> {
-  if (refreshPromise) return refreshPromise
-
-  refreshPromise = (async () => {
-    const refreshToken = tokenStore.getRefreshToken()
-    if (!refreshToken) return null
-
-    try {
-      const response = await fetch(buildUrl(AUTH_ENDPOINTS.refresh), {
-        method: 'POST',
-        headers: {
-          Accept: 'application/json',
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ refresh_token: refreshToken }),
-      })
-
-      if (!response.ok) {
-        tokenStore.clear('expired')
-        return null
-      }
-
-      const payload = (await response.json()) as RefreshTokenResponse
-      tokenStore.updateAccessToken(payload.access_token)
-      return payload.access_token
-    } catch {
-      tokenStore.clear('expired')
-      return null
-    } finally {
-      refreshPromise = null
-    }
-  })()
-
-  return refreshPromise
-}
-
-async function executeRequest(
-  path: string,
-  options: ApiRequestOptions,
-  accessToken?: string,
-): Promise<Response> {
-  const { body, skipAuth: _skipAuth, skipRefresh: _skipRefresh, ...requestOptions } = options
-  void _skipAuth
+async function executeRequest(path: string, options: ApiRequestOptions): Promise<Response> {
+  const { body, skipRefresh: _skipRefresh, ...requestOptions } = options
   void _skipRefresh
+  const method = (requestOptions.method ?? 'GET').toUpperCase()
   const headers = new Headers(requestOptions.headers)
-  let requestBody: BodyInit | null | undefined
+  if (!headers.has('Accept')) headers.set('Accept', 'application/json')
+  if (!SAFE_METHODS.has(method)) headers.set(BROWSER_REQUEST_HEADER, BROWSER_REQUEST_VALUE)
 
+  let requestBody: BodyInit | null | undefined
   if (body !== undefined) {
     if (isNativeBody(body)) requestBody = body
     else if (body === null) requestBody = null
@@ -128,60 +83,92 @@ async function executeRequest(
     }
   }
 
-  if (!headers.has('Accept')) headers.set('Accept', 'application/json')
-
-  if (accessToken) {
-    headers.set('Authorization', `Bearer ${accessToken}`)
+  try {
+    return await fetch(buildUrl(path), {
+      ...requestOptions,
+      method,
+      headers,
+      credentials: 'include',
+      cache: 'no-store',
+      ...(requestBody !== undefined ? { body: requestBody } : {}),
+    })
+  } catch (cause) {
+    if (options.signal?.aborted) throw cause
+    throw new ApiError('The server could not be reached.', {
+      status: 0,
+      code: 'NETWORK_ERROR',
+      cause,
+    })
   }
+}
 
-  const requestInit: RequestInit = {
-    ...requestOptions,
-    headers,
+function announceExpiredSession(): void {
+  if (typeof window === 'undefined') return
+  const hadSession = window.sessionStorage.getItem(SESSION_ESTABLISHED_KEY) === '1'
+  window.sessionStorage.removeItem(SESSION_ESTABLISHED_KEY)
+  if (hadSession) {
+    window.sessionStorage.setItem(SESSION_EXPIRED_NOTICE_KEY, '1')
+    window.dispatchEvent(new CustomEvent(SESSION_EXPIRED_EVENT))
   }
+}
 
-  if (requestBody !== undefined) requestInit.body = requestBody
+async function refreshSession(): Promise<boolean> {
+  if (refreshPromise) return refreshPromise
 
-  return fetch(buildUrl(path), requestInit)
+  refreshPromise = (async () => {
+    try {
+      const response = await executeRequest(AUTH_ENDPOINTS.refresh, {
+        method: 'POST',
+        skipRefresh: true,
+      })
+      if (response.ok) return true
+
+      if ([400, 401, 403].includes(response.status)) {
+        await parseResponse(response)
+        announceExpiredSession()
+        return false
+      }
+
+      const payload = await parseResponse(response)
+      const errorPayload =
+        typeof payload === 'object' && payload !== null ? (payload as ApiErrorPayload) : undefined
+      throw new ApiError(
+        resolveApiErrorMessage(errorPayload, 'The sign-in service is temporarily unavailable.'),
+        {
+          status: response.status,
+          code: 'SESSION_REFRESH_FAILED',
+          details: payload,
+        },
+      )
+    } finally {
+      refreshPromise = null
+    }
+  })()
+
+  return refreshPromise
+}
+
+async function requestResponse(path: string, options: ApiRequestOptions): Promise<Response> {
+  let response = await executeRequest(path, options)
+  if (response.status === 401 && !options.skipRefresh) {
+    const refreshed = await refreshSession()
+    if (refreshed && !options.signal?.aborted) {
+      response = await executeRequest(path, { ...options, skipRefresh: true })
+    }
+  }
+  if (response.status === 401 && !options.skipRefresh) announceExpiredSession()
+  return response
 }
 
 async function request<TResponse>(
   path: string,
   options: ApiRequestOptions = {},
 ): Promise<TResponse> {
-  let accessToken = options.skipAuth ? null : tokenStore.getAccessToken()
-
-  if (!options.skipAuth && !options.skipRefresh && !accessToken && tokenStore.hasRefreshToken()) {
-    accessToken = await refreshAccessToken()
-  }
-
-  let response: Response
-
-  try {
-    response = await executeRequest(path, options, accessToken ?? undefined)
-  } catch (error) {
-    throw new ApiError('The server could not be reached.', {
-      status: 0,
-      code: 'NETWORK_ERROR',
-      cause: error,
-    })
-  }
-
-  if (response.status === 401 && !options.skipAuth && !options.skipRefresh) {
-    const refreshedAccessToken = await refreshAccessToken()
-
-    if (refreshedAccessToken) {
-      response = await executeRequest(path, { ...options, skipRefresh: true }, refreshedAccessToken)
-    }
-  }
-
+  const response = await requestResponse(path, options)
   const payload = await parseResponse(response)
-
   if (!response.ok) {
     const errorPayload =
       typeof payload === 'object' && payload !== null ? (payload as ApiErrorPayload) : undefined
-
-    if (response.status === 401 && !options.skipAuth) tokenStore.clear('expired')
-
     throw new ApiError(
       resolveApiErrorMessage(errorPayload, 'The request could not be completed.'),
       {
@@ -191,7 +178,6 @@ async function request<TResponse>(
       },
     )
   }
-
   return payload as TResponse
 }
 
@@ -199,41 +185,11 @@ async function requestBlob(
   path: string,
   options: Omit<ApiRequestOptions, 'method' | 'body'> = {},
 ): Promise<Blob> {
-  let accessToken = options.skipAuth ? null : tokenStore.getAccessToken()
-
-  if (!options.skipAuth && !options.skipRefresh && !accessToken && tokenStore.hasRefreshToken()) {
-    accessToken = await refreshAccessToken()
-  }
-
-  let response: Response
-  try {
-    response = await executeRequest(path, { ...options, method: 'GET' }, accessToken ?? undefined)
-  } catch (error) {
-    throw new ApiError('The server could not be reached.', {
-      status: 0,
-      code: 'NETWORK_ERROR',
-      cause: error,
-    })
-  }
-
-  if (response.status === 401 && !options.skipAuth && !options.skipRefresh) {
-    const refreshedAccessToken = await refreshAccessToken()
-    if (refreshedAccessToken) {
-      response = await executeRequest(
-        path,
-        { ...options, method: 'GET', skipRefresh: true },
-        refreshedAccessToken,
-      )
-    }
-  }
-
+  const response = await requestResponse(path, { ...options, method: 'GET' })
   if (!response.ok) {
     const payload = await parseResponse(response)
     const errorPayload =
       typeof payload === 'object' && payload !== null ? (payload as ApiErrorPayload) : undefined
-
-    if (response.status === 401 && !options.skipAuth) tokenStore.clear('expired')
-
     throw new ApiError(
       resolveApiErrorMessage(errorPayload, 'The request could not be completed.'),
       {
@@ -243,14 +199,13 @@ async function requestBlob(
       },
     )
   }
-
   return response.blob()
 }
 
 function createBodyRequest<TResponse>(
   method: 'POST' | 'PUT' | 'PATCH',
   path: string,
-  body: RequestBody | undefined,
+  body: RequestBody,
   options: Omit<ApiRequestOptions, 'method' | 'body'> | undefined,
 ): Promise<TResponse> {
   return request<TResponse>(path, {
@@ -263,28 +218,23 @@ function createBodyRequest<TResponse>(
 export const apiClient = {
   get: <TResponse>(path: string, options?: Omit<ApiRequestOptions, 'method' | 'body'>) =>
     request<TResponse>(path, { ...options, method: 'GET' }),
-
   getBlob: (path: string, options?: Omit<ApiRequestOptions, 'method' | 'body'>) =>
     requestBlob(path, options),
-
   post: <TResponse>(
     path: string,
     body?: RequestBody,
     options?: Omit<ApiRequestOptions, 'method' | 'body'>,
   ) => createBodyRequest<TResponse>('POST', path, body, options),
-
   put: <TResponse>(
     path: string,
     body?: RequestBody,
     options?: Omit<ApiRequestOptions, 'method' | 'body'>,
   ) => createBodyRequest<TResponse>('PUT', path, body, options),
-
   patch: <TResponse>(
     path: string,
     body?: RequestBody,
     options?: Omit<ApiRequestOptions, 'method' | 'body'>,
   ) => createBodyRequest<TResponse>('PATCH', path, body, options),
-
   delete: <TResponse>(path: string, options?: Omit<ApiRequestOptions, 'method' | 'body'>) =>
     request<TResponse>(path, { ...options, method: 'DELETE' }),
 }

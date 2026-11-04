@@ -1,35 +1,3 @@
-export interface LoginRequestDto {
-  email: string
-  password: string
-}
-
-export interface LoginResponseDto {
-  success: boolean
-  access_token: string
-  refresh_token: string
-  user_id: number
-  detail: string
-}
-
-export interface TwoFactorRequiredResponseDto {
-  success: boolean
-  requires_2fa: true
-  session_token: string
-  detail: string
-}
-
-export interface TwoFactorVerifyRequestDto {
-  session_token: string
-  code: string
-}
-
-export type TwoFactorVerifyResponseDto = LoginResponseDto
-
-export interface LogoutResponseDto {
-  success: boolean
-  detail: string
-}
-
 export interface UserResponseDto {
   id: number
   email: string
@@ -60,16 +28,6 @@ export interface ErrorResponseDto {
   detail: string
 }
 
-export interface RefreshTokenRequestDto {
-  refresh_token: string
-}
-
-export interface RefreshTokenResponseDto {
-  success: boolean
-  access_token: string
-  detail: string
-}
-
 export interface TwoFactorStatusResponseDto {
   success: boolean
   two_factor_enabled: boolean
@@ -80,21 +38,6 @@ export interface TwoFactorToggleRequestDto {
 }
 
 export type TwoFactorToggleResponseDto = TwoFactorStatusResponseDto
-
-export interface ForgotPasswordRequestDto {
-  email: string
-}
-
-export interface ResetPasswordRequestDto {
-  email: string
-  code: string
-  new_password: string
-}
-
-export interface SuccessDetailResponseDto {
-  success: boolean
-  detail: string
-}
 
 export interface VerifyTokenResponseDto {
   success: boolean

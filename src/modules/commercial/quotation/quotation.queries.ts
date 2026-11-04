@@ -28,6 +28,5 @@ export const quotationQueries = {
       queryKey: quotationKeys.roles(),
       queryFn: () => quotationsApi.roles(),
       staleTime: 60_000,
-      retry: false,
     }),
 }

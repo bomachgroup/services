@@ -358,6 +358,8 @@ Feature code should choose an error context such as:
 - `background-action`
 - `destructive-action`
 
+Role and other reference-data lookups must use the same presenter. A failure to load a role list should say whether the problem is connectivity, service availability, or permission; it should not imply that the user should bypass an approval choice.
+
 ## 7. HTTP status guidance
 
 ### Status 400 or 422
@@ -402,7 +404,11 @@ Use page, section, form, or toast placement according to what failed.
 
 ### Status 0 or network error
 
-Explain that the server could not be reached and offer retry.
+If the browser reports that it is offline, say so and ask the user to reconnect. Otherwise explain that the server could not be reached; do not claim the user is offline because `navigator.onLine` cannot confirm backend availability.
+
+Keep cached page content and authenticated state when a request fails because of a connection problem or a 5xx response. Token refresh failures clear the session only when the refresh endpoint rejects the token (400, 401, or 403). A network failure or 5xx from the refresh endpoint is an availability error and must preserve the tokens so the user can retry.
+
+Retry transient network and server errors only. Do not automatically retry permission, validation, not-found, or other client errors.
 
 ## 8. Success-message rules
 

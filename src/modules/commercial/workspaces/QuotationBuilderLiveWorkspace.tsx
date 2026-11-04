@@ -9,6 +9,7 @@ import { Button } from '@/shared/ui/button'
 import { DatePicker } from '@/shared/ui/date-picker'
 import { DropdownSelect, mapDropdownOptions } from '@/shared/ui/dropdown-select'
 import { EmptyState } from '@/shared/ui/empty-state'
+import { presentError } from '@/shared/errors'
 
 import type { ServiceRequestDetail, ServiceRequestListItem } from '../api/service-requests.types'
 import { CommercialDocumentsEditor } from '../components/CommercialDocumentsEditor'
@@ -92,6 +93,7 @@ export function QuotationBuilderLiveWorkspace({
   onUpdate: (input: UpdateQuotationInput) => void
 }) {
   const rolesQuery = useQuery(quotationQueries.roles())
+  const rolesError = rolesQuery.isError ? presentError(rolesQuery.error, 'section-load') : null
   const [fieldErrors, setFieldErrors] = useState<
     Partial<Record<QuotationBuilderFieldName, string>>
   >({})
@@ -504,8 +506,10 @@ export function QuotationBuilderLiveWorkspace({
                 <div className="commercial-field">
                   <span>Approver role</span>
                   <EmptyState
-                    title="Approver roles unavailable"
-                    description="You can still submit without admin approval, or retry loading roles."
+                    title={rolesError?.title ?? 'Approver roles unavailable'}
+                    description={
+                      rolesError?.message ?? 'Approver choices could not load. Retry to continue.'
+                    }
                     action={
                       <Button variant="outline" size="sm" onClick={() => void rolesQuery.refetch()}>
                         Retry

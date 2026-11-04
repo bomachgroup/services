@@ -22,6 +22,8 @@ export function requireRoutePermission({
     return
   }
 
+  if (auth.authLoadError) return
+
   if (!auth.isAuthenticated || !auth.user) {
     return redirect({
       to: '/login',

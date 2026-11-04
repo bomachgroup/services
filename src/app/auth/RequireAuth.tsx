@@ -1,8 +1,12 @@
 import { Navigate } from '@tanstack/react-router'
-import type { ReactNode } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
+import { useEffect, type ReactNode } from 'react'
 
-import { tokenStore } from '@/shared/auth/token-store'
+import { authKeys } from '@/modules/auth/api/auth.keys'
+import { presentError } from '@/shared/errors'
+import { ErrorState } from '@/shared/ui/error-state/ErrorState'
 import { AppShellSkeleton } from '@/shared/ui/skeleton/AppShellSkeleton'
+import { redirectToCentralLogin } from '@/shared/auth/session-navigation'
 
 import type { AuthUserKind } from './auth.types'
 import { isUserKind } from './auth.utils'
@@ -20,23 +24,43 @@ export function RequireAuth({
   loadingFallback = <AppShellSkeleton />,
 }: RequireAuthProps) {
   const auth = useAuth()
+  const queryClient = useQueryClient()
 
-  const isEmbed =
-    typeof window !== 'undefined' &&
-    (window.location.search.includes('embed=true') ||
-      window.location.search.includes('embedded=true') ||
-      Boolean(tokenStore.getAccessToken()))
+  const isUnauthenticated = !auth.isLoading && !auth.authLoadError && !auth.isAuthenticated
 
-  if (auth.isLoading || (isEmbed && (!auth.isAuthenticated || !auth.user))) {
-    return loadingFallback
-  }
+  useEffect(() => {
+    if (!isUnauthenticated) return
+    const currentPath = `${window.location.pathname}${window.location.search}${window.location.hash}`
+    redirectToCentralLogin(currentPath)
+  }, [isUnauthenticated])
 
   if (auth.accessIssue) {
     return <Navigate to="/forbidden" replace />
   }
 
+  if (auth.authLoadError) {
+    const error = presentError(auth.authLoadError, 'page-load')
+    return (
+      <main className="bg-surface-muted grid min-h-svh place-items-center p-4">
+        <div className="w-full max-w-xl">
+          <ErrorState
+            title={error.title}
+            description={error.message}
+            onRetry={() =>
+              void queryClient.refetchQueries({ queryKey: authKeys.currentUser(), type: 'active' })
+            }
+          />
+        </div>
+      </main>
+    )
+  }
+
+  if (auth.isLoading || isUnauthenticated) {
+    return loadingFallback
+  }
+
   if (!auth.isAuthenticated || !auth.user) {
-    return <Navigate to="/login" replace />
+    return loadingFallback
   }
 
   if (allowedKinds && !isUserKind(auth.user, allowedKinds)) {

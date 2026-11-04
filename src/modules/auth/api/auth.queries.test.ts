@@ -3,11 +3,8 @@ import { describe, expect, it } from 'vitest'
 import { authQueries } from './auth.queries'
 
 describe('authQueries.currentUser', () => {
-  it('disables the current-user request until embedded credentials are ready', () => {
-    expect(authQueries.currentUser(false).enabled).toBe(false)
-  })
-
-  it('enables the current-user request by default', () => {
-    expect(authQueries.currentUser().enabled).toBe(true)
+  it('always bootstraps the current user from the shared browser session', () => {
+    expect(authQueries.currentUser().enabled).not.toBe(false)
+    expect(authQueries.currentUser().queryKey).toEqual(['auth', 'current-user'])
   })
 })

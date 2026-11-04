@@ -1,5 +1,3 @@
-import { env } from '@/shared/config/env'
-
 import type {
   BrokerageListing,
   BrokerageStats,
@@ -46,18 +44,15 @@ function mapBoundary(payload: unknown): BoundaryPoint[] {
 }
 
 /**
- * The backend returns media paths relative to its own origin (e.g.
- * "/media/estates/documents/file.pdf"). Resolve them against the API origin
- * so previews and new-tab links load from the backend instead of the
- * frontend host (which only serves the SPA).
+ * Backend-relative media URLs stay on the shared host, where the default app
+ * proxies /media to the configured backend before its SPA fallback.
  */
 function resolveFileUrl(url: string): string {
   if (!url || /^https?:\/\//i.test(url) || url.startsWith('blob:') || url.startsWith('data:')) {
     return url
   }
   if (!url.startsWith('/')) return url
-  const backendOrigin = env.apiBaseUrl.replace(/\/api\/v1\/?$/, '')
-  return `${backendOrigin}${url}`
+  return url
 }
 
 function mapDocument(payload: unknown): EstateDocument {

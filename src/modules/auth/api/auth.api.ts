@@ -1,43 +1,20 @@
 import { ApiError } from '@/shared/api/api-error'
 import { apiClient } from '@/shared/api/api-client'
 import { AUTH_ENDPOINTS } from '@/shared/auth/auth-endpoints'
-import { tokenStore } from '@/shared/auth/token-store'
 
 import { AuthAccessError } from '../errors/auth-access-error'
 import { mapAuthenticatedUser } from '../mappers/auth.mapper'
 import type {
   AuthorityLimitsResponseDto,
-  ForgotPasswordRequestDto,
-  LoginRequestDto,
-  LoginResponseDto,
-  LogoutResponseDto,
   PermissionsMapResponseDto,
-  ResetPasswordRequestDto,
-  SuccessDetailResponseDto,
   RoleResponseDto,
-  TwoFactorRequiredResponseDto,
   TwoFactorStatusResponseDto,
   TwoFactorToggleRequestDto,
   TwoFactorToggleResponseDto,
-  TwoFactorVerifyRequestDto,
-  TwoFactorVerifyResponseDto,
   UserResponseDto,
   VerifyTokenResponseDto,
 } from '../types/auth.contracts'
-import type { AuthenticatedUser, LoginCredentials, LoginResult } from '../types/auth.types'
-
-function isTwoFactorRequired(
-  response: LoginResponseDto | TwoFactorRequiredResponseDto,
-): response is TwoFactorRequiredResponseDto {
-  return 'requires_2fa' in response && response.requires_2fa === true
-}
-
-function persistLoginTokens(response: LoginResponseDto): void {
-  tokenStore.set({
-    accessToken: response.access_token,
-    refreshToken: response.refresh_token,
-  })
-}
+import type { AuthenticatedUser } from '../types/auth.types'
 
 async function loadStaffUser(user: UserResponseDto): Promise<AuthenticatedUser> {
   try {
@@ -63,46 +40,7 @@ async function loadStaffUser(user: UserResponseDto): Promise<AuthenticatedUser> 
   }
 }
 
-async function login(credentials: LoginCredentials): Promise<LoginResult> {
-  const payload: LoginRequestDto = {
-    email: credentials.email,
-    password: credentials.password,
-  }
-
-  const response = await apiClient.post<LoginResponseDto | TwoFactorRequiredResponseDto>(
-    AUTH_ENDPOINTS.login,
-    payload,
-    { skipAuth: true, skipRefresh: true },
-  )
-
-  if (isTwoFactorRequired(response)) {
-    return {
-      type: 'two-factor-required',
-      sessionToken: response.session_token,
-      detail: response.detail,
-    }
-  }
-
-  persistLoginTokens(response)
-  return { type: 'authenticated' }
-}
-
-async function verifyTwoFactor(payload: TwoFactorVerifyRequestDto): Promise<void> {
-  const response = await apiClient.post<TwoFactorVerifyResponseDto>(
-    AUTH_ENDPOINTS.verifyTwoFactor,
-    payload,
-    {
-      skipAuth: true,
-      skipRefresh: true,
-    },
-  )
-
-  persistLoginTokens(response)
-}
-
 async function currentUser(): Promise<AuthenticatedUser | null> {
-  if (!tokenStore.getAccessToken() && !tokenStore.hasRefreshToken()) return null
-
   try {
     const user = await apiClient.get<UserResponseDto>(AUTH_ENDPOINTS.me)
     return await loadStaffUser(user)
@@ -113,11 +51,7 @@ async function currentUser(): Promise<AuthenticatedUser | null> {
 }
 
 async function logout(): Promise<void> {
-  try {
-    await apiClient.post<LogoutResponseDto>(AUTH_ENDPOINTS.logout)
-  } finally {
-    tokenStore.clear('logout')
-  }
+  await apiClient.post<{ success: true }>(AUTH_ENDPOINTS.logout)
 }
 
 async function getTwoFactorStatus(): Promise<TwoFactorStatusResponseDto> {
@@ -136,22 +70,6 @@ async function disableTwoFactor(
   return apiClient.post<TwoFactorToggleResponseDto>(AUTH_ENDPOINTS.disableTwoFactor, payload)
 }
 
-async function forgotPassword(
-  payload: ForgotPasswordRequestDto,
-): Promise<SuccessDetailResponseDto> {
-  return apiClient.post<SuccessDetailResponseDto>(AUTH_ENDPOINTS.forgotPassword, payload, {
-    skipAuth: true,
-    skipRefresh: true,
-  })
-}
-
-async function resetPassword(payload: ResetPasswordRequestDto): Promise<SuccessDetailResponseDto> {
-  return apiClient.post<SuccessDetailResponseDto>(AUTH_ENDPOINTS.resetPassword, payload, {
-    skipAuth: true,
-    skipRefresh: true,
-  })
-}
-
 async function verifyToken(): Promise<VerifyTokenResponseDto> {
   return apiClient.get<VerifyTokenResponseDto>(AUTH_ENDPOINTS.verifyToken)
 }
@@ -165,15 +83,11 @@ async function getAuthorityLimits(): Promise<AuthorityLimitsResponseDto> {
 }
 
 export const authApi = {
-  login,
-  verifyTwoFactor,
   getTwoFactorStatus,
   enableTwoFactor,
   disableTwoFactor,
   currentUser,
   verifyToken,
-  forgotPassword,
-  resetPassword,
   getPermissionsMap,
   getAuthorityLimits,
   logout,

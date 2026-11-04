@@ -11,7 +11,7 @@ function shouldRetry(failureCount: number, error: Error): boolean {
     return error.status === 0 || error.status >= 500
   }
 
-  return true
+  return false
 }
 
 export const queryClient = new QueryClient({

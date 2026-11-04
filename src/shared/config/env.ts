@@ -1,66 +1,7 @@
 import { z } from 'zod'
 
-type LocationWithAncestorOrigins = Location & {
-  readonly ancestorOrigins?: {
-    readonly length: number
-    item(index: number): string | null
-  }
-}
-
-function isLiveShellOrigin(originOrUrl: string): boolean {
-  const lower = originOrUrl.toLowerCase()
-  return (
-    lower.includes('bomachosapp') ||
-    lower.includes('bomach-os-app') ||
-    lower.includes('bomachauthapp') ||
-    lower.includes('bomachauth.bgbot.app')
-  )
-}
-
-function getDefaultApiBaseUrl(): string {
-  if (typeof window !== 'undefined') {
-    const searchParams = new URLSearchParams(window.location.search)
-    const override =
-      searchParams.get('apiBaseUrl') || searchParams.get('backendUrl') || searchParams.get('apiUrl')
-    if (override) {
-      const clean = override.trim().replace(/\/+$/, '')
-      return clean.endsWith('/api/v1') ? clean : `${clean}/api/v1`
-    }
-
-    const hostname = window.location.hostname.toLowerCase()
-    const referrer = (document.referrer || '').toLowerCase()
-
-    // The ONLY time live backend is used is when viewing from the live shell
-    let isLiveEnvironment = isLiveShellOrigin(hostname) || isLiveShellOrigin(referrer)
-
-    try {
-      const ancestors = (window.location as LocationWithAncestorOrigins).ancestorOrigins
-      if (ancestors && ancestors.length > 0) {
-        for (let i = 0; i < ancestors.length; i++) {
-          const ancestor = ancestors.item(i)
-          if (ancestor && isLiveShellOrigin(ancestor)) {
-            isLiveEnvironment = true
-            break
-          }
-        }
-      }
-    } catch {
-      // Some browsers do not expose ancestorOrigins.
-    }
-
-    if (isLiveEnvironment) {
-      return 'https://bomachauth.bgbot.app/api/v1'
-    }
-
-    // In all other cases (standalone on its own, localhost, test shell), use test backend
-    return 'https://bomachauthtest.bgbot.app/api/v1'
-  }
-
-  return 'https://bomachauthtest.bgbot.app/api/v1'
-}
-
 const envSchema = z.object({
-  VITE_API_BASE_URL: z.string().min(1).default(getDefaultApiBaseUrl()),
+  VITE_BOMACH_OS_ORIGIN: z.union([z.literal(''), z.string().url()]).default(''),
   VITE_NOTIFICATION_LIST_PATH: z.string().optional().default(''),
   VITE_NOTIFICATION_MARK_READ_PATH: z.string().optional().default(''),
   VITE_NOTIFICATION_MARK_ALL_READ_PATH: z.string().optional().default(''),
@@ -73,8 +14,8 @@ const envSchema = z.object({
 const rawEnv: Record<string, unknown> = import.meta.env
 
 const result = envSchema.safeParse({
-  VITE_API_BASE_URL:
-    typeof rawEnv.VITE_API_BASE_URL === 'string' ? rawEnv.VITE_API_BASE_URL : undefined,
+  VITE_BOMACH_OS_ORIGIN:
+    typeof rawEnv.VITE_BOMACH_OS_ORIGIN === 'string' ? rawEnv.VITE_BOMACH_OS_ORIGIN : undefined,
   VITE_NOTIFICATION_LIST_PATH:
     typeof rawEnv.VITE_NOTIFICATION_LIST_PATH === 'string'
       ? rawEnv.VITE_NOTIFICATION_LIST_PATH
@@ -97,7 +38,8 @@ if (!result.success) {
 }
 
 export const env = {
-  apiBaseUrl: result.data.VITE_API_BASE_URL.replace(/\/$/, ''),
+  apiBaseUrl: '/api/v1',
+  bomachOsOrigin: result.data.VITE_BOMACH_OS_ORIGIN.replace(/\/$/, ''),
   enableMocks: result.data.VITE_ENABLE_MOCKS,
   notificationListPath: result.data.VITE_NOTIFICATION_LIST_PATH,
   notificationMarkReadPath: result.data.VITE_NOTIFICATION_MARK_READ_PATH,

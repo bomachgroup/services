@@ -156,9 +156,13 @@ function extractFieldErrors(details: unknown): Record<string, string> | undefine
 }
 
 function defaultNetworkError(): UserFacingError {
+  const isOffline = typeof navigator !== 'undefined' && navigator.onLine === false
+
   return {
-    title: 'Connection problem',
-    message: 'We could not reach the server. Check your connection and try again.',
+    title: isOffline ? 'You are offline' : 'Connection problem',
+    message: isOffline
+      ? 'Reconnect to the internet, then try again.'
+      : 'We could not reach the server. Check your connection or try again shortly.',
     placement: 'toast',
     retryable: true,
   }
@@ -336,7 +340,12 @@ export function presentError(
   if (error.status === 403) {
     return {
       title: 'Permission required',
-      message: 'You do not have permission to complete this action.',
+      message:
+        context === 'page-load'
+          ? 'Your account does not have access to this page.'
+          : context === 'section-load'
+            ? 'Your account does not have permission to view this section.'
+            : 'You do not have permission to complete this action.',
       placement:
         context === 'page-load' ? 'page' : context === 'section-load' ? 'section' : 'toast',
       retryable: false,

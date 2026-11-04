@@ -1,6 +1,6 @@
 import { redirect } from '@tanstack/react-router'
 
-import { tokenStore } from '@/shared/auth/token-store'
+import { buildCentralLoginUrl } from '@/shared/auth/session-navigation'
 
 import type { AuthContextValue, AuthUserKind } from './auth.types'
 
@@ -15,15 +15,9 @@ export function requireAuthenticatedUser({
   locationHref,
   allowedKinds,
 }: RequireAuthenticatedUserOptions): void | ReturnType<typeof redirect> {
-  const isEmbed =
-    typeof window !== 'undefined' &&
-    (window.location.search.includes('embed=true') ||
-      window.location.search.includes('embedded=true') ||
-      Boolean(tokenStore.getAccessToken()))
+  if (auth.isLoading) return
 
-  if (auth.isLoading || (isEmbed && (!auth.isAuthenticated || !auth.user))) {
-    return
-  }
+  if (auth.authLoadError) return
 
   if (auth.accessIssue) {
     return redirect({
@@ -34,10 +28,7 @@ export function requireAuthenticatedUser({
 
   if (!auth.isAuthenticated || !auth.user) {
     return redirect({
-      to: '/login',
-      search: {
-        redirect: locationHref,
-      },
+      href: buildCentralLoginUrl(locationHref),
       replace: true,
     })
   }

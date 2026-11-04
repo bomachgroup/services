@@ -5,7 +5,14 @@ import { tanstackRouter } from '@tanstack/router-plugin/vite'
 import react from '@vitejs/plugin-react'
 import { defineConfig } from 'vite'
 
+const sharedHostBuild = process.env.BOMACH_SHARED_HOST_BUILD === '1'
+
 export default defineConfig({
+  base: sharedHostBuild ? '/services/' : '/',
+  build: {
+    outDir: sharedHostBuild ? 'dist/services' : 'dist',
+    emptyOutDir: true,
+  },
   plugins: [
     tanstackRouter({
       target: 'react',
