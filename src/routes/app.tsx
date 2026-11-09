@@ -1,7 +1,7 @@
 import { createFileRoute } from '@tanstack/react-router'
 
 import { requireAuthenticatedUser } from '@/app/auth'
-import { OperationsLayout } from '@/app/layouts'
+import { NotFoundPage, OperationsLayout } from '@/app/layouts'
 
 export const Route = createFileRoute('/app')({
   beforeLoad: ({ context, location }) => {
@@ -12,4 +12,9 @@ export const Route = createFileRoute('/app')({
     })
   },
   component: OperationsLayout,
+  notFoundComponent: () => (
+    <OperationsLayout>
+      <NotFoundPage />
+    </OperationsLayout>
+  ),
 })

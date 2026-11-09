@@ -45,6 +45,40 @@ describe('shared-host root navigation', () => {
     ).toBe('http://localhost:5173')
   })
 
+  it('keeps switch-back navigation on the local front door when mounted at /services', () => {
+    expect(
+      resolveRootAppOrigin(
+        {
+          origin: 'http://localhost:5173',
+          hostname: 'localhost',
+          port: '5173',
+          protocol: 'http:',
+        },
+        'https://bomach-os.vercel.app',
+      ),
+    ).toBe('http://localhost:5173')
+  })
+
+  it('routes local Services and Marketing dev ports back through the OS front door', () => {
+    expect(
+      resolveRootAppOrigin(
+        {
+          origin: 'http://localhost:5177',
+          hostname: 'localhost',
+          port: '5177',
+          protocol: 'http:',
+        },
+        'https://bomach-os.vercel.app',
+      ),
+    ).toBe('http://localhost:5173')
+    expect(
+      resolveRootAppOrigin(
+        { origin: 'http://localhost:5175', hostname: 'localhost', port: '5175', protocol: 'http:' },
+        '',
+      ),
+    ).toBe('http://localhost:5173')
+  })
+
   it('keeps local production-preview testing on the local OS dev server', () => {
     expect(
       resolveRootAppOrigin(
@@ -63,6 +97,11 @@ describe('shared-host root navigation', () => {
     expect(
       safeServicesReturnTarget('/app/service-requests?status=open', 'services-mocha-xi.vercel.app'),
     ).toBe('/services/app/service-requests?status=open')
+  })
+
+  it('normalizes the shared-host Services root for login return paths', () => {
+    expect(safeServicesReturnTarget('/services?tab=overview')).toBe('/services/?tab=overview')
+    expect(safeServicesReturnTarget('/app', 'services-mocha-xi.vercel.app')).toBe('/services/app')
   })
 
   it('does not promote unprefixed routes from the shared Bomach host', () => {

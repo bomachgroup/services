@@ -20,11 +20,10 @@ export function resolveRootAppOrigin(
   if (SHARED_BOMACH_HOSTS.has(location.hostname)) return location.origin
   if (
     ['localhost', '127.0.0.1'].includes(location.hostname) &&
-    ['4173', '5174'].includes(location.port)
+    ['4173', '5173', '5174', '5175', '5177'].includes(location.port)
   ) {
     return `${location.protocol}//${location.hostname}:5173`
   }
-
   return configuredOrigin || 'https://bomach-os.vercel.app'
 }
 
@@ -41,9 +40,30 @@ function rootAppOrigin(): string {
   return resolveRootAppOrigin(location, env.bomachOsOrigin)
 }
 
-export function buildRootAppHref(): string {
+function safeRootAppTarget(target: string | null | undefined): string {
+  if (!target || !target.startsWith('/') || target.startsWith('//') || target.includes('\\')) {
+    return '/dashboard'
+  }
+  try {
+    const parsed = new URL(target, 'https://bomach.invalid')
+    if (
+      parsed.origin !== 'https://bomach.invalid' ||
+      parsed.pathname === '/services' ||
+      parsed.pathname.startsWith('/services/') ||
+      parsed.pathname === '/login' ||
+      parsed.pathname === '/splash'
+    ) {
+      return '/dashboard'
+    }
+    return `${parsed.pathname}${parsed.search}${parsed.hash}`
+  } catch {
+    return '/dashboard'
+  }
+}
+
+export function buildRootAppHref(target?: string | null): string {
   const origin = rootAppOrigin()
-  const url = new URL('/dashboard', origin)
+  const url = new URL(safeRootAppTarget(target), origin)
   const currentOrigin = typeof window === 'undefined' ? origin : window.location.origin
   return url.origin === currentOrigin ? `${url.pathname}${url.search}` : url.toString()
 }
@@ -61,13 +81,14 @@ export function safeServicesReturnTarget(target: string, currentHostname?: strin
   try {
     const parsed = new URL(target, 'https://bomach.invalid')
     if (parsed.origin !== 'https://bomach.invalid') return null
-    if (parsed.pathname === '/services/login') return '/services'
-    if (parsed.pathname === '/services' || parsed.pathname.startsWith('/services/')) {
+    if (parsed.pathname === '/services/login') return '/services/'
+    if (parsed.pathname === '/services') return `/services/${parsed.search}${parsed.hash}`
+    if (parsed.pathname.startsWith('/services/')) {
       return `${parsed.pathname}${parsed.search}${parsed.hash}`
     }
 
     if (!currentHostname || SHARED_BOMACH_HOSTS.has(currentHostname)) return null
-    if (parsed.pathname === '/' || parsed.pathname === '/login') return '/services'
+    if (parsed.pathname === '/' || parsed.pathname === '/login') return '/services/'
     if (
       parsed.pathname !== '/app' &&
       !parsed.pathname.startsWith('/app/') &&

@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "dev:shared": "vite --mode shared",
     "build": "tsc -b --pretty false && vite build && BOMACH_SHARED_HOST_BUILD=1 vite build",
     "lint": "eslint . --max-warnings=0",
     "preview": "vite preview",

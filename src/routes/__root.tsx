@@ -5,6 +5,7 @@ import {
 } from '@tanstack/react-router'
 
 import type { RouterContext } from '@/app/router/router'
+import { NotFoundPage, OperationsLayout } from '@/app/layouts'
 import { ErrorState } from '@/shared/ui/error-state'
 
 function RootComponent() {
@@ -27,14 +28,9 @@ function RootErrorComponent({ error, reset }: ErrorComponentProps) {
 
 function NotFoundComponent() {
   return (
-    <main className="bg-background grid min-h-screen place-items-center p-6">
-      <div className="w-full max-w-xl">
-        <ErrorState
-          title="Page not found"
-          description="The page you requested does not exist in the current frontend foundation."
-        />
-      </div>
-    </main>
+    <OperationsLayout>
+      <NotFoundPage />
+    </OperationsLayout>
   )
 }
 

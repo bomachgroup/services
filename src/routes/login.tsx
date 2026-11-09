@@ -18,7 +18,7 @@ export const Route = createFileRoute('/login')({
   validateSearch: validateLoginSearch,
   beforeLoad: ({ search }) => {
     return redirect({
-      href: buildCentralLoginUrl(search.returnTo ?? search.redirect ?? '/services'),
+      href: buildCentralLoginUrl(search.returnTo ?? search.redirect ?? '/services/'),
       replace: true,
     })
   },

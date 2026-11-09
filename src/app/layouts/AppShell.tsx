@@ -23,17 +23,19 @@ import {
   IconMenu2,
 } from '@tabler/icons-react'
 import { Link, useNavigate, useRouter, useRouterState } from '@tanstack/react-router'
-import { useMemo, useState, type PropsWithChildren } from 'react'
+import { useEffect, useMemo, useState, type PropsWithChildren } from 'react'
 
 import { useAuth } from '@/app/auth'
 import { NotificationPanel } from '@/app/notifications'
 import { AppSwitcher } from '@/app/layouts/AppSwitcher'
 import {
+  findNavigationItemByPath,
   getVisibleNavigation,
   isNavigationItemActive,
   type NavigationGroup,
   type NavigationIconName,
 } from '@/app/navigation'
+import { clearWorkspaceMemory, saveWorkspaceLocation } from '@/shared/auth/workspace-memory'
 import { cn } from '@/shared/lib/cn'
 import { ConfirmDialog } from '@/shared/ui'
 import { Button } from '@/shared/ui/button'
@@ -80,6 +82,25 @@ export function AppShell({ children, navigation }: AppShellProps) {
     [navigation, user],
   )
 
+  useEffect(() => {
+    if (!user) return
+    const browserPath = window.location.pathname
+    const routePath =
+      import.meta.env.BASE_URL === '/services/'
+        ? browserPath.replace(/^\/services(?=\/|$)/, '') || '/'
+        : browserPath
+    const deepestMatch = router.state.matches.at(-1)
+    if (
+      deepestMatch?.status === 'notFound' ||
+      !findNavigationItemByPath(visibleNavigation, routePath)
+    ) {
+      return
+    }
+
+    const href = `${browserPath}${window.location.search}${window.location.hash}`
+    saveWorkspaceLocation(user.id, 'services', href)
+  }, [pathname, router, user, visibleNavigation])
+
   const toggleSidebar = () => {
     setSidebarCollapsed((current) => {
       const next = !current
@@ -90,6 +111,7 @@ export function AppShell({ children, navigation }: AppShellProps) {
 
   const handleSignOut = async () => {
     await signOut()
+    clearWorkspaceMemory(user?.id)
     await router.invalidate()
     await navigate({ to: '/login', replace: true })
   }

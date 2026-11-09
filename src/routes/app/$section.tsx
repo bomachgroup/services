@@ -7,7 +7,7 @@ import { hasPermissions, PERMISSIONS, requireRoutePermission } from '@/app/permi
 import { SectionLoadingState } from '@/app/loading/SectionLoadingState'
 import type { AppRecordSearch } from '@/shared/navigation'
 import type { ServiceAdministrationSection } from '@/modules/service-administration'
-import { ModuleShellPage } from '@/modules/foundation/pages/ModuleShellPage'
+import { NotFoundPage } from '@/app/layouts'
 
 const ServiceAdministrationSectionPage = lazy(() =>
   import('@/modules/service-administration').then((module) => ({
@@ -237,14 +237,6 @@ export function parseRecordSearch(search: Record<string, unknown>): AppSectionSe
   return result
 }
 
-function formatSectionTitle(section: string): string {
-  return section
-    .split('-')
-    .filter(Boolean)
-    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-    .join(' ')
-}
-
 export const Route = createFileRoute('/app/$section')({
   validateSearch: parseRecordSearch,
   beforeLoad: ({ context, location }) => {
@@ -316,15 +308,5 @@ function AppShellRouteContent() {
     )
   }
 
-  const title = formatSectionTitle(section)
-
-  return (
-    <ModuleShellPage
-      eyebrow="Service Operations"
-      title={title}
-      description="This Service Operations section is not available."
-      backTo="/app/dashboard"
-      backLabel="Back to dashboard"
-    />
-  )
+  return <NotFoundPage />
 }

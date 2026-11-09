@@ -1,7 +1,70 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "outputDirectory": "dist",
+  "redirects": [
+    {
+      "source": "/",
+      "destination": "https://bomach-os.vercel.app/services/",
+      "permanent": false
+    },
+    {
+      "source": "/app",
+      "destination": "https://bomach-os.vercel.app/services/app",
+      "permanent": false
+    },
+    {
+      "source": "/app/:path*",
+      "destination": "https://bomach-os.vercel.app/services/app/:path*",
+      "permanent": false
+    },
+    {
+      "source": "/portal",
+      "destination": "https://bomach-os.vercel.app/services/portal/",
+      "permanent": false
+    },
+    {
+      "source": "/portal/:path*",
+      "destination": "https://bomach-os.vercel.app/services/portal/:path*",
+      "permanent": false
+    },
+    {
+      "source": "/login",
+      "destination": "https://bomach-os.vercel.app/services/login",
+      "permanent": false
+    },
+    {
+      "source": "/forbidden",
+      "destination": "https://bomach-os.vercel.app/services/forbidden",
+      "permanent": false
+    },
+    {
+      "source": "/services",
+      "destination": "https://bomach-os.vercel.app/services/",
+      "permanent": false
+    },
+    {
+      "source": "/services/:path*",
+      "destination": "https://bomach-os.vercel.app/services/:path*",
+      "permanent": false
+    }
+  ],
   "rewrites": [
+    {
+      "source": "/__bomach_shared/services/assets/:path*",
+      "destination": "/services/assets/:path*"
+    },
+    {
+      "source": "/__bomach_shared/services/favicon.svg",
+      "destination": "/services/favicon.svg"
+    },
+    {
+      "source": "/__bomach_shared/services/mockServiceWorker.js",
+      "destination": "/services/mockServiceWorker.js"
+    },
+    {
+      "source": "/__bomach_shared/services/:path*",
+      "destination": "/services/index.html"
+    },
     {
       "source": "/services",
       "destination": "/services/index.html"
