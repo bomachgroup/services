@@ -1,4 +1,11 @@
-import { useEffect, useLayoutEffect, useRef, useState, type MouseEvent } from 'react'
+import {
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type CSSProperties,
+  type MouseEvent,
+} from 'react'
 import { createPortal } from 'react-dom'
 import {
   IconApps,
@@ -15,17 +22,20 @@ import type { AuthUser } from '@/app/auth'
 import { buildRootAppHref } from '@/shared/auth/session-navigation'
 import { rememberedWorkspaceHref } from '@/shared/auth/workspace-memory'
 import {
-  consumeWorkspaceSwitch,
+  consumeWorkspaceSwitchTransition,
   rememberWorkspaceSwitch,
   WORKSPACE_ARRIVAL_MS,
   WORKSPACE_SWITCH_DELAY_MS,
+  type WorkspaceSwitchOrigin,
+  type WorkspaceSwitchTransition,
 } from '@/shared/auth/workspace-switch'
 import { getAvailableApps } from './app-switcher.utils'
 import './app-switcher.css'
 
 type WorkspaceApp = ReturnType<typeof getAvailableApps>[number]
+type WorkspaceAppId = WorkspaceApp['id']
 
-function AppGlyph({ appId }: { appId: WorkspaceApp['id'] }) {
+function AppGlyph({ appId }: { appId: WorkspaceAppId }) {
   const Icon =
     appId === 'os'
       ? IconBuildingSkyscraper
@@ -35,14 +45,71 @@ function AppGlyph({ appId }: { appId: WorkspaceApp['id'] }) {
   return <Icon aria-hidden="true" size={19} stroke={1.8} />
 }
 
-function SwitchTransition({ app, phase }: { app: WorkspaceApp; phase: 'switching' | 'arriving' }) {
+function OpenInNewTabIcon() {
+  return (
+    <svg
+      aria-hidden="true"
+      viewBox="0 0 20 20"
+      fill="none"
+      className="size-[17px]"
+    >
+      <path
+        d="M11.25 3.75h5v5M16 4l-7 7"
+        stroke="currentColor"
+        strokeWidth="1.6"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M15 11.25v4A.75.75 0 0 1 14.25 16h-9.5A.75.75 0 0 1 4 15.25v-9.5A.75.75 0 0 1 4.75 5h4"
+        stroke="currentColor"
+        strokeWidth="1.6"
+        strokeLinecap="round"
+      />
+    </svg>
+  )
+}
+
+function workspaceLabel(appId: WorkspaceAppId) {
+  return appId === 'os' ? 'Bomach OS' : appId === 'services' ? 'Services' : 'Marketing'
+}
+
+function workspaceDescription(appId: WorkspaceAppId) {
+  return appId === 'os'
+    ? 'People and company operations'
+    : appId === 'services'
+      ? 'Service delivery and commercial operations'
+      : 'Campaigns, pipeline, and revenue execution'
+}
+
+function SwitchTransition({
+  sourceApp,
+  targetApp,
+  origin,
+  phase,
+}: {
+  sourceApp: WorkspaceAppId
+  targetApp: WorkspaceAppId
+  origin: WorkspaceSwitchOrigin
+  phase: 'departing' | 'arriving'
+}) {
+  const style = {
+    '--switch-origin-x': `${origin.x * 100}%`,
+    '--switch-origin-y': `${origin.y * 100}%`,
+  } as CSSProperties
+
   return (
     <div
       className="workspace-switch-overlay"
       data-phase={phase}
+      style={style}
       role="status"
       aria-live="polite"
-      aria-label={`${phase === 'switching' ? 'Switching to' : 'Opening'} ${app.label}`}
+      aria-label={
+        phase === 'departing'
+          ? `Switching to ${workspaceLabel(targetApp)}`
+          : `Opening ${workspaceLabel(targetApp)}`
+      }
     >
       <div className="workspace-switch-card">
         <div className="workspace-switch-brand" aria-hidden="true">
@@ -50,28 +117,52 @@ function SwitchTransition({ app, phase }: { app: WorkspaceApp; phase: 'switching
           <span className="workspace-switch-brand__orbit" />
         </div>
         <div className="workspace-switch-route" aria-hidden="true">
-          <span className="workspace-switch-route__app">
-            <IconApps size={19} stroke={1.8} />
+          <span className="workspace-switch-route__step workspace-switch-route__step--source">
+            <span className="workspace-switch-route__app">
+              <AppGlyph appId={sourceApp} />
+            </span>
+            <span className="workspace-switch-route__label">{workspaceLabel(sourceApp)}</span>
           </span>
           <span className="workspace-switch-route__line" />
           <span className="workspace-switch-route__arrow">
             <IconArrowRight size={16} stroke={1.8} />
           </span>
-          <span className="workspace-switch-route__destination">
-            <AppGlyph appId={app.id} />
+          <span className="workspace-switch-route__step workspace-switch-route__step--destination">
+            <span className="workspace-switch-route__destination">
+              <AppGlyph appId={targetApp} />
+            </span>
+            <span className="workspace-switch-route__label">{workspaceLabel(targetApp)}</span>
           </span>
         </div>
         <p className="workspace-switch-eyebrow">BOMACH WORKSPACE</p>
         <p className="workspace-switch-title">
-          {phase === 'switching' ? 'Switching to' : 'Welcome to'} {app.label}
+          {phase === 'departing'
+            ? `Leaving ${workspaceLabel(sourceApp)}`
+            : `${workspaceLabel(targetApp)} is ready`}
         </p>
-        <p className="workspace-switch-description">{app.description}</p>
+        <p className="workspace-switch-description">
+          {phase === 'departing'
+            ? `Opening your ${workspaceLabel(targetApp)} workspace`
+            : workspaceDescription(targetApp)}
+        </p>
         <div className="workspace-switch-progress" aria-hidden="true">
           <span />
         </div>
       </div>
     </div>
   )
+}
+
+function randomSwitchOrigin(anchor: HTMLElement | null): WorkspaceSwitchOrigin {
+  if (!anchor) return { x: 0.92, y: 0.08 }
+
+  const bounds = anchor.getBoundingClientRect()
+  const x = bounds.left + bounds.width * (0.25 + Math.random() * 0.5)
+  const y = bounds.top + bounds.height * (0.25 + Math.random() * 0.5)
+  return {
+    x: Math.min(1, Math.max(0, x / Math.max(1, window.innerWidth))),
+    y: Math.min(1, Math.max(0, y / Math.max(1, window.innerHeight))),
+  }
 }
 
 export function AppSwitcher({
@@ -84,24 +175,25 @@ export function AppSwitcher({
   placement?: 'left' | 'right'
 }) {
   const apps = getAvailableApps(user)
-  const currentApp = 'services' as const
+  const currentApp: WorkspaceAppId = 'services'
   const detailsRef = useRef<HTMLDetailsElement>(null)
   const menuRef = useRef<HTMLDivElement>(null)
   const [menuOpen, setMenuOpen] = useState(false)
-  const [switchingTo, setSwitchingTo] = useState<WorkspaceApp | null>(null)
-  const [arriving, setArriving] = useState(false)
-  const currentWorkspace = apps.find((app) => app.id === currentApp)
+  const [switching, setSwitching] = useState<WorkspaceSwitchTransition | null>(null)
+  const [arriving, setArriving] = useState<WorkspaceSwitchTransition | null>(null)
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
-      if (consumeWorkspaceSwitch(currentApp)) setArriving(true)
+      const transition = consumeWorkspaceSwitchTransition(currentApp)
+      const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+      if (transition && !reducedMotion) setArriving(transition)
     }, 0)
     return () => window.clearTimeout(timer)
   }, [currentApp])
 
   useEffect(() => {
     if (!arriving) return
-    const timer = window.setTimeout(() => setArriving(false), WORKSPACE_ARRIVAL_MS)
+    const timer = window.setTimeout(() => setArriving(null), WORKSPACE_ARRIVAL_MS)
     return () => window.clearTimeout(timer)
   }, [arriving])
 
@@ -118,6 +210,10 @@ export function AppSwitcher({
       menu.style.left = `${viewportLeft - anchor.left}px`
       menu.style.right = 'auto'
       menu.style.width = `${width}px`
+      menu.style.transformOrigin = `${Math.min(
+        Math.max(anchor.left + anchor.width / 2 - viewportLeft, 12),
+        width - 12,
+      )}px 0px`
     }
 
     positionMenu()
@@ -127,6 +223,7 @@ export function AppSwitcher({
       menu.style.left = ''
       menu.style.right = ''
       menu.style.width = ''
+      menu.style.transformOrigin = ''
     }
   }, [menuOpen, placement])
 
@@ -143,9 +240,16 @@ export function AppSwitcher({
     }
 
     event.preventDefault()
-    rememberWorkspaceSwitch(app.id)
+    const origin = randomSwitchOrigin(detailsRef.current)
+    const transition: WorkspaceSwitchTransition = {
+      sourceApp: currentApp,
+      targetApp: app.id,
+      origin,
+      startedAt: Date.now(),
+    }
+    rememberWorkspaceSwitch(app.id, { sourceApp: currentApp, origin })
     detailsRef.current?.removeAttribute('open')
-    setSwitchingTo(app)
+    setSwitching(transition)
 
     const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
     window.setTimeout(
@@ -179,11 +283,7 @@ export function AppSwitcher({
           aria-label="Available workspaces"
         >
           <div className="workspace-switch-menu__header">
-            <span className="workspace-switch-menu__eyebrow">BOMACH WORKSPACE</span>
             <span className="workspace-switch-menu__title">Switch workspace</span>
-            <span className="workspace-switch-menu__hint">
-              {currentWorkspace ? `Currently in ${currentWorkspace.label}` : 'Choose an app'}
-            </span>
           </div>
           <div className="workspace-switch-menu__list">
             {apps.map((app) => {
@@ -195,7 +295,6 @@ export function AppSwitcher({
                   : app.id === 'marketing'
                     ? buildRootAppHref(rememberedHref ?? app.href)
                     : (rememberedHref ?? app.href)
-              const itemClassName = `workspace-switch-option ${active ? 'is-current' : ''}`
               const content = (
                 <>
                   <span
@@ -223,7 +322,10 @@ export function AppSwitcher({
               )
 
               return (
-                <div key={app.id} className={itemClassName}>
+                <div
+                  key={app.id}
+                  className={`workspace-switch-option ${active ? 'is-current' : ''}`}
+                >
                   {active ? (
                     <span className="workspace-switch-option__main" aria-current="page">
                       {content}
@@ -253,12 +355,32 @@ export function AppSwitcher({
           </div>
         </div>
       </details>
-      {switchingTo
-        ? createPortal(<SwitchTransition app={switchingTo} phase="switching" />, document.body)
-        : null}
-      {!switchingTo && arriving && currentWorkspace
-        ? createPortal(<SwitchTransition app={currentWorkspace} phase="arriving" />, document.body)
-        : null}
+      {switching ? (
+        <TransitionPortal transition={switching} phase="departing" />
+      ) : null}
+      {!switching && arriving ? (
+        <TransitionPortal transition={arriving} phase="arriving" targetApp={currentApp} />
+      ) : null}
     </>
+  )
+}
+
+function TransitionPortal({
+  transition,
+  phase,
+  targetApp = transition.targetApp,
+}: {
+  transition: WorkspaceSwitchTransition
+  phase: 'departing' | 'arriving'
+  targetApp?: WorkspaceAppId
+}) {
+  return createPortal(
+    <SwitchTransition
+      sourceApp={transition.sourceApp}
+      targetApp={targetApp}
+      origin={transition.origin}
+      phase={phase}
+    />,
+    document.body,
   )
 }

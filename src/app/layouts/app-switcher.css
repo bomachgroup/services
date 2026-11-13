@@ -481,3 +481,231 @@
     animation-iteration-count: 1 !important;
   }
 }
+
+
+/* Workspace handoff: open from the switcher and carry the source into the destination. */
+.workspace-switch-menu {
+  transform-origin: var(--workspace-menu-origin, top right);
+}
+
+.group\/app-switcher[open] .workspace-switch-menu {
+  animation: workspace-menu-in 280ms cubic-bezier(0.18, 0.82, 0.22, 1) both;
+}
+
+.workspace-switch-overlay {
+  --switch-origin-x: 92%;
+  --switch-origin-y: 8%;
+  clip-path: circle(150vmax at var(--switch-origin-x) var(--switch-origin-y));
+  isolation: isolate;
+  will-change: clip-path, opacity, backdrop-filter;
+}
+
+.workspace-switch-overlay[data-phase='departing'] {
+  animation: workspace-veil-expand 560ms cubic-bezier(0.25, 0.8, 0.25, 1) both;
+}
+
+.workspace-switch-overlay[data-phase='arriving'] {
+  animation: workspace-veil-reveal 760ms cubic-bezier(0.35, 0, 0.2, 1) both;
+}
+
+.workspace-switch-card {
+  will-change: transform, opacity;
+}
+
+.workspace-switch-overlay[data-phase='departing'] .workspace-switch-card {
+  animation: workspace-card-in 500ms cubic-bezier(0.16, 0.84, 0.22, 1) both;
+}
+
+.workspace-switch-overlay[data-phase='arriving'] .workspace-switch-card {
+  animation: workspace-card-out 700ms cubic-bezier(0.3, 0, 0.7, 1) both;
+}
+
+.workspace-switch-route {
+  gap: 0.65rem;
+}
+
+.workspace-switch-route__step {
+  display: grid;
+  width: auto;
+  height: auto;
+  min-width: 4.25rem;
+  justify-items: center;
+  gap: 0.35rem;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: inherit;
+}
+
+.workspace-switch-route__label {
+  max-width: 5.5rem;
+  overflow: hidden;
+  color: #64748b;
+  font-size: 0.62rem;
+  font-weight: 650;
+  line-height: 1.2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.workspace-switch-route__step--destination .workspace-switch-route__label {
+  color: #1d4ed8;
+}
+
+.workspace-switch-overlay .workspace-switch-route__destination {
+  animation: none;
+}
+
+.workspace-switch-overlay[data-phase='departing'] .workspace-switch-route__step--source {
+  animation: workspace-source-leave 540ms ease-in 80ms both;
+}
+
+.workspace-switch-overlay[data-phase='departing'] .workspace-switch-route__step--destination {
+  animation: workspace-destination-enter 480ms cubic-bezier(0.16, 0.84, 0.22, 1) 130ms both;
+}
+
+.workspace-switch-overlay[data-phase='arriving'] .workspace-switch-route__step--source {
+  animation: workspace-source-arrival 680ms ease-out both;
+}
+
+.workspace-switch-overlay[data-phase='arriving'] .workspace-switch-route__step--destination {
+  animation: workspace-destination-arrival 680ms cubic-bezier(0.16, 0.84, 0.22, 1) both;
+}
+
+.workspace-switch-overlay[data-phase='departing'] .workspace-switch-progress span {
+  width: 0;
+  animation: workspace-progress-depart 540ms cubic-bezier(0.3, 0.1, 0.2, 1) both;
+}
+
+.workspace-switch-overlay[data-phase='arriving'] .workspace-switch-progress span {
+  width: 100%;
+  animation: workspace-progress-arrive 680ms ease-out both;
+}
+
+@keyframes workspace-menu-in {
+  from {
+    opacity: 0;
+    filter: blur(2px);
+    transform: translateY(-9px) scale(0.965);
+  }
+  72% {
+    opacity: 1;
+    transform: translateY(1px) scale(1.005);
+  }
+  to {
+    opacity: 1;
+    filter: blur(0);
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes workspace-veil-expand {
+  from {
+    clip-path: circle(0 at var(--switch-origin-x) var(--switch-origin-y));
+    opacity: 0.72;
+    backdrop-filter: blur(0) saturate(1);
+  }
+  to {
+    clip-path: circle(150vmax at var(--switch-origin-x) var(--switch-origin-y));
+    opacity: 1;
+    backdrop-filter: blur(9px) saturate(1.08);
+  }
+}
+
+@keyframes workspace-veil-reveal {
+  from {
+    opacity: 1;
+    backdrop-filter: blur(9px) saturate(1.08);
+  }
+  to {
+    opacity: 0;
+    visibility: hidden;
+    backdrop-filter: blur(0) saturate(1);
+  }
+}
+
+@keyframes workspace-card-in {
+  from {
+    opacity: 0;
+    transform: translateY(19px) scale(0.9);
+  }
+  72% {
+    opacity: 1;
+    transform: translateY(-2px) scale(1.015);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes workspace-card-out {
+  to {
+    opacity: 0;
+    transform: translateY(-7px) scale(0.975);
+  }
+}
+
+@keyframes workspace-source-leave {
+  to {
+    opacity: 0.48;
+    transform: translateX(-5px) scale(0.94);
+  }
+}
+
+@keyframes workspace-destination-enter {
+  from {
+    opacity: 0.35;
+    transform: translateX(10px) scale(0.82);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+  }
+}
+
+@keyframes workspace-source-arrival {
+  to {
+    opacity: 0.42;
+    transform: translateX(-4px) scale(0.94);
+  }
+}
+
+@keyframes workspace-destination-arrival {
+  from {
+    opacity: 0.55;
+    transform: translateX(6px) scale(0.9);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+  }
+}
+
+@keyframes workspace-progress-depart {
+  to {
+    width: 100%;
+  }
+}
+
+@keyframes workspace-progress-arrive {
+  to {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .group\/app-switcher[open] .workspace-switch-menu,
+  .workspace-switch-overlay,
+  .workspace-switch-card,
+  .workspace-switch-route__step,
+  .workspace-switch-progress span {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
+
+  .workspace-switch-overlay {
+    clip-path: none;
+    backdrop-filter: none;
+  }
+}
